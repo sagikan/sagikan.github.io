@@ -18,7 +18,10 @@ function getTransporter() {
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS
-      }
+      },
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 15_000
     });
   }
 
@@ -40,21 +43,46 @@ const TEMPLATES = {
   }
 };
 
-async function sendCodeEmail(to, code, kind) {
-  const template = TEMPLATES[kind];
-  const transport = getTransporter();
+function parseSender(value) {
+  const match = /^\s*(.*?)\s*<([^>]+)>\s*$/.exec(value || "");
+  return match
+    ? { name: match[1] || "Job Tracker", email: match[2].trim() }
+    : { name: "Job Tracker", email: String(value || "").trim() };
+}
 
-  if (!transport) {
-    if (isProduction) {
-      throw new Error("SMTP is not configured.");
-    }
+async function sendWithBrevo(message) {
+  const sender = parseSender(process.env.MAIL_FROM);
 
-    console.log(`[mailer] ${kind} code for ${to}: ${code}`);
-    return;
+  if (!sender.email) {
+    throw new Error("MAIL_FROM must be set to a sender verified in Brevo.");
   }
 
-  await transport.sendMail({
-    from: process.env.MAIL_FROM || `Job Tracker <${process.env.SMTP_USER}>`,
+  const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: {
+      "api-key": process.env.BREVO_API_KEY,
+      "content-type": "application/json",
+      accept: "application/json"
+    },
+    body: JSON.stringify({
+      sender,
+      to: [{ email: message.to }],
+      subject: message.subject,
+      textContent: message.text,
+      htmlContent: message.html
+    }),
+    signal: AbortSignal.timeout(15_000)
+  });
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Brevo responded ${response.status}: ${detail}`);
+  }
+}
+
+async function sendCodeEmail(to, code, kind) {
+  const template = TEMPLATES[kind];
+  const message = {
     to,
     subject: template.subject(code),
     text:
@@ -67,6 +95,26 @@ async function sendCodeEmail(to, code, kind) {
         <div style="font-size:32px;font-weight:700;letter-spacing:8px;padding:16px;text-align:center;background:#eef0ff;border-radius:12px;color:#4f46e5">${code}</div>
         <p style="margin:20px 0 0;font-size:13px;color:#5b6477">The code expires in 15 minutes. ${template.ignore}</p>
       </div>`
+  };
+
+  if (process.env.BREVO_API_KEY) {
+    return sendWithBrevo(message);
+  }
+
+  const transport = getTransporter();
+
+  if (!transport) {
+    if (isProduction) {
+      throw new Error("No email provider configured (set BREVO_API_KEY, or SMTP_USER and SMTP_PASS).");
+    }
+
+    console.log(`[mailer] ${kind} code for ${to}: ${code}`);
+    return;
+  }
+
+  await transport.sendMail({
+    ...message,
+    from: process.env.MAIL_FROM || `Job Tracker <${process.env.SMTP_USER}>`
   });
 }
 
