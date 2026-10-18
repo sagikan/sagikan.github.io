@@ -1,23 +1,26 @@
 const express = require("express");
-const db = require("./db");
-const requireAuth = require("./authMiddleware");
-const { requireCsrf } = require("./csrfMiddleware");
+const db = require("../config/db");
+const requireAuth = require("../middleware/auth");
+const { requireCsrf } = require("../middleware/csrf");
 
 const router = express.Router();
 
 router.use(requireAuth, requireCsrf);
 
 const allowedStatuses = ["Applied", "Interview", "Offer", "Rejected", "Withdrawn"];
+const allowedWorkplaceModels = ["On-site", "Hybrid", "Remote"];
 const applicationFields = {
   company: "company",
   position: "position",
+  location: "location",
+  workplace_model: "workplace_model",
   status: "status",
   job_url: "job_url",
   notes: "notes",
   applied_at: "applied_at"
 }
 const returnedFields = `
-  id, company, position, status, job_url, notes,
+  id, company, position, location, workplace_model, status, job_url, notes,
   TO_CHAR(applied_at, 'YYYY-MM-DD') AS applied_at, created_at
 `;
 
@@ -40,28 +43,35 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const { company, position, status, job_url, notes, applied_at } = req.body;
+    const { company, position, location, workplace_model, status, job_url, notes, applied_at } = req.body;
 
     if (
       typeof company !== "string" || !company.trim() ||
-      typeof position !== "string" || !position.trim()
+      typeof position !== "string" || !position.trim() ||
+      typeof location !== "string" || !location.trim()
     ) {
-      return res.status(400).json({ error: "Company and position are required." });
+      return res.status(400).json({ error: "Company, position and location are required." });
     }
 
     if (!allowedStatuses.includes(status ?? "Applied")) {
       return res.status(400).json({ error: "Invalid status." });
     }
 
+    if (workplace_model != null && !allowedWorkplaceModels.includes(workplace_model)) {
+      return res.status(400).json({ error: "Invalid workplace model." });
+    }
+
     const result = await db.query(
       `INSERT INTO applications
-         (user_id, company, position, status, job_url, notes, applied_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+         (user_id, company, position, location, workplace_model, status, job_url, notes, applied_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING ${returnedFields}`,
       [
         req.user.id,
         company.trim(),
         position.trim(),
+        location.trim(),
+        workplace_model ?? null,
         status ?? "Applied",
         job_url ?? null,
         notes ?? null,
@@ -134,6 +144,7 @@ router.patch("/:id", async (req, res) => {
       switch (field) {
         case "company":
         case "position":
+        case "location":
           if (typeof value !== "string" || !value.trim()) {
             return res.status(400).json({ error: `${field} must be a non-empty string.` });
           }
@@ -141,6 +152,11 @@ router.patch("/:id", async (req, res) => {
         case "status":
           if (!allowedStatuses.includes(value)) {
             return res.status(400).json({ error: `Invalid ${field}.` });
+          }
+          break;
+        case "workplace_model":
+          if (value !== null && !allowedWorkplaceModels.includes(value)) {
+            return res.status(400).json({ error: "Invalid workplace model." });
           }
           break;
         case "job_url":
@@ -166,7 +182,7 @@ router.patch("/:id", async (req, res) => {
     const assignments = fields.map((field, index) => {
       let value = updates[field];
 
-      if (field === "company" || field === "position") {
+      if (field === "company" || field === "position" || field === "location") {
         value = value.trim();
       }
 

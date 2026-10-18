@@ -1,12 +1,15 @@
 const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
-const { requireTrustedOrigin } = require("./csrfMiddleware");
-const authRoutes = require("./auth");
-const applicationRoutes = require("./applications");
+const { requireTrustedOrigin } = require("./middleware/csrf");
+const authRoutes = require("./routes/auth");
+const accountRoutes = require("./routes/account");
+const applicationRoutes = require("./routes/applications");
 require("dotenv").config();
 
 const app = express();
+
+app.set("trust proxy", Number(process.env.TRUST_PROXY ?? (process.env.NODE_ENV === "production" ? 1 : 0)));
 
 const allowedOrigins = [
   "http://localhost:5173",
@@ -39,6 +42,7 @@ app.get("/api/health", (req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/account", accountRoutes);
 app.use("/api/applications", applicationRoutes);
 
 const port = process.env.PORT || 3000;

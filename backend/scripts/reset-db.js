@@ -2,7 +2,7 @@
 require("dotenv").config();
 
 const readline = require("readline/promises");
-const db = require("../src/db");
+const db = require("../src/config/db");
 
 const TABLES = ["recovery_codes", "password_resets", "email_verifications", "applications", "users"];
 const { isLocalDatabase } = db;
