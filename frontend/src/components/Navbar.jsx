@@ -18,6 +18,7 @@ function Navbar({ route, authenticated, email, apiStatus, onLogout }) {
               >
                 Applications
               </a>
+              <span className="nav-divider" aria-hidden="true" />
               <a
                 href="#/account"
                 className={`nav-link nav-email ${route === "/account" ? "active" : ""}`}

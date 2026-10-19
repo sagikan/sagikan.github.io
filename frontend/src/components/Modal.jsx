@@ -17,11 +17,6 @@ function Modal({ title, onClose, children }) {
         event.preventDefault();
         onClose();
       }}
-      onClick={(event) => {
-        if (event.target === dialogRef.current) {
-          onClose();
-        }
-      }}
     >
       <div className="modal-body">
         <div className="modal-header">

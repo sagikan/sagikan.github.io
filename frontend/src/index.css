@@ -6,7 +6,7 @@
   --border-strong: #cfd4e0;
   --text: #121826;
   --text-muted: #5b6477;
-  --accent: #4f46e5;
+  --accent: #4e46e5;
   --accent-hover: #4338ca;
   --accent-soft: #eef0ff;
   --accent-2: #0ea5e9;
@@ -16,6 +16,7 @@
   --warning-text: #8a5a00;
   --shadow-sm: 0 1px 2px rgb(16 24 40 / 0.06);
   --shadow-md: 0 6px 24px -6px rgb(16 24 40 / 0.12), 0 2px 6px rgb(16 24 40 / 0.05);
+  --shadow-card-hover: 0 4px 14px -6px rgb(16 24 40 / 0.1), 0 1px 3px rgb(16 24 40 / 0.04);
   --shadow-lg: 0 24px 60px -12px rgb(30 27 75 / 0.25);
   --radius: 14px;
   --radius-sm: 10px;
@@ -58,6 +59,7 @@
     --warning-text: #f5c66b;
     --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
     --shadow-md: 0 8px 28px -8px rgb(0 0 0 / 0.6);
+    --shadow-card-hover: 0 4px 16px -6px rgb(0 0 0 / 0.45);
     --shadow-lg: 0 24px 60px -12px rgb(0 0 0 / 0.7);
 
     --applied: #7aa7ff;
@@ -79,6 +81,11 @@
 *::before,
 *::after {
   box-sizing: border-box;
+}
+
+/* Always reserve the scrollbar's space so pages keep the same width whether or not they scroll */
+html {
+  scrollbar-gutter: stable;
 }
 
 body {
@@ -214,8 +221,8 @@ textarea {
 .icon-btn {
   display: inline-grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   border-radius: 8px;
   border: 1px solid transparent;
   background: transparent;
@@ -304,6 +311,12 @@ textarea {
 .nav-link.active {
   color: var(--text);
   text-decoration: none;
+}
+
+.nav-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border-strong);
 }
 
 .nav-email {
@@ -576,17 +589,14 @@ textarea {
 }
 
 .cta-band {
-  max-width: 1080px;
-  margin: 0 20px 56px;
+  width: min(1080px, calc(100% - 40px));
+  margin: 0 auto 56px;
   padding: 48px 24px;
   border-radius: 22px;
   text-align: center;
   color: #fff;
   background: linear-gradient(135deg, #4f46e5, #7c3aed 55%, #0ea5e9);
   box-shadow: var(--shadow-lg);
-  /* Half the scrollbar width, see "Scrollbar compensation" below */
-  position: relative;
-  left: calc((100vw - 100%) / 2);
 }
 
 @media (min-width: 1120px) {
@@ -822,15 +832,31 @@ textarea {
 
 .dashboard-header {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
 }
 
 .dashboard-header h1 {
+  position: relative;
+  width: fit-content;
   font-size: 1.9rem;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  padding-left: 2px;
+}
+
+.dashboard-header h1::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2) 70%, transparent);
+  opacity: 0.6;
 }
 
 .stats {
@@ -908,12 +934,24 @@ textarea {
 .toolbar select {
   width: auto;
   cursor: pointer;
+  /* Custom arrow so it can sit further from the right edge than the browser default */
+  appearance: none;
+  padding-right: 38px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 8l5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 14px;
 }
 
 .chips {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+/* Date and status rows sit closer together than the dashboard's usual gap */
+.chips + .chips {
+  margin-top: -10px;
 }
 
 .chip {
@@ -983,7 +1021,7 @@ textarea {
 .app-card:hover {
   border-color: color-mix(in srgb, var(--status) 40%, var(--border));
   border-left-color: var(--status);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-card-hover);
 }
 
 /* Status colour for the card and its dropdown */
@@ -997,8 +1035,8 @@ textarea {
   flex-shrink: 0;
   display: grid;
   place-items: center;
-  width: 42px;
-  height: 42px;
+  width: 40px;
+  height: 40px;
   border-radius: 11px;
   background: linear-gradient(135deg, var(--accent-soft), color-mix(in srgb, var(--accent-2) 18%, var(--surface)));
   color: var(--accent);
@@ -1006,12 +1044,86 @@ textarea {
   font-size: 1.05rem;
 }
 
+/* Company initial: one colour per starting letter */
+.avatar-initial {
+  background: hsl(var(--hue) 70% 50% / 0.15);
+  color: hsl(var(--hue) 55% 42%);
+}
+
+/* Date headers between groups: a quiet label with a hairline, no boxes. Click to fold the day. */
+.day-header {
+  margin-top: 8px;
+}
+
+.day-header:first-child {
+  margin-top: 0;
+}
+
+.day-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.day-toggle:hover {
+  color: var(--text);
+}
+
+.day-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.day-chevron {
+  flex-shrink: 0;
+  transition: transform 0.15s;
+}
+
+.day-toggle[aria-expanded="false"] .day-chevron {
+  transform: rotate(-90deg);
+}
+
+/* display: flex on .app-card would otherwise override the hidden attribute */
+.app-card[hidden] {
+  display: none;
+}
+
+.day-count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  opacity: 0.7;
+}
+
+.chip-date {
+  position: relative;
+}
+
+.chip-date-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .app-main {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 /* Title, details and notes are one line each (cut off with "…") so all cards are the same height */
@@ -1340,7 +1452,7 @@ textarea {
   }
 
   .app-main {
-    flex-basis: calc(100% - 58px);
+    flex-basis: calc(100% - 60px);
   }
 
   .app-actions {
@@ -1506,9 +1618,23 @@ textarea {
 
 /* Account page */
 
-.account-page {
-  max-width: 760px;
+/* The cards step down like a staircase: the first sits at the left edge of the page, the last at the right edge,
+   and the ones between are spread evenly. The card width stays fixed, so the offsets come from the free space. */
+.account-content {
+  --card-width: 760px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
+
+.account-content > .settings-card {
+  width: min(var(--card-width), 100%);
+}
+
+.account-content > .settings-card:nth-of-type(2) { margin-left: max(0px, calc((100% - var(--card-width)) / 3)); }
+.account-content > .settings-card:nth-of-type(3) { margin-left: max(0px, calc((100% - var(--card-width)) * 2 / 3)); }
+.account-content > .settings-card:nth-of-type(4) { margin-left: max(0px, calc(100% - var(--card-width))); }
 
 .settings-card {
   background: var(--surface);
@@ -1534,13 +1660,32 @@ textarea {
   padding-left: 1px;
 }
 
+/* Title with an inline status after a vertical divider */
+.settings-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 12px;
+  margin-bottom: 4px;
+}
+
+.settings-heading h2 {
+  margin-bottom: 0;
+}
+
+.settings-divider {
+  align-self: stretch;
+  width: 1px;
+  margin: 3px 0;
+  background: var(--border-strong);
+}
+
 .settings-row .muted {
   font-size: 0.9rem;
   max-width: 44em;
 }
 
 .settings-status {
-  margin-top: 3px;
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--offer);
@@ -1595,21 +1740,6 @@ textarea {
   .settings-row {
     flex-direction: column;
   }
-}
-
-/* Scrollbar compensation: 100vw - 100% is the scrollbar width (0 when the page
-   doesn't scroll). Adding it to the left padding keeps centered content aligned
-   to the full window, so nothing shifts between short and long pages. */
-
-.navbar-inner,
-.hero,
-.features,
-.auth-page,
-.dashboard,
-.page-loader,
-.flash,
-.footer {
-  padding-left: calc(20px + 100vw - 100%);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -40,6 +40,15 @@ export function toDateInput(value) {
   return value ? String(value).slice(0, 10) : "";
 }
 
+export function localISO(date) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+export function jobDay(job) {
+  return toDateInput(job.applied_at) || (job.created_at ? localISO(new Date(job.created_at)) : "");
+}
+
 export function formatDate(value) {
   const date = toDateInput(value);
 

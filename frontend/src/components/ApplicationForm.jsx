@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { STATUSES, WORKPLACE_MODELS, toDateInput } from "../api";
+import { useMemo, useState } from "react";
+import { STATUSES, WORKPLACE_MODELS, formatDate, jobDay, localISO, toDateInput } from "../api";
 
 function initialValues(job) {
   return {
@@ -14,10 +14,31 @@ function initialValues(job) {
   };
 }
 
-function ApplicationForm({ job, onSubmit, onCancel }) {
+const normalize = (text) => text.trim().toLowerCase();
+
+function ApplicationForm({ job, applications, onSubmit, onCancel }) {
   const [values, setValues] = useState(() => initialValues(job));
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const earlierDuplicate = useMemo(() => {
+    const position = normalize(values.position);
+    const company = normalize(values.company);
+    const day = values.applied_at || localISO(new Date());
+
+    if (!position || !company) {
+      return null;
+    }
+
+    return applications
+      .filter((other) =>
+        other.id !== job?.id &&
+        normalize(other.position) === position &&
+        normalize(other.company) === company &&
+        jobDay(other) < day
+      )
+      .sort((a, b) => jobDay(b).localeCompare(jobDay(a)))[0] || null;
+  }, [applications, job, values.position, values.company, values.applied_at]);
 
   function update(field) {
     return (event) => setValues((current) => ({ ...current, [field]: event.target.value }));
@@ -50,15 +71,21 @@ function ApplicationForm({ job, onSubmit, onCancel }) {
     <form className="app-form" onSubmit={handleSubmit}>
       {error && <div className="alert alert-error" role="alert">{error}</div>}
 
+      {earlierDuplicate && (
+        <div className="alert alert-warning" role="status">
+          You already applied to this position at this company on {formatDate(jobDay(earlierDuplicate))}.
+        </div>
+      )}
+
       <div className="form-grid">
         <label className="field">
-          <span>Company</span>
-          <input value={values.company} onChange={update("company")} placeholder="Acme Inc." required autoFocus />
+          <span>Position</span>
+          <input value={values.position} onChange={update("position")} placeholder="Software Engineer" required autoFocus />
         </label>
 
         <label className="field">
-          <span>Position</span>
-          <input value={values.position} onChange={update("position")} placeholder="Software Engineer" required />
+          <span>Company</span>
+          <input value={values.company} onChange={update("company")} placeholder="Acme Inc." required />
         </label>
 
         <label className="field">

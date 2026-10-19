@@ -74,99 +74,106 @@ function Account({ csrfToken, onSessionChanged, onUnauthorized, onDeleted }) {
     <main className="dashboard account-page">
       <div className="dashboard-header">
         <div>
-          <h1>Account</h1>
+          <h1>Your Account</h1>
           <p className="muted">Manage how you sign in to your account.</p>
         </div>
       </div>
 
-      {loadError && <div className="alert alert-error" role="alert">{loadError}</div>}
-      {success && <div className="alert alert-success" role="status">{success}</div>}
+      <div className="account-content">
+        {loadError && <div className="alert alert-error" role="alert">{loadError}</div>}
+        {success && <div className="alert alert-success" role="status">{success}</div>}
 
-      <section className="settings-card">
-        <div className="settings-row">
-          <div>
-            <h2>Recovery codes</h2>
-            <p className="muted">
-              Single-use codes that let you sign in if you lose your authenticator app.
-            </p>
-            {recoveryCodesLeft !== null && (
-              <p className={recoveryCodesLeft <= LOW_RECOVERY_CODES ? "settings-status warn" : "settings-status"}>
-                {recoveryCodesLeft} unused code{recoveryCodesLeft === 1 ? "" : "s"} left
-                {recoveryCodesLeft <= LOW_RECOVERY_CODES && ". Generate new ones soon."}
+        <section className="settings-card">
+          <div className="settings-row">
+            <div>
+              <div className="settings-heading">
+                <h2>Recovery codes</h2>
+                {recoveryCodesLeft !== null && (
+                  <>
+                    <span className="settings-divider" aria-hidden="true" />
+                    <span className={recoveryCodesLeft <= LOW_RECOVERY_CODES ? "settings-status warn" : "settings-status"}>
+                      {recoveryCodesLeft} unused code{recoveryCodesLeft === 1 ? "" : "s"} left
+                      {recoveryCodesLeft <= LOW_RECOVERY_CODES && ". Generate new ones soon."}
+                    </span>
+                  </>
+                )}
+              </div>
+              <p className="muted">
+                Single-use codes that let you sign in if you lose your authenticator app.
               </p>
+            </div>
+            {panel !== "codes" && (
+              <button type="button" className="btn btn-ghost" onClick={() => openPanel("codes")}>
+                Generate new codes
+              </button>
             )}
           </div>
-          {panel !== "codes" && (
-            <button type="button" className="btn btn-ghost" onClick={() => openPanel("codes")}>
-              Generate new codes
-            </button>
+
+          {panel === "codes" && (
+            <RegenerateCodesPanel
+              request={request}
+              onCancel={() => setPanel(null)}
+              onDone={() => closePanel("New recovery codes are active. Your old codes no longer work.")}
+            />
           )}
-        </div>
+        </section>
 
-        {panel === "codes" && (
-          <RegenerateCodesPanel
-            request={request}
-            onCancel={() => setPanel(null)}
-            onDone={() => closePanel("New recovery codes are active. Your old codes no longer work.")}
-          />
-        )}
-      </section>
-
-      <section className="settings-card">
-        <div className="settings-row">
-          <div>
-            <h2>Authenticator</h2>
-            <p className="muted">
-              Got a new phone? Link a new authenticator app.
-            </p>
+        <section className="settings-card">
+          <div className="settings-row">
+            <div>
+              <h2>Authenticator</h2>
+              <p className="muted">
+                Got a new phone? Link a new authenticator app.
+              </p>
+            </div>
+            {panel !== "authenticator" && (
+              <button type="button" className="btn btn-ghost" onClick={() => openPanel("authenticator")}>
+                Set up new authenticator
+              </button>
+            )}
           </div>
-          {panel !== "authenticator" && (
-            <button type="button" className="btn btn-ghost" onClick={() => openPanel("authenticator")}>
-              Set up new authenticator
-            </button>
+
+          {panel === "authenticator" && (
+            <ResetAuthenticatorPanel
+              request={request}
+              onSessionChanged={onSessionChanged}
+              onCancel={() => setPanel(null)}
+              onDone={() => closePanel("Your new authenticator app is set up.")}
+            />
           )}
-        </div>
+        </section>
 
-        {panel === "authenticator" && (
-          <ResetAuthenticatorPanel
-            request={request}
-            onSessionChanged={onSessionChanged}
-            onCancel={() => setPanel(null)}
-            onDone={() => closePanel("Your new authenticator app is set up.")}
-          />
-        )}
-      </section>
-
-      <section className="settings-card">
-        <div className="settings-row">
-          <div>
-            <h2>Password</h2>
-            <p className="muted">
-              To change your password, log out and choose "Forgot password?" on the login page.
-            </p>
+        <section className="settings-card">
+          <div className="settings-row">
+            <div>
+              <h2>Password</h2>
+              <p className="muted">
+                To change your password, log out and choose "Forgot password?" on the login page.
+              </p>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="settings-card settings-card-danger">
-        <div className="settings-row">
-          <div>
-            <h2>Delete account</h2>
-            <p className="muted">
-              Permanently delete your account and all of your job applications.
-            </p>
+        <section className="settings-card settings-card-danger">
+          <div className="settings-row">
+            <div>
+              <h2>Delete account</h2>
+              <p className="muted">
+                Permanently delete your account and all of your job applications.
+              </p>
+            </div>
+            {panel !== "delete" && (
+              <button type="button" className="btn btn-danger-outline" onClick={() => openPanel("delete")}>
+                Delete account
+              </button>
+            )}
           </div>
-          {panel !== "delete" && (
-            <button type="button" className="btn btn-danger-outline" onClick={() => openPanel("delete")}>
-              Delete account
-            </button>
+
+          {panel === "delete" && (
+            <DeleteAccountPanel request={request} onCancel={() => setPanel(null)} onDeleted={onDeleted} />
           )}
-        </div>
-
-        {panel === "delete" && (
-          <DeleteAccountPanel request={request} onCancel={() => setPanel(null)} onDeleted={onDeleted} />
-        )}
-      </section>
+        </section>
+      </div>
     </main>
   );
 }
