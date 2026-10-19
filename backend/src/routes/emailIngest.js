@@ -7,6 +7,7 @@ const emailService = require("../services/emailService");
 const router = express.Router();
 
 const MAX_MESSAGES = 25;
+const MAX_IDS = 100;
 const LIMITS = { id: 200, from: 300, subject: 400, body: 4000 };
 
 const failureLimiter = rateLimit({
@@ -67,6 +68,22 @@ router.post("/", failureLimiter, limiter, async (req, res) => {
 
     const { user_id: userId, auto_update: autoUpdate } = sync.rows[0];
     const raw = req.body?.messages;
+
+    if (Array.isArray(req.body?.ids)) {
+      if (req.body.ids.length > MAX_IDS) {
+        return res.status(400).json({ error: `Send at most ${MAX_IDS} ids.` });
+      }
+
+      const ids = req.body.ids.filter((id) => typeof id === "string").map((id) => id.slice(0, LIMITS.id));
+      const known = await db.query(
+        `SELECT message_id FROM email_events WHERE user_id = $1 AND message_id = ANY($2)`,
+        [userId, ids]
+      );
+      const seen = new Set(known.rows.map((row) => row.message_id));
+
+      await db.query(`UPDATE email_sync SET last_ingest_at = NOW() WHERE user_id = $1`, [userId]);
+      return res.json({ unknown: ids.filter((id) => !seen.has(id)) });
+    }
 
     if (!Array.isArray(raw) || raw.length > MAX_MESSAGES) {
       return res.status(400).json({ error: `Send between 0 and ${MAX_MESSAGES} messages.` });

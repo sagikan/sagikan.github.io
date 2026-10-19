@@ -9,6 +9,8 @@ const TOKEN = "__TOKEN__";
 const FIRST_RUN_DAYS = 45; // how far back the very first run looks
 const MAX_PER_RUN = 300;
 const BATCH_SIZE = 20;
+const PAUSE_MS = 250; // between Gmail reads, to stay under Google's per-minute quota
+const RETRY_WAITS_S = [5, 15, 45]; // waits after a quota error before giving up for this run
 const QUERY =
   '(application OR applied OR candidacy OR candidate OR interview OR recruiter OR recruiting ' +
   'OR hiring OR position OR "next steps" OR assessment OR offer OR unfortunately OR regret) ' +
@@ -16,7 +18,7 @@ const QUERY =
 
 // Run this once. It checks the connection, then schedules a sync every 12 hours.
 function setup() {
-  post_([]);
+  post_({ messages: [] });
 
   ScriptApp.getProjectTriggers().forEach(function (trigger) {
     ScriptApp.deleteTrigger(trigger);
@@ -35,12 +37,28 @@ function sync() {
   // cover the gap.
   const after = lastRun ? lastRun - 3600 : startedAt - FIRST_RUN_DAYS * 86400;
 
-  const ids = listIds_(QUERY + " after:" + after);
-  let complete = ids.length < MAX_PER_RUN;
+  const listed = listIds_(QUERY + " after:" + after);
+  // Only read emails the Job Tracker hasn't seen yet, which saves Gmail quota on repeat runs.
+  const ids = unknownIds_(listed);
+  let complete = listed.length < MAX_PER_RUN;
 
-  for (let start = 0; start < ids.length; start += BATCH_SIZE) {
-    const messages = ids.slice(start, start + BATCH_SIZE).map(readMessage_);
-    const result = post_(messages);
+  for (let start = 0; start < ids.length && complete !== null; start += BATCH_SIZE) {
+    const messages = [];
+
+    for (const id of ids.slice(start, start + BATCH_SIZE)) {
+      const message = readMessage_(id);
+
+      if (!message) {
+        // Gmail's quota is used up for now: send what was read, and let the next run continue
+        complete = null;
+        break;
+      }
+
+      messages.push(message);
+      Utilities.sleep(PAUSE_MS);
+    }
+
+    const result = post_({ messages: messages });
 
     if (result.failed > 0 || result.deferred > 0) {
       complete = false;
@@ -48,7 +66,7 @@ function sync() {
   }
 
   // Only move the window forward once everything was handled, so nothing is skipped.
-  if (complete) {
+  if (complete === true) {
     properties.setProperty("lastRun", String(startedAt));
   }
 }
@@ -68,8 +86,43 @@ function listIds_(query) {
   return ids.slice(0, MAX_PER_RUN);
 }
 
+// Asks the Job Tracker which of these emails it has not processed yet.
+function unknownIds_(ids) {
+  let unknown = [];
+
+  for (let start = 0; start < ids.length; start += 100) {
+    unknown = unknown.concat(post_({ ids: ids.slice(start, start + 100) }).unknown);
+  }
+
+  return unknown;
+}
+
+// Returns null when Gmail's quota stays exhausted after a few waits.
+function getMessage_(id) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return Gmail.Users.Messages.get("me", id, { format: "full" });
+    } catch (err) {
+      if (!/quota|rate limit|backend error/i.test(String(err))) {
+        throw err;
+      }
+
+      if (attempt >= RETRY_WAITS_S.length) {
+        return null;
+      }
+
+      Utilities.sleep(RETRY_WAITS_S[attempt] * 1000);
+    }
+  }
+}
+
 function readMessage_(id) {
-  const message = Gmail.Users.Messages.get("me", id, { format: "full" });
+  const message = getMessage_(id);
+
+  if (!message) {
+    return null;
+  }
+
   const headers = {};
 
   (message.payload.headers || []).forEach(function (header) {
@@ -125,12 +178,12 @@ function stripHtml_(html) {
     .replace(/&amp;/g, "&");
 }
 
-function post_(messages) {
+function post_(payload) {
   const response = UrlFetchApp.fetch(API_URL + "/api/email/ingest", {
     method: "post",
     contentType: "application/json",
     headers: { Authorization: "Bearer " + TOKEN },
-    payload: JSON.stringify({ messages: messages }),
+    payload: JSON.stringify(payload),
     muteHttpExceptions: true
   });
 
