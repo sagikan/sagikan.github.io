@@ -281,7 +281,7 @@ function EmailSyncCard({ status, panel, request, openPanel, setPanel, closePanel
             <span>
               <strong>Update statuses automatically</strong>
               <small className="muted">
-                Only onfident matches are applied and are easily reversible.
+                Only confident matches are applied and are easily reversible.
                 Everything else waits for your review.
               </small>
             </span>
