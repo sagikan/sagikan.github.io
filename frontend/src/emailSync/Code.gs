@@ -84,7 +84,7 @@ function readMessage_(id) {
     date: new Date(Number(message.internalDate)).toISOString(),
     from: headers["from"] || "",
     subject: headers["subject"] || "",
-    body: plain ? decode_(plain) : html ? stripHtml_(decode_(html)) : message.snippet || ""
+    body: (plain ? decode_(plain) : html ? stripHtml_(decode_(html)) : "") || message.snippet || ""
   };
 }
 
@@ -106,8 +106,15 @@ function findPart_(part, mimeType) {
   return null;
 }
 
+// Gmail sends the body as base64url without the "=" padding that Apps Script insists on.
 function decode_(data) {
-  return Utilities.newBlob(Utilities.base64DecodeWebSafe(data)).getDataAsString("UTF-8");
+  const padded = data + "===".slice((data.length + 3) % 4);
+
+  try {
+    return Utilities.newBlob(Utilities.base64DecodeWebSafe(padded)).getDataAsString("UTF-8");
+  } catch (err) {
+    return "";
+  }
 }
 
 function stripHtml_(html) {
