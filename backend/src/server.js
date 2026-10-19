@@ -5,6 +5,8 @@ const { requireTrustedOrigin } = require("./middleware/csrf");
 const authRoutes = require("./routes/auth");
 const accountRoutes = require("./routes/account");
 const applicationRoutes = require("./routes/applications");
+const emailRoutes = require("./routes/email");
+const emailIngestRoutes = require("./routes/emailIngest");
 require("dotenv").config();
 
 const app = express();
@@ -26,6 +28,8 @@ app.use(cors({
   credentials: true
 }));
 
+app.use("/api/email/ingest", express.json({ limit: "1mb" }), emailIngestRoutes);
+
 app.use(express.json({ limit: "100kb" }));
 app.use(cookieParser());
 
@@ -44,6 +48,7 @@ app.get("/api/health", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/account", accountRoutes);
 app.use("/api/applications", applicationRoutes);
+app.use("/api/email", emailRoutes);
 
 const port = process.env.PORT || 3000;
 

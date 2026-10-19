@@ -73,3 +73,54 @@ CREATE TABLE IF NOT EXISTS recovery_codes (
 
 CREATE INDEX IF NOT EXISTS recovery_codes_user_id_idx
     ON recovery_codes(user_id);
+
+CREATE TABLE IF NOT EXISTS email_sync (
+    user_id BIGINT PRIMARY KEY REFERENCES users(id)
+        ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    auto_update BOOLEAN NOT NULL DEFAULT FALSE,
+    last_ingest_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS email_events (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id)
+        ON DELETE CASCADE,
+    message_id TEXT NOT NULL,
+    received_at TIMESTAMPTZ,
+    sender TEXT,
+    subject TEXT,
+    snippet TEXT,
+    event_type TEXT,
+    company TEXT,
+    position TEXT,
+    confidence REAL,
+    suggested_status TEXT
+        CHECK (suggested_status IN (
+            'Applied',
+            'Interview',
+            'Offer',
+            'Rejected',
+            'Withdrawn'
+        )),
+    application_id BIGINT REFERENCES applications(id)
+        ON DELETE SET NULL,
+    candidate_ids BIGINT[] NOT NULL DEFAULT '{}',
+    previous_status TEXT,
+    state TEXT NOT NULL
+        CHECK (state IN (
+            'ignored',
+            'pending',
+            'auto_applied',
+            'accepted',
+            'dismissed',
+            'undone'
+        )),
+    resolved_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (user_id, message_id)
+);
+
+CREATE INDEX IF NOT EXISTS email_events_user_state_idx
+    ON email_events(user_id, state);
