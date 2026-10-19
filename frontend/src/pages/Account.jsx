@@ -1,15 +1,20 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import MfaSetupStep from "../components/auth/MfaSetupStep";
 import PasswordInput from "../components/auth/PasswordInput";
 import RecoveryCodesStep from "../components/auth/RecoveryCodesStep";
 import SecondFactorInput from "../components/auth/SecondFactorInput";
-import { apiRequest } from "../api";
+import { API_URL, apiRequest } from "../api";
+import appsScript from "../emailSync/Code.gs?raw";
+import appsScriptManifest from "../emailSync/appsscript.json?raw";
 import { emptySecondFactor, isSecondFactorComplete, secondFactorBody } from "../utils/authForms";
 
 const LOW_RECOVERY_CODES = 3;
+const COPIED_LABEL_MS = 2000;
+const NO_EMAIL_SYNC = { connected: false, autoUpdate: false, lastIngestAt: null, classifierConfigured: true };
 
 function Account({ csrfToken, onSessionChanged, onUnauthorized, onDeleted }) {
   const [recoveryCodesLeft, setRecoveryCodesLeft] = useState(null);
+  const [emailSync, setEmailSync] = useState(NO_EMAIL_SYNC);
   const [loadError, setLoadError] = useState("");
   const [panel, setPanel] = useState(null);
   const [success, setSuccess] = useState("");
@@ -51,6 +56,12 @@ function Account({ csrfToken, onSessionChanged, onUnauthorized, onDeleted }) {
         setLoadError("");
       } else {
         setLoadError(result.error);
+      }
+    });
+
+    request("/api/email/status").then((result) => {
+      if (!ignore && result.ok) {
+        setEmailSync(result.data);
       }
     });
 
@@ -143,6 +154,15 @@ function Account({ csrfToken, onSessionChanged, onUnauthorized, onDeleted }) {
           )}
         </section>
 
+        <EmailSyncCard
+          status={emailSync}
+          panel={panel}
+          request={request}
+          openPanel={openPanel}
+          setPanel={setPanel}
+          closePanel={closePanel}
+        />
+
         <section className="settings-card">
           <div className="settings-row">
             <div>
@@ -175,6 +195,248 @@ function Account({ csrfToken, onSessionChanged, onUnauthorized, onDeleted }) {
         </section>
       </div>
     </main>
+  );
+}
+
+function lastSyncLabel(lastIngestAt) {
+  if (!lastIngestAt) {
+    return "Waiting for the first sync";
+  }
+
+  return `Last synced ${new Date(lastIngestAt).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  })}`;
+}
+
+function EmailSyncCard({ status, panel, request, openPanel, setPanel, closePanel }) {
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function toggleAutoUpdate(event) {
+    setError("");
+    setSaving(true);
+
+    const result = await request("/api/email/settings", { autoUpdate: event.target.checked });
+
+    setSaving(false);
+
+    if (result.ok) {
+      closePanel();
+    } else {
+      setError(result.error);
+    }
+  }
+
+  async function disconnect() {
+    setError("");
+
+    const result = await request("/api/email/disconnect", {});
+
+    if (result.ok) {
+      closePanel("Email sync is disconnected. You can delete the script from your Google account.");
+    } else {
+      setError(result.error);
+    }
+  }
+
+  return (
+    <section className="settings-card">
+      <div className="settings-row">
+        <div>
+          <div className="settings-heading">
+            <h2>Email sync</h2>
+            {status.connected && (
+              <>
+                <span className="settings-divider" aria-hidden="true" />
+                <span className="settings-status">{lastSyncLabel(status.lastIngestAt)}</span>
+              </>
+            )}
+          </div>
+          <p className="muted">
+            For reading your job-related emails and suggesting status updates.
+          </p>
+        </div>
+        {panel !== "email" && (
+          <button type="button" className="btn btn-ghost" onClick={() => openPanel("email")}>
+            {status.connected ? "Get a new script" : "Set up email sync"}
+          </button>
+        )}
+      </div>
+
+      {!status.classifierConfigured && (
+        <div className="alert alert-warning" role="status">
+          No API key configured.
+        </div>
+      )}
+
+      {error && <div className="alert alert-error" role="alert">{error}</div>}
+
+      {status.connected && panel !== "email" && (
+        <div className="settings-panel">
+          <label className="switch-row">
+            <input type="checkbox" checked={status.autoUpdate} disabled={saving} onChange={toggleAutoUpdate} />
+            <span>
+              <strong>Update statuses automatically</strong>
+              <small className="muted">
+                Only onfident matches are applied and are easily reversible.
+                Everything else waits for your review.
+              </small>
+            </span>
+          </label>
+
+          {panel === "emailDisconnect" ? (
+            <div className="form-actions">
+              <span className="muted">Disconnect and delete all email suggestions?</span>
+              <button type="button" className="btn btn-ghost" onClick={() => setPanel(null)}>Keep</button>
+              <button type="button" className="btn btn-danger" onClick={disconnect}>Disconnect</button>
+            </div>
+          ) : (
+            <div className="form-actions">
+              <button type="button" className="btn btn-danger-outline" onClick={() => openPanel("emailDisconnect")}>
+                Disconnect
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {panel === "email" && (
+        <EmailSyncSetupPanel
+          request={request}
+          replacing={status.connected}
+          onCancel={() => setPanel(null)}
+          onDone={() => closePanel("Email sync is set up. The first sync runs as soon as you start the script.")}
+        />
+      )}
+    </section>
+  );
+}
+
+function CopyBlock({ label, text }) {
+  const [copied, setCopied] = useState(false);
+  const resetTimer = useRef(null);
+
+  useEffect(() => () => clearTimeout(resetTimer.current), []);
+
+  async function copy() {
+    clearTimeout(resetTimer.current);
+
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      resetTimer.current = setTimeout(() => setCopied(false), COPIED_LABEL_MS);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <div className="copy-block">
+      <div className="copy-block-header">
+        <span>{label}</span>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={copy}>
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+      <textarea readOnly value={text} rows={6} spellCheck={false} onFocus={(event) => event.target.select()} />
+    </div>
+  );
+}
+
+function EmailSyncSetupPanel({ request, replacing, onCancel, onDone }) {
+  const [confirmed, setConfirmed] = useState(!replacing);
+  const [error, setError] = useState("");
+  const [token, setToken] = useState("");
+  const started = useRef(false);
+
+  // Creating a token replaces the old one, so start straight away unless a working script would be replaced
+  useEffect(() => {
+    if (!confirmed || started.current) {
+      return;
+    }
+
+    started.current = true;
+
+    request("/api/email/token", {}).then((result) => {
+      if (result.ok) {
+        setToken(result.data.token);
+      } else {
+        setError(result.error);
+        started.current = false;
+      }
+    });
+  }, [confirmed, request]);
+
+  if (token) {
+    const script = appsScript.replace("__API_URL__", API_URL || "").replace("__TOKEN__", token);
+
+    return (
+      <div className="settings-panel">
+        <ol className="setup-steps">
+          <li>
+            Open <a href="https://script.google.com/home/projects/create" target="_blank" rel="noreferrer">script.google.com</a>{" "}
+            (signed in to the Gmail account you apply with) and create a new project.
+          </li>
+          <li>
+            In <strong>Project Settings</strong> (the gear), tick <strong>Show "appsscript.json" manifest file in editor</strong>.
+            Back in the editor, open <strong>appsscript.json</strong> and replace its contents with:
+            <CopyBlock label="appsscript.json" text={appsScriptManifest} />
+          </li>
+          <li>
+            Open <strong>Code.gs</strong> and replace its contents with the script below. It contains your private
+            token, so don't share it.
+            <CopyBlock label="Code.gs" text={script} />
+          </li>
+          <li>
+            Choose the <strong>setup</strong> function in the toolbar and click <strong>Run</strong>. Google will ask for
+            permission to read your mail. It shows an "unverified app" warning because the script is yours: click{" "}
+            <strong>Advanced → Go to project (unsafe)</strong>.
+          </li>
+        </ol>
+        <p className="muted">
+          <b>That's it!</b> It checks your mail every 12 hours (the first run covers the last 45 days). This token is only shown
+          now. If you lose it, generate a new script, which stops the old one from working.
+        </p>
+        <div className="form-actions">
+          <button type="button" className="btn btn-primary" onClick={onDone}>Done</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!confirmed) {
+    return (
+      <div className="settings-panel">
+        <p className="muted">
+          This replaces your current script. It stops working until you install the new one.
+        </p>
+        <div className="form-actions">
+          <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+          <button type="button" className="btn btn-primary" onClick={() => setConfirmed(true)}>Create new script</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="settings-panel">
+      {error ? (
+        <>
+          <div className="alert alert-error" role="alert">{error}</div>
+          <div className="form-actions">
+            <button type="button" className="btn btn-ghost" onClick={onCancel}>Close</button>
+          </div>
+        </>
+      ) : (
+        <div className="page-loader" aria-live="polite">
+          <span className="spinner" aria-hidden="true" />
+          Creating your script…
+        </div>
+      )}
+    </div>
   );
 }
 

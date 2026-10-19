@@ -1,3 +1,4 @@
+/* Theme: colours, shadows and radii */
 :root {
   --bg: #f7f8fb;
   --surface: #ffffff;
@@ -77,13 +78,13 @@
   }
 }
 
+/* Base elements */
 *,
 *::before,
 *::after {
   box-sizing: border-box;
 }
 
-/* Always reserve the scrollbar's space so pages keep the same width whether or not they scroll */
 html {
   scrollbar-gutter: stable;
 }
@@ -859,6 +860,7 @@ textarea {
   opacity: 0.6;
 }
 
+/* Stat cards and pipeline */
 .stats {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -908,6 +910,7 @@ textarea {
 .seg-rejected { background: var(--rejected); }
 .seg-withdrawn { background: var(--withdrawn); }
 
+/* Toolbar */
 .toolbar {
   display: flex;
   gap: 12px;
@@ -934,7 +937,6 @@ textarea {
 .toolbar select {
   width: auto;
   cursor: pointer;
-  /* Custom arrow so it can sit further from the right edge than the browser default */
   appearance: none;
   padding-right: 38px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 8l5 5 5-5'/%3E%3C/svg%3E");
@@ -943,13 +945,13 @@ textarea {
   background-size: 14px;
 }
 
+/* Filter chips */
 .chips {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-/* Date and status rows sit closer together than the dashboard's usual gap */
 .chips + .chips {
   margin-top: -10px;
 }
@@ -994,6 +996,7 @@ textarea {
   color: inherit;
 }
 
+/* Application cards */
 .app-list {
   list-style: none;
   margin: 0;
@@ -1024,13 +1027,14 @@ textarea {
   box-shadow: var(--shadow-card-hover);
 }
 
-/* Status colour for the card and its dropdown */
+/* Status colours */
 .status-applied { --status: var(--applied); --status-soft: var(--applied-soft); }
 .status-interview { --status: var(--interview); --status-soft: var(--interview-soft); }
 .status-offer { --status: var(--offer); --status-soft: var(--offer-soft); }
 .status-rejected { --status: var(--rejected); --status-soft: var(--rejected-soft); }
 .status-withdrawn { --status: var(--withdrawn); --status-soft: var(--withdrawn-soft); }
 
+/* Company avatars */
 .avatar {
   flex-shrink: 0;
   display: grid;
@@ -1044,13 +1048,12 @@ textarea {
   font-size: 1.05rem;
 }
 
-/* Company initial: one colour per starting letter */
 .avatar-initial {
   background: hsl(var(--hue) 70% 50% / 0.15);
   color: hsl(var(--hue) 55% 42%);
 }
 
-/* Date headers between groups: a quiet label with a hairline, no boxes. Click to fold the day. */
+/* Date headers */
 .day-header {
   margin-top: 8px;
 }
@@ -1094,7 +1097,6 @@ textarea {
   transform: rotate(-90deg);
 }
 
-/* display: flex on .app-card would otherwise override the hidden attribute */
 .app-card[hidden] {
   display: none;
 }
@@ -1103,6 +1105,232 @@ textarea {
   font-variant-numeric: tabular-nums;
   font-weight: 500;
   opacity: 0.7;
+}
+
+/* Email review: sections above the list */
+.review {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.review-header {
+  margin: 0;
+  font-size: inherit;
+  line-height: normal;
+}
+
+.review .day-toggle {
+  color: var(--interview);
+}
+
+.review-muted .day-toggle {
+  color: var(--text-muted);
+}
+
+.review .day-toggle:hover {
+  color: var(--text);
+}
+
+.mail-icon {
+  flex-shrink: 0;
+}
+
+.status-pill {
+  flex-shrink: 0;
+  padding: 1px 9px;
+  border: 1px solid color-mix(in srgb, var(--status) 25%, transparent);
+  border-radius: 999px;
+  background: var(--status-soft);
+  color: var(--status);
+  font-size: 0.76rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* Email review: suggestion panel on a card */
+.app-suggestion {
+  --slant: 18px;
+  position: relative;
+  isolation: isolate;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  box-sizing: border-box;
+  width: 200px;
+  gap: 8px;
+  flex-shrink: 0;
+  margin: -11px -13px -11px 0;
+  padding: 0 15px 0 calc(var(--slant) + 10px);
+}
+
+.app-suggestion::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: color-mix(in srgb, var(--status) 16%, var(--surface));
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--status) 22%, var(--border));
+  border-left: 0;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  clip-path: polygon(var(--slant) 0, 100% 0, 100% 100%, 0 100%);
+  transition: border-color 0.15s;
+}
+
+.app-card:hover .app-suggestion::before {
+  border-color: color-mix(in srgb, var(--status) 40%, var(--border));
+}
+
+.app-suggestion .status-pill {
+  margin-right: auto;
+}
+
+.app-card > .status-pill {
+  margin-right: -6px;
+}
+
+.app-suggestion:hover,
+.app-suggestion:focus-within {
+  z-index: 10;
+}
+
+/* Email review: mail badge and hover details */
+.app-suggestion .mail-hint {
+  position: absolute;
+  top: 0;
+  right: 0;
+  transform: translate(25%, -25%);
+  width: 26px;
+  height: 26px;
+  border: 1.5px solid var(--status);
+  background: color-mix(in srgb, var(--status) 16%, var(--surface));
+  box-shadow: var(--shadow-sm);
+  color: var(--status);
+}
+
+.app-suggestion .mail-hint:hover,
+.app-suggestion .mail-hint:focus-visible {
+  background: color-mix(in srgb, var(--status) 28%, var(--surface));
+}
+
+.app-suggestion .mail-hint:hover,
+.app-suggestion .mail-hint:focus {
+  z-index: 40;
+}
+
+.mail-hint {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: var(--interview);
+  cursor: help;
+}
+
+.mail-hint:hover,
+.mail-hint:focus-visible {
+  background: var(--warning-soft);
+}
+
+.mail-popover {
+  display: none;
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  right: 0;
+  width: max-content;
+  max-width: min(320px, 80vw);
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 400;
+  line-height: 1.4;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.mail-popover span {
+  color: var(--text-muted);
+}
+
+.mail-hint:hover .mail-popover,
+.mail-hint:focus .mail-popover {
+  display: flex;
+}
+
+/* Email review: accept, dismiss and undo buttons */
+.decision {
+  display: flex;
+  gap: 6px;
+}
+
+.decision-btn {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  line-height: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.decision-btn.accept {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.decision-btn.accept:hover:not(:disabled) {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+}
+
+.decision-btn.dismiss:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.decision-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Email review: emails without a matching application */
+.unmatched-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 12px;
+  border: 1px dashed color-mix(in srgb, var(--interview) 45%, var(--border));
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+@media (max-width: 640px) {
+  .unmatched-card {
+    flex-wrap: wrap;
+  }
 }
 
 .chip-date {
@@ -1126,7 +1354,7 @@ textarea {
   gap: 2px;
 }
 
-/* Title, details and notes are one line each (cut off with "…") so all cards are the same height */
+/* Application card text */
 
 .app-title {
   display: flex;
@@ -1154,7 +1382,6 @@ textarea {
   overflow: hidden;
 }
 
-/* Date, tag and link keep their size; company and location shrink first */
 .app-meta > * {
   flex-shrink: 0;
 }
@@ -1194,8 +1421,6 @@ textarea {
   border-radius: 999px;
   border: 1px solid var(--border-strong);
   white-space: nowrap;
-  /* Subtract the 2px vertical padding + 2px border so the tag is exactly one text line tall
-     and doesn't make cards with a tag taller than cards without one */
   line-height: calc(1.55em - 4px);
 }
 
@@ -1218,6 +1443,7 @@ textarea {
   opacity: 0.6;
 }
 
+/* Application card actions */
 .app-actions {
   display: flex;
   align-items: center;
@@ -1226,7 +1452,6 @@ textarea {
 }
 
 .status-select {
-  /* Same width for every status so the action buttons line up across cards */
   width: 120px;
   padding: 6px 10px;
   margin-right: 4px;
@@ -1239,7 +1464,6 @@ textarea {
   cursor: pointer;
 }
 
-/* Keep the option list readable; only the closed control takes the status colour */
 .status-select option {
   background: var(--surface);
   color: var(--text);
@@ -1254,6 +1478,7 @@ textarea {
   font-weight: 500;
 }
 
+/* Status badges */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -1278,6 +1503,7 @@ textarea {
 .badge-rejected { color: var(--rejected); background: var(--rejected-soft); }
 .badge-withdrawn { color: var(--withdrawn); background: var(--withdrawn-soft); }
 
+/* Empty and loading states */
 .empty-state {
   text-align: center;
   padding: 56px 20px;
@@ -1399,6 +1625,11 @@ textarea {
   padding-top: 4px;
 }
 
+.form-actions span {
+  display: inline-flex;
+  align-items: center;
+}
+
 /* Responsive */
 
 @media (max-width: 960px) {
@@ -1426,7 +1657,6 @@ textarea {
     display: none;
   }
 
-  /* The email doubles as the Account link, so shorten it instead of hiding it */
   .nav-email {
     max-width: 110px;
   }
@@ -1455,11 +1685,30 @@ textarea {
     flex-basis: calc(100% - 60px);
   }
 
-  .app-actions {
+  .app-actions,
+  .app-suggestion {
     width: 100%;
     justify-content: flex-end;
     padding-top: 8px;
     border-top: 1px solid var(--border);
+  }
+
+  .app-suggestion {
+    margin: 0;
+    padding: 8px 10px;
+    border-top: 0;
+    border-radius: var(--radius-sm);
+  }
+
+  .app-suggestion::before {
+    border: 0;
+    border-radius: var(--radius-sm);
+    clip-path: none;
+  }
+
+  .app-suggestion .mail-hint {
+    position: relative;
+    transform: none;
   }
 
   .form-grid {
@@ -1527,7 +1776,6 @@ textarea {
   height: 204px;
   padding: 12px;
   border-radius: var(--radius);
-  /* QR codes need a light background to scan reliably, even in dark mode */
   background: #fff;
   border: 1px solid var(--border);
 }
@@ -1618,8 +1866,6 @@ textarea {
 
 /* Account page */
 
-/* The cards step down like a staircase: the first sits at the left edge of the page, the last at the right edge,
-   and the ones between are spread evenly. The card width stays fixed, so the offsets come from the free space. */
 .account-content {
   --card-width: 760px;
   width: 100%;
@@ -1632,9 +1878,10 @@ textarea {
   width: min(var(--card-width), 100%);
 }
 
-.account-content > .settings-card:nth-of-type(2) { margin-left: max(0px, calc((100% - var(--card-width)) / 3)); }
-.account-content > .settings-card:nth-of-type(3) { margin-left: max(0px, calc((100% - var(--card-width)) * 2 / 3)); }
-.account-content > .settings-card:nth-of-type(4) { margin-left: max(0px, calc(100% - var(--card-width))); }
+.account-content > .settings-card:nth-of-type(2) { margin-left: max(0px, calc((100% - var(--card-width)) / 4)); }
+.account-content > .settings-card:nth-of-type(3) { margin-left: max(0px, calc((100% - var(--card-width)) * 2 / 4)); }
+.account-content > .settings-card:nth-of-type(4) { margin-left: max(0px, calc((100% - var(--card-width)) * 3 / 4)); }
+.account-content > .settings-card:nth-of-type(5) { margin-left: max(0px, calc(100% - var(--card-width))); }
 
 .settings-card {
   background: var(--surface);
@@ -1660,7 +1907,7 @@ textarea {
   padding-left: 1px;
 }
 
-/* Title with an inline status after a vertical divider */
+/* Settings card heading */
 .settings-heading {
   display: flex;
   align-items: center;
@@ -1693,6 +1940,69 @@ textarea {
 
 .settings-status.warn {
   color: var(--interview);
+}
+
+/* Email sync settings */
+.switch-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.switch-row input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--accent);
+}
+
+.switch-row span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.switch-row small {
+  font-size: 0.85rem;
+}
+
+.setup-steps {
+  margin: 0;
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-size: 0.92rem;
+}
+
+.copy-block {
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.copy-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px 4px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.copy-block textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 0;
+  border-top: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font: 0.78rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  padding: 10px 12px;
+  resize: vertical;
 }
 
 .settings-card-danger {
@@ -1742,6 +2052,7 @@ textarea {
   }
 }
 
+/* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -1749,4 +2060,43 @@ textarea {
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* Email review: choosing between several applications */
+.choices-more {
+  position: relative;
+}
+
+.choices-menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 200px;
+  max-width: 280px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+.choices-menu-item {
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.choices-menu-item:hover:not(:disabled) {
+  background: var(--surface-2);
 }

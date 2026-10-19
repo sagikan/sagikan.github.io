@@ -8,6 +8,8 @@ import Applications from "./pages/Applications";
 import Account from "./pages/Account";
 
 const PROTECTED_ROUTES = ["/applications", "/account"];
+const NO_EMAIL_UPDATES = { pending: [], recent: [] };
+const EMAIL_REFRESH_MS = 2 * 60 * 1000;
 
 const API_LABELS = {
   checking: "Connecting…",
@@ -23,13 +25,25 @@ function App() {
   const [authenticated, setAuthenticated] = useState(false);
   const [email, setEmail] = useState("");
   const [applications, setApplications] = useState([]);
+  const [emailUpdates, setEmailUpdates] = useState(NO_EMAIL_UPDATES);
   const [error, setError] = useState("");
   const [flash, setFlash] = useState(null);
 
   const clearSession = useCallback(() => {
     setAuthenticated(false);
     setApplications([]);
+    setEmailUpdates(NO_EMAIL_UPDATES);
     setCsrfToken("");
+  }, []);
+
+  const loadEmailUpdates = useCallback(async () => {
+    try {
+      const { response, data } = await apiRequest("/api/email/events");
+
+      if (response.ok) {
+        setEmailUpdates(data);
+      }
+    } catch {}
   }, []);
 
   async function refreshCsrfToken() {
@@ -68,6 +82,7 @@ function App() {
       setApplications(data);
       setAuthenticated(true);
       setError("");
+      loadEmailUpdates();
     } catch (err) {
       setError(err.message);
     }
@@ -112,6 +127,26 @@ function App() {
       redirect("/applications");
     }
   }, [route, authenticated, booting]);
+
+  useEffect(() => {
+    if (!authenticated || route !== "/applications") {
+      return;
+    }
+
+    const refresh = () => {
+      if (!document.hidden) {
+        loadEmailUpdates();
+      }
+    };
+
+    const timer = setInterval(refresh, EMAIL_REFRESH_MS);
+    document.addEventListener("visibilitychange", refresh);
+
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [authenticated, route, loadEmailUpdates]);
 
   async function completeLogin(userEmail) {
     setFlash(null);
@@ -205,6 +240,33 @@ function App() {
     }
   }
 
+  async function resolveEmailUpdate(id, action, body = {}) {
+    try {
+      const { response, data } = await apiRequest(`/api/email/events/${id}/${action}`, {
+        method: "POST",
+        body,
+        csrfToken
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          clearSession();
+        }
+
+        return data.error || "Could not update. Please try again.";
+      }
+
+      if (data.application) {
+        setApplications((current) => current.map((job) => (job.id === data.application.id ? data.application : job)));
+      }
+
+      await loadEmailUpdates();
+      return "";
+    } catch {
+      return "Could not reach the server. Please try again.";
+    }
+  }
+
   async function handleQuickStatus(id, status) {
     const message = await saveApp(id, { status });
     setError(message);
@@ -241,6 +303,8 @@ function App() {
     page = (
       <Applications
         applications={applications}
+        emailUpdates={emailUpdates}
+        onResolveEmailUpdate={resolveEmailUpdate}
         email={email}
         error={error}
         onDismissError={() => setError("")}
@@ -279,7 +343,7 @@ function App() {
         <div className={`api-pill api-${apiStatus}`} title={API_LABELS[apiStatus]}>
           <span className="api-dot" aria-hidden="true" />
         </div>
-        © {new Date().getFullYear()} Sagi's Job Tracker
+        © {new Date().getFullYear()} Job Tracker
       </footer>
     </div>
   );

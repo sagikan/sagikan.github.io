@@ -138,7 +138,7 @@ function ApplicationForm({ job, applications, onSubmit, onCancel }) {
           Cancel
         </button>
         <button type="submit" className="btn btn-primary" disabled={saving}>
-          {saving ? "Saving…" : job ? "Save changes" : "Add application"}
+          {saving ? "Saving…" : job?.id ? "Save changes" : "Add application"}
         </button>
       </div>
     </form>
