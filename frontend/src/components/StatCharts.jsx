@@ -104,7 +104,7 @@ export function PulseChart({ applications }) {
         <span className="info">
           <button type="button" className="info-button" aria-label="About this graph" aria-describedby="pulse-help">?</button>
           <span id="pulse-help" role="tooltip" className="info-tip">
-            How many applications you sent over time?
+            How many applications have you sent over time?
           </span>
         </span>
       </span>
