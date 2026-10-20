@@ -1,0 +1,58 @@
+name: Back up database
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+env:
+  PG_VERSION: 18
+  KEEP_DAYS: 30
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install the matching pg_dump
+        run: |
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y "postgresql-client-${PG_VERSION}"
+
+      - name: Check out the private backup repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.BACKUP_REPO }}
+          ssh-key: ${{ secrets.BACKUP_DEPLOY_KEY }}
+          path: backups
+
+      - name: Dump and encrypt the database
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          file="backups/job-tracker-$(date -u +%Y-%m-%d_%H%M).sql.gz.gpg"
+          "/usr/lib/postgresql/${PG_VERSION}/bin/pg_dump" --no-owner --no-privileges "$DATABASE_URL" \
+            | gzip \
+            | gpg --batch --yes --pinentry-mode loopback --symmetric --cipher-algo AES256 \
+                --passphrase "$BACKUP_PASSPHRASE" --output "$file"
+          test -s "$file"
+
+      - name: Delete old backups and push
+        working-directory: backups
+        run: |
+          set -euo pipefail
+          find . -maxdepth 1 -name 'job-tracker-*.sql.gz.gpg' -mtime "+${KEEP_DAYS}" -delete
+          git config user.name "backup-bot"
+          git config user.email "backup-bot@users.noreply.github.com"
+          git add -A
+          git commit -m "Backup $(date -u +%Y-%m-%d)"
+          git push

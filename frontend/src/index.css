@@ -839,6 +839,11 @@ textarea {
   flex-wrap: wrap;
 }
 
+.dashboard-actions {
+  display: flex;
+  gap: 10px;
+}
+
 .dashboard-header h1 {
   position: relative;
   width: fit-content;
