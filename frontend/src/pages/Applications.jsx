@@ -41,6 +41,11 @@ function daysAgoISO(days) {
   return localISO(date);
 }
 
+function hoursAgo(timestamp) {
+  const hours = Math.floor((Date.now() - new Date(timestamp).getTime()) / 3600000);
+  return hours < 1 ? "<1h" : `${hours}h`;
+}
+
 function dayLabel(day) {
   if (day === daysAgoISO(0)) return "Today";
   if (day === daysAgoISO(1)) return "Yesterday";
@@ -103,7 +108,7 @@ function Applications({
   const [collapsedDays, setCollapsedDays] = useState([]);
   const [resolvingId, setResolvingId] = useState(null);
   const [reviewError, setReviewError] = useState("");
-  const [reviewOpen, setReviewOpen] = useState(true);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
   const [moreOpenId, setMoreOpenId] = useState(null);
   const dateInput = useRef(null);
@@ -603,7 +608,7 @@ function Applications({
               onClick={() => setActivityOpen((open) => !open)}
             >
               <MailIcon />
-              <span>Recent email updates</span>
+              <span>Approved in past day</span>
               <span className="day-count">{emailUpdates.recent.length}</span>
               <span className="day-line" />
               <Chevron />
@@ -629,10 +634,10 @@ function Applications({
                         <span className="app-tag" title={how}>{automatic ? "Automatic" : "Manual"}</span>
                         <span className="app-meta-item">
                           <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
-                            <rect x="3.5" y="4.5" width="13" height="12" rx="2" fill="none" stroke="currentColor" strokeWidth="1.7" />
-                            <path d="M3.5 8.5h13M7 2.75v3.5M13 2.75v3.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+                            <circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" strokeWidth="1.7" />
+                            <path d="M10 6v4l2.75 1.75" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
                           </svg>
-                          {formatDate(localISO(new Date(update.resolved_at)))}
+                          {hoursAgo(update.resolved_at)}
                         </span>
                       </div>
                     </div>

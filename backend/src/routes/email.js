@@ -11,7 +11,7 @@ const router = express.Router();
 router.use(requireAuth, requireCsrf);
 
 const ID_PATTERN = /^[1-9]\d*$/;
-const RECENT_DAYS = 30;
+const RECENT_HOURS = 24;
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -124,10 +124,10 @@ router.get("/events", async (req, res) => {
        FROM email_events e
        JOIN applications a ON a.id = e.application_id
        WHERE e.user_id = $1 AND e.state IN ('auto_applied', 'accepted')
-         AND e.resolved_at > NOW() - make_interval(days => $2)
+         AND e.resolved_at > NOW() - make_interval(hours => $2)
        ORDER BY e.resolved_at DESC
        LIMIT 50`,
-      [req.user.id, RECENT_DAYS]
+      [req.user.id, RECENT_HOURS]
     );
 
     res.set("Cache-Control", "no-store");
