@@ -4,6 +4,7 @@ import { STATUSES, formatDate, jobDay, localISO, toDateInput } from "../api";
 import ApplicationForm from "../components/ApplicationForm";
 import CompanyAvatar from "../components/CompanyAvatar";
 import Modal from "../components/Modal";
+import ApplicationStats from "../components/ApplicationStats";
 
 const STATUS_ORDER = ["Offer", "Interview", "Applied", "Rejected", "Withdrawn"];
 
@@ -212,24 +213,6 @@ function Applications({
   }
 
   const total = applications.length;
-  const overall = useMemo(() => {
-    const result = Object.fromEntries(STATUSES.map((status) => [status, 0]));
-    applications.forEach((job) => {
-      result[job.status] = (result[job.status] || 0) + 1;
-    });
-    return result;
-  }, [applications]);
-  const active = overall.Applied + overall.Interview;
-  const responded = overall.Interview + overall.Offer + overall.Rejected;
-  const responseRate = total ? Math.round((responded / total) * 100) : 0;
-
-  const stats = [
-    { label: "Total", value: total },
-    { label: "In Progress", value: active },
-    { label: "Interviews", value: overall.Interview },
-    { label: "Offers", value: overall.Offer },
-    { label: "Response Rate", value: `${responseRate}%` }
-  ];
 
   async function resolveUpdate(id, action, body) {
     setResolvingId(id);
@@ -397,7 +380,9 @@ function Applications({
                   {job.location}
                 </span>
               )}
-              {job.workplace_model && <span className="app-tag">{job.workplace_model}</span>}
+              {job.workplace_model && (
+                <span className={`app-tag workplace-tag mix-${job.workplace_model.toLowerCase()}`}>{job.workplace_model}</span>
+              )}
               {job.applied_at && (!hideCardDate || update) && (
                 <span className="app-meta-item">
                   <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
@@ -521,27 +506,7 @@ function Applications({
         </div>
       )}
 
-      <section className="stats">
-        {stats.map((stat) => (
-          <div key={stat.label} className="stat-card">
-            <span className="stat-label">{stat.label}</span>
-            <strong className="stat-value">{stat.value}</strong>
-          </div>
-        ))}
-      </section>
-
-      {total > 0 && (
-        <section className="pipeline" aria-label="Status breakdown">
-          {STATUSES.filter((status) => overall[status] > 0).map((status) => (
-            <span
-              key={status}
-              className={`pipeline-segment seg-${status.toLowerCase()}`}
-              style={{ flexGrow: overall[status] }}
-              title={`${status}: ${overall[status]}`}
-            />
-          ))}
-        </section>
-      )}
+      <ApplicationStats applications={applications} />
 
       {(flagged.length > 0 || unmatched.length > 0) && (
         <section className="review" aria-label="Emails to review">
