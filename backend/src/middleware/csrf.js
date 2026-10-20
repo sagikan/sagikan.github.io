@@ -1,12 +1,11 @@
-const allowedOrigins = [
-  "http://localhost:5173",
-  process.env.FRONTEND_ORIGIN,
-].filter(Boolean);
+function allowedOrigins() {
+  return ["http://localhost:5173", process.env.FRONTEND_ORIGIN].filter(Boolean);
+}
 
 function requireTrustedOrigin(req, res, next) {
   const origin = req.get("Origin");
 
-  if (!origin || !allowedOrigins.includes(origin)) {
+  if (!origin || !allowedOrigins().includes(origin)) {
     return res.status(403).json({ error: "Untrusted request origin." });
   }
 

@@ -11,9 +11,9 @@ const PULSE_HEIGHT = 56;
 const PULSE_BASELINE = 50;
 const PULSE_TOP = 4;
 const PULSE_COLORS = [
-  [0xef, 0x64, 0x61], // coral, none
-  [0xf0, 0xb4, 0x29], // gold, halfway
-  [0x4a, 0xc2, 0x6b] // fresh green, the most
+  [0xef, 0x64, 0x61],
+  [0xf0, 0xb4, 0x29],
+  [0x4a, 0xc2, 0x6b]
 ];
 const GRADIENT_STOPS = [0, 0.5, 1];
 const PULSE_FILL_OPACITY = 0.3;
@@ -98,7 +98,7 @@ export function PulseChart({ applications }) {
   }, [applications, range]);
 
   return (
-    <div className="stat-card stat-card-wide">
+    <div className="stat-card stat-card-pulse">
       <span className="stat-label">
         Pulse
         <span className="info">
@@ -214,7 +214,7 @@ export function WorkMix({ applications }) {
   }, [applications]);
 
   return (
-    <div className="stat-card stat-card-wide">
+    <div className="stat-card stat-card-mix">
       <span className="stat-label">Model Mix</span>
       <div className="mix">
         <svg className="mix-ring" viewBox="0 0 36 36" role="img" aria-label="Share of on-site, hybrid and remote applications">

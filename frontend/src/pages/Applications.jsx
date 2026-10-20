@@ -480,7 +480,7 @@ function Applications({
           <h1>Your Applications</h1>
         </div>
         <div className="dashboard-actions">
-          <button type="button" className="btn btn-ghost" disabled={applications.length === 0} onClick={() => downloadApplicationsCsv(applications)}>
+          <button type="button" className="btn btn-ghost export-btn" disabled={applications.length === 0} onClick={() => downloadApplicationsCsv(applications)}>
             <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
               <path d="M10 3v9M6.5 8.5 10 12l3.5-3.5M4 14v1.5A1.5 1.5 0 0 0 5.5 17h9a1.5 1.5 0 0 0 1.5-1.5V14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
             </svg>

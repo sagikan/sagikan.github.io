@@ -352,7 +352,6 @@ function EmailSyncSetupPanel({ request, replacing, onCancel, onDone }) {
   const [token, setToken] = useState("");
   const started = useRef(false);
 
-  // Creating a token replaces the old one, so start straight away unless a working script would be replaced
   useEffect(() => {
     if (!confirmed || started.current) {
       return;

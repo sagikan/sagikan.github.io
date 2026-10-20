@@ -33,10 +33,10 @@ function Landing({ authenticated }) {
       <section className="hero">
         <div className="hero-copy">
           <h1>
-            Keep track of every application <span className="gradient-text">until you get the offer.</span>
+            Keep track of <i>every</i> application <span className="gradient-text">until you get the offer.</span>
           </h1>
           <p className="lede">
-            Job Tracker is a simple workspace for logging applications, following up
+            <b>Job Tracker</b> is a workspace for logging applications, following up
             on interviews and seeing how your search is going.
           </p>
           <div className="hero-actions">
