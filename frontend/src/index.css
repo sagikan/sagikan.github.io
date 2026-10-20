@@ -86,12 +86,14 @@
 }
 
 html {
+  --zoom: 1.5;
+  zoom: var(--zoom);
   scrollbar-gutter: stable;
 }
 
 body {
   margin: 0;
-  min-height: 100vh;
+  min-height: calc(100vh / var(--zoom));
   background: var(--bg);
 }
 
@@ -133,8 +135,8 @@ textarea {
 
 .app {
   --navbar-height: 60px;
-  --footer-height: 44px;
-  min-height: 100vh;
+  --footer-height: 34px;
+  min-height: calc(100vh / var(--zoom));
   display: flex;
   flex-direction: column;
   padding-bottom: var(--footer-height);
@@ -654,13 +656,17 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 18px;
+  position: relative;
 }
 
+/* Sits in the card's top-left corner, its top edge level with the top of the icon in the header */
 .back-link {
+  position: absolute;
+  top: 28px;
+  left: 28px;
   display: inline-flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
-  align-self: flex-start;
   color: var(--text-muted);
   font-size: 0.87rem;
   font-weight: 500;
@@ -784,6 +790,42 @@ textarea {
   border-color: var(--danger);
 }
 
+.rules-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  margin: -6px 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.rules-toggle:hover { color: var(--text); }
+
+.rules-count {
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.rules-count.met {
+  color: var(--offer);
+}
+
+.rules-chevron {
+  transition: transform 0.15s;
+}
+
+.rules-toggle[aria-expanded="true"] .rules-chevron {
+  transform: rotate(180deg);
+}
+
 .password-rules {
   list-style: none;
   margin: -6px 0 0;
@@ -795,6 +837,10 @@ textarea {
   border-radius: var(--radius-sm);
   font-size: 0.8rem;
   color: var(--text-muted);
+}
+
+.rules-toggle + .password-rules {
+  margin-top: 0;
 }
 
 .password-rules li {
@@ -1843,8 +1889,8 @@ textarea {
 /* Modal */
 
 .modal {
-  width: min(600px, calc(100vw - 32px));
-  max-height: calc(100vh - 48px);
+  width: min(600px, calc(100vw / var(--zoom) - 32px));
+  max-height: calc(100vh / var(--zoom) - 48px);
   padding: 0;
   border: 1px solid var(--border);
   border-radius: 18px;
