@@ -946,7 +946,7 @@ textarea {
   transform: translateX(-50%);
   z-index: 10;
   width: max-content;
-  max-width: min(280px, 80vw);
+  max-width: min(300px, 80vw);
   padding: 8px 10px;
   border-radius: 8px;
   background: var(--text);
