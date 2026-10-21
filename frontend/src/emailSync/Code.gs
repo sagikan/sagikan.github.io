@@ -6,11 +6,11 @@
 const API_URL = "__API_URL__";
 const TOKEN = "__TOKEN__";
 
-const FIRST_RUN_DAYS = 45; // how far back the very first run looks
+const FIRST_RUN_DAYS = 45;
 const MAX_PER_RUN = 300;
 const BATCH_SIZE = 20;
-const PAUSE_MS = 250; // between Gmail reads, to stay under Google's per-minute quota
-const RETRY_WAITS_S = [5, 15, 45]; // waits after a quota error before giving up for this run
+const PAUSE_MS = 250;
+const RETRY_WAITS_S = [5, 15, 45];
 const QUERY =
   '(application OR applied OR candidacy OR candidate OR interview OR recruiter OR recruiting ' +
   'OR hiring OR position OR "next steps" OR assessment OR offer OR unfortunately OR regret) ' +
@@ -28,17 +28,29 @@ function setup() {
   sync();
 }
 
+function schedule() {
+  ScriptApp.getProjectTriggers().forEach(function (trigger) {
+    ScriptApp.deleteTrigger(trigger);
+  });
+
+  [10, 22].forEach(function (hour) {
+    ScriptApp.newTrigger("sync")
+      .timeBased()
+      .inTimezone("Asia/Jerusalem")
+      .atHour(hour)
+      .nearMinute(0)
+      .everyDays(1)
+      .create();
+  });
+}
+
 function sync() {
   const properties = PropertiesService.getScriptProperties();
   const lastRun = Number(properties.getProperty("lastRun"));
   const startedAt = Math.floor(Date.now() / 1000);
-  // Each run covers the time since the previous one (12 hours), plus an hour of overlap for timing
-  // drift; the server skips emails it has already seen. If a run failed, the window simply grows to
-  // cover the gap.
   const after = lastRun ? lastRun - 3600 : startedAt - FIRST_RUN_DAYS * 86400;
 
   const listed = listIds_(QUERY + " after:" + after);
-  // Only read emails the Job Tracker hasn't seen yet, which saves Gmail quota on repeat runs.
   const ids = unknownIds_(listed);
   let complete = listed.length < MAX_PER_RUN;
 
@@ -49,7 +61,6 @@ function sync() {
       const message = readMessage_(id);
 
       if (!message) {
-        // Gmail's quota is used up for now: send what was read, and let the next run continue
         complete = null;
         break;
       }
@@ -65,7 +76,6 @@ function sync() {
     }
   }
 
-  // Only move the window forward once everything was handled, so nothing is skipped.
   if (complete === true) {
     properties.setProperty("lastRun", String(startedAt));
   }
@@ -86,7 +96,6 @@ function listIds_(query) {
   return ids.slice(0, MAX_PER_RUN);
 }
 
-// Asks the Job Tracker which of these emails it has not processed yet.
 function unknownIds_(ids) {
   let unknown = [];
 
@@ -97,7 +106,6 @@ function unknownIds_(ids) {
   return unknown;
 }
 
-// Returns null when Gmail's quota stays exhausted after a few waits.
 function getMessage_(id) {
   for (let attempt = 0; ; attempt++) {
     try {
@@ -129,8 +137,8 @@ function readMessage_(id) {
     headers[header.name.toLowerCase()] = header.value;
   });
 
-  const plain = findPart_(message.payload, "text/plain");
-  const html = plain ? null : findPart_(message.payload, "text/html");
+  const plain = findPart_(id, message.payload, "text/plain");
+  const html = plain ? null : findPart_(id, message.payload, "text/html");
 
   return {
     id: id,
@@ -141,15 +149,21 @@ function readMessage_(id) {
   };
 }
 
-function findPart_(part, mimeType) {
-  if (part.mimeType === mimeType && part.body && part.body.data) {
-    return part.body.data;
+function findPart_(messageId, part, mimeType) {
+  if (part.mimeType === mimeType && part.body) {
+    if (part.body.data) {
+      return part.body.data;
+    }
+
+    if (part.body.attachmentId) {
+      return Gmail.Users.Messages.Attachments.get("me", messageId, part.body.attachmentId).data;
+    }
   }
 
   const children = part.parts || [];
 
   for (let i = 0; i < children.length; i++) {
-    const found = findPart_(children[i], mimeType);
+    const found = findPart_(messageId, children[i], mimeType);
 
     if (found) {
       return found;
@@ -159,8 +173,15 @@ function findPart_(part, mimeType) {
   return null;
 }
 
-// Gmail sends the body as base64url without the "=" padding that Apps Script insists on.
 function decode_(data) {
+  if (typeof data !== "string") {
+    return Utilities.newBlob(data).getDataAsString("UTF-8");
+  }
+
+  if (/[^A-Za-z0-9_\-=]/.test(data)) {
+    return data;
+  }
+
   const padded = data + "===".slice((data.length + 3) % 4);
 
   try {

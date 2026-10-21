@@ -32,6 +32,22 @@ const limiter = rateLimit({
   }
 });
 
+const NAMED_ENTITIES = { nbsp: " ", amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'", zwnj: "", zwj: "", shy: "" };
+
+function cleanText(text) {
+  return String(text ?? "")
+    .replace(/&#x([0-9a-f]+);/gi, (match, hex) => safeChar(parseInt(hex, 16), match))
+    .replace(/&#(\d+);/g, (match, dec) => safeChar(Number(dec), match))
+    .replace(/&([a-z]+);/gi, (match, name) => NAMED_ENTITIES[name.toLowerCase()] ?? match)
+    .replace(/[­͏؜ᅟᅠ឴឵᠎​-‏‪-‮⁠-⁯ㅤ﻿ﾠ]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function safeChar(code, fallback) {
+  return Number.isInteger(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : fallback;
+}
+
 function readMessage(raw) {
   if (!raw || typeof raw !== "object" || typeof raw.id !== "string" || !raw.id) {
     return null;
@@ -43,8 +59,8 @@ function readMessage(raw) {
     id: raw.id.slice(0, LIMITS.id),
     date: Number.isNaN(date.getTime()) ? new Date() : date,
     from: String(raw.from ?? "").slice(0, LIMITS.from),
-    subject: String(raw.subject ?? "").slice(0, LIMITS.subject),
-    body: String(raw.body ?? "").slice(0, LIMITS.body)
+    subject: cleanText(raw.subject).slice(0, LIMITS.subject),
+    body: cleanText(raw.body).slice(0, LIMITS.body)
   };
 }
 
