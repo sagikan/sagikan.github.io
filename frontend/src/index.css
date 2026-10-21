@@ -1752,7 +1752,7 @@ textarea {
   top: calc(100% + 6px);
   right: 0;
   min-width: 200px;
-  max-width: 280px;
+  max-width: 340px;
   display: flex;
   flex-direction: column;
   padding: 4px;
@@ -1763,6 +1763,9 @@ textarea {
 }
 
 .choices-menu-item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
   padding: 6px 10px;
   border: 0;
   border-radius: 6px;
@@ -1771,13 +1774,23 @@ textarea {
   font-size: 0.85rem;
   text-align: left;
   cursor: pointer;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .choices-menu-item:hover:not(:disabled) {
   background: var(--surface-2);
+}
+
+.choices-menu-position {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.choices-menu-divider,
+.choices-menu-date {
+  flex-shrink: 0;
+  color: var(--text-muted);
 }
 
 /* Application card text */

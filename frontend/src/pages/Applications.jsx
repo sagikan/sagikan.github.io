@@ -343,9 +343,11 @@ function Applications({
                 className="choices-menu-item"
                 disabled={busy}
                 onClick={() => choose(job)}
-                title={`${job.position}`}
+                title={job.position}
               >
-                {job.position}
+                <span className="choices-menu-position">{job.position}</span>
+                <span className="choices-menu-divider" aria-hidden="true">·</span>
+                <span className="choices-menu-date">{formatDate(jobDay(job))}</span>
               </button>
             ))}
           </div>
