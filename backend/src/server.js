@@ -7,6 +7,8 @@ const accountRoutes = require("./routes/account");
 const applicationRoutes = require("./routes/applications");
 const emailRoutes = require("./routes/email");
 const emailIngestRoutes = require("./routes/emailIngest");
+const jobRoutes = require("./routes/jobs");
+const jobSearch = require("./services/jobSearch");
 require("dotenv").config();
 
 const app = express();
@@ -25,7 +27,9 @@ app.use(cors({
     }
     callback(new Error(`Origin not allowed: ${origin}`));
   },
-  credentials: true
+  credentials: true,
+  // Lets the site read the name of a downloaded file (the grade sheet's).
+  exposedHeaders: ["X-File-Name"]
 }));
 
 app.use("/api/email/ingest", express.json({ limit: "1mb" }), emailIngestRoutes);
@@ -49,9 +53,12 @@ app.use("/api/auth", authRoutes);
 app.use("/api/account", accountRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/email", emailRoutes);
+app.use("/api/jobs", jobRoutes);
 
 const port = process.env.PORT || 3000;
 
 app.listen(port, "0.0.0.0", () => {
   console.log(`API listening on port ${port}`);
+
+  jobSearch.failInterrupted().catch((err) => console.error("Could not clear interrupted job searches:", err.message));
 });

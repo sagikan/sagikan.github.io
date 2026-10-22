@@ -2,6 +2,7 @@ const express = require("express");
 const db = require("../config/db");
 const requireAuth = require("../middleware/auth");
 const { requireCsrf } = require("../middleware/csrf");
+const { APPLICATION_FIELDS } = require("../services/applicationFields");
 
 const router = express.Router();
 
@@ -19,10 +20,7 @@ const applicationFields = {
   notes: "notes",
   applied_at: "applied_at"
 }
-const returnedFields = `
-  id, company, position, location, workplace_model, status, job_url, notes,
-  TO_CHAR(applied_at, 'YYYY-MM-DD') AS applied_at, created_at
-`;
+const returnedFields = APPLICATION_FIELDS;
 
 router.get("/", async (req, res) => {
   try {

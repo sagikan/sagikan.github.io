@@ -3,6 +3,7 @@ const db = require("../config/db");
 const auth = require("./authService");
 const { classifyEmail } = require("./emailClassifier");
 const { matchApplication, transition } = require("./emailMatcher");
+const { APPLICATION_FIELDS } = require("./applicationFields");
 
 const STATUS_FOR_EVENT = { interview: "Interview", offer: "Offer", rejection: "Rejected" };
 const MIN_CONFIDENCE = 0.5;
@@ -10,11 +11,6 @@ const AUTO_CONFIDENCE = 0.85;
 const AUTO_COMPANY_SCORE = 0.9;
 const DAILY_LIMIT = 300;
 const CLASSIFY_CONCURRENCY = 4;
-
-const APPLICATION_FIELDS = `
-  id, company, position, location, workplace_model, status, job_url, notes,
-  TO_CHAR(applied_at, 'YYYY-MM-DD') AS applied_at, created_at
-`;
 
 function generateToken() {
   return `jt_${crypto.randomBytes(32).toString("base64url")}`;
