@@ -2,12 +2,14 @@ import { useCallback, useEffect, useState } from "react";
 import { apiRequest, checkHealth } from "./api";
 import { navigate, redirect, useHashRoute } from "./router";
 import Navbar from "./components/Navbar";
+import Alert from "./components/Alert";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Applications from "./pages/Applications";
 import Account from "./pages/Account";
+import Jobs from "./pages/Jobs";
 
-const PROTECTED_ROUTES = ["/applications", "/account"];
+const PROTECTED_ROUTES = ["/applications", "/jobs", "/account"];
 const NO_EMAIL_UPDATES = { pending: [], recent: [] };
 const EMAIL_REFRESH_MS = 2 * 60 * 1000;
 
@@ -37,13 +39,11 @@ function App() {
   }, []);
 
   const loadEmailUpdates = useCallback(async () => {
-    try {
-      const { response, data } = await apiRequest("/api/email/events");
+    const result = await apiRequest("/api/email/events").catch(() => null);
 
-      if (response.ok) {
-        setEmailUpdates(data);
-      }
-    } catch {}
+    if (result?.response.ok) {
+      setEmailUpdates(result.data);
+    }
   }, []);
 
   async function refreshCsrfToken() {
@@ -299,13 +299,20 @@ function App() {
         onDeleted={handleAccountDeleted}
       />
     );
+  } else if (route === "/jobs") {
+    page = (
+      <Jobs
+        csrfToken={csrfToken}
+        onApplied={(application) => setApplications((current) => [application, ...current])}
+        onUnauthorized={clearSession}
+      />
+    );
   } else if (route === "/applications") {
     page = (
       <Applications
         applications={applications}
         emailUpdates={emailUpdates}
         onResolveEmailUpdate={resolveEmailUpdate}
-        email={email}
         error={error}
         onDismissError={() => setError("")}
         onSave={saveApp}
@@ -323,19 +330,11 @@ function App() {
         route={route}
         authenticated={authenticated}
         email={email}
-        apiStatus={apiStatus}
         onLogout={handleLogout}
       />
       {flash && flash.route === route && (
         <div className="flash" role="status">
-          <div className="alert alert-success alert-dismissible">
-            <span>{flash.message}</span>
-            <button type="button" className="icon-btn" onClick={() => setFlash(null)} aria-label="Dismiss">
-              <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
-                <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-            </button>
-          </div>
+          <Alert type="success" onDismiss={() => setFlash(null)}>{flash.message}</Alert>
         </div>
       )}
       {page}

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-function Modal({ title, onClose, children }) {
+function Modal({ title, onClose, children, wide = false }) {
   const dialogRef = useRef(null);
 
   useEffect(() => {
@@ -12,7 +12,7 @@ function Modal({ title, onClose, children }) {
   return (
     <dialog
       ref={dialogRef}
-      className="modal"
+      className={`modal${wide ? " modal-wide" : ""}`}
       onCancel={(event) => {
         event.preventDefault();
         onClose();

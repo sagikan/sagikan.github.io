@@ -5,6 +5,8 @@ import ApplicationForm from "../components/ApplicationForm";
 import CompanyAvatar from "../components/CompanyAvatar";
 import Modal from "../components/Modal";
 import ApplicationStats from "../components/ApplicationStats";
+import { downloadSavedCv } from "../utils/resume/cvPdf";
+import Alert from "../components/Alert";
 
 const STATUS_ORDER = ["Offer", "Interview", "Applied", "Rejected", "Withdrawn"];
 
@@ -98,7 +100,7 @@ function StatusPill({ status }) {
 
 
 function Applications({
-  applications, emailUpdates, onResolveEmailUpdate, email, error, onDismissError, onSave, onDelete, onQuickStatus
+  applications, emailUpdates, onResolveEmailUpdate, error, onDismissError, onSave, onDelete, onQuickStatus
 }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -113,7 +115,22 @@ function Applications({
   const [reviewOpen, setReviewOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
   const [moreOpenId, setMoreOpenId] = useState(null);
+  const [cvBusyId, setCvBusyId] = useState(null);
+  const [cvError, setCvError] = useState("");
   const dateInput = useRef(null);
+
+  async function downloadCv(job) {
+    setCvBusyId(job.id);
+    setCvError("");
+
+    try {
+      await downloadSavedCv(job.cv_job_id);
+    } catch (err) {
+      setCvError(err.message || "Could not download the resume.");
+    } finally {
+      setCvBusyId(null);
+    }
+  }
 
   function toggleDay(day) {
     setCollapsedDays((current) =>
@@ -435,6 +452,21 @@ function Applications({
               </div>
             ) : (
               <>
+                {job.cv_job_id && (
+                  <button
+                    type="button"
+                    className="icon-btn app-cv-btn"
+                    disabled={cvBusyId === job.id}
+                    onClick={() => downloadCv(job)}
+                    aria-label={`Download the resume you sent to ${job.company}`}
+                    title="Download the resume you sent"
+                  >
+                    <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+                      <path d="M5.5 2.75h6l3.75 3.75v9.25a1.5 1.5 0 0 1-1.5 1.5h-8.25a1.5 1.5 0 0 1-1.5-1.5v-11.5a1.5 1.5 0 0 1 1.5-1.5z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+                      <path d="M11.5 2.75v3.75h3.75M10 9v5M7.75 11.75 10 14l2.25-2.25" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </button>
+                )}
                 <select
                   className="status-select"
                   value={job.status}
@@ -498,14 +530,11 @@ function Applications({
       </div>
 
       {error && (
-        <div className="alert alert-error alert-dismissible" role="alert">
-          <span>{error}</span>
-          <button type="button" className="icon-btn" onClick={onDismissError} aria-label="Dismiss">
-            <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
-              <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          </button>
-        </div>
+        <Alert type="error" onDismiss={onDismissError}>{error}</Alert>
+      )}
+
+      {cvError && (
+        <Alert type="error" onDismiss={() => setCvError("")}>{cvError}</Alert>
       )}
 
       <ApplicationStats applications={applications} />
@@ -529,7 +558,7 @@ function Applications({
 
           {reviewOpen && (
             <>
-              {reviewError && <div className="alert alert-error" role="alert">{reviewError}</div>}
+              {reviewError && <Alert type="error">{reviewError}</Alert>}
 
               {flagged.length > 0 && (
                 <ul className="app-list">
@@ -789,7 +818,7 @@ function Applications({
       )}
 
       {editing && (
-        <Modal title={editing === "new" || !editing.id ? "New application" : "Edit application"} onClose={() => setEditing(null)}>
+        <Modal title={editing === "new" || !editing.id ? "New Application" : "Edit Application"} onClose={() => setEditing(null)}>
           <ApplicationForm
             job={editing === "new" ? null : editing}
             applications={applications}

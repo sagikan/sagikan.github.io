@@ -35,6 +35,40 @@ export async function apiRequest(path, { method = "GET", body, csrfToken } = {})
   return { response, data };
 }
 
+export async function apiUpload(path, file, { csrfToken, method = "PUT" } = {}) {
+  const response = await fetch(`${API_URL}${path}`, {
+    method,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/pdf",
+      "X-CSRF-Token": csrfToken,
+      "X-File-Name": encodeURIComponent(file.name)
+    },
+    body: file
+  });
+
+  const data = await response.json().catch(() => ({}));
+  return { response, data };
+}
+
+export async function apiFile(path) {
+  const response = await fetch(`${API_URL}${path}`, { credentials: "include" });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  let fileName;
+
+  try {
+    fileName = decodeURIComponent(response.headers.get("X-File-Name") || "");
+  } catch {
+    fileName = "";
+  }
+
+  return { bytes: new Uint8Array(await response.arrayBuffer()), fileName };
+}
+
 export function toDateInput(value) {
   return value ? String(value).slice(0, 10) : "";
 }
