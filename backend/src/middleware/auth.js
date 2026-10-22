@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const db = require("../config/db");
+const { renewSession } = require("../services/authService");
 
 async function requireAuth(req, res, next) {
   const token = req.cookies?.token;
@@ -33,6 +34,7 @@ async function requireAuth(req, res, next) {
   }
 
   req.user = payload;
+  renewSession(res, payload);
   next();
 }
 

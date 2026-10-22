@@ -16,7 +16,7 @@ const baseCookieOptions = {
 
 const cookieOptions = {
   ...baseCookieOptions,
-  maxAge: 60 * 60 * 1000, // 1 hour
+  maxAge: 60 * 60 * 1000,
 };
 
 const PENDING_COOKIE = "pending_auth";
@@ -82,6 +82,27 @@ function issueSession(res, user) {
   );
 
   res.clearCookie(PENDING_COOKIE, baseCookieOptions);
+  res.cookie("token", token, cookieOptions);
+}
+
+// Sessions last an hour from the user's last request, not from logging in: a session older
+// than RENEW_AFTER_MINUTES gets a fresh hour. It keeps the same CSRF token, so the site's copy
+// of it stays valid.
+const RENEW_AFTER_MINUTES = 5;
+
+function renewSession(res, payload) {
+  const ageSeconds = Math.floor(Date.now() / 1000) - (payload.iat ?? 0);
+
+  if (ageSeconds < RENEW_AFTER_MINUTES * 60) {
+    return;
+  }
+
+  const token = jwt.sign(
+    { id: payload.id, typ: "session", ver: payload.ver, csrfToken: payload.csrfToken },
+    process.env.JWT_SECRET,
+    { expiresIn: "1h" }
+  );
+
   res.cookie("token", token, cookieOptions);
 }
 
@@ -332,6 +353,7 @@ module.exports = {
   normalizeEmail,
   isValidEmail,
   issueSession,
+  renewSession,
   clearSessionCookies,
   setPending,
   requirePending,
