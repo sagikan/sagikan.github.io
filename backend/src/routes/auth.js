@@ -36,7 +36,13 @@ router.get("/me", requireAuth, async (req, res) => {
   }
 });
 
+const SIGNUPS_CLOSED_MESSAGE = "Sign-ups are paused while the site is being worked on. Please check back soon.";
+
 router.post("/register", registerLimiter, async (req, res) => {
+  if (process.env.SIGNUPS_OPEN !== "true") {
+    return res.status(403).json({ error: SIGNUPS_CLOSED_MESSAGE });
+  }
+
   try {
     const email = auth.normalizeEmail(req.body.email);
     const password = req.body.password;

@@ -6,7 +6,8 @@ import SecondFactorInput from "../components/auth/SecondFactorInput";
 import { API_URL, apiRequest } from "../api";
 import appsScript from "../emailSync/Code.gs?raw";
 import appsScriptManifest from "../emailSync/appsscript.json?raw";
-import { emptySecondFactor, isSecondFactorComplete, secondFactorBody } from "../utils/authForms";
+import { emptySecondFactor, isSecondFactorComplete, secondFactorBody } from "../utils/auth/authForms";
+import Alert from "../components/Alert";
 
 const LOW_RECOVERY_CODES = 3;
 const COPIED_LABEL_MS = 2000;
@@ -91,8 +92,8 @@ function Account({ csrfToken, onSessionChanged, onUnauthorized, onDeleted }) {
       </div>
 
       <div className="account-content">
-        {loadError && <div className="alert alert-error" role="alert">{loadError}</div>}
-        {success && <div className="alert alert-success" role="status">{success}</div>}
+        {loadError && <Alert type="error">{loadError}</Alert>}
+        {success && <Alert type="success">{success}</Alert>}
 
         <section className="settings-card">
           <div className="settings-row">
@@ -267,12 +268,12 @@ function EmailSyncCard({ status, panel, request, openPanel, setPanel, closePanel
       </div>
 
       {!status.classifierConfigured && (
-        <div className="alert alert-warning" role="status">
+        <Alert type="warning">
           No API key configured.
-        </div>
+        </Alert>
       )}
 
-      {error && <div className="alert alert-error" role="alert">{error}</div>}
+      {error && <Alert type="error">{error}</Alert>}
 
       {status.connected && panel !== "email" && (
         <div className="settings-panel">
@@ -424,7 +425,7 @@ function EmailSyncSetupPanel({ request, replacing, onCancel, onDone }) {
     <div className="settings-panel">
       {error ? (
         <>
-          <div className="alert alert-error" role="alert">{error}</div>
+          <Alert type="error">{error}</Alert>
           <div className="form-actions">
             <button type="button" className="btn btn-ghost" onClick={onCancel}>Close</button>
           </div>
@@ -473,7 +474,7 @@ function RegenerateCodesPanel({ request, onCancel, onDone }) {
   return (
     <form className="settings-panel auth-form" onSubmit={handleSubmit}>
       <p className="muted">Confirm it's you. Generating new codes replaces all your existing ones.</p>
-      {error && <div className="alert alert-error" role="alert">{error}</div>}
+      {error && <Alert type="error">{error}</Alert>}
 
       <SecondFactorInput value={factor} onChange={setFactor} />
 
@@ -551,7 +552,7 @@ function ResetAuthenticatorPanel({ request, onSessionChanged, onCancel, onDone }
   return (
     <form className="settings-panel auth-form" onSubmit={handleVerify}>
       <p className="muted">Confirm it's you with your password and a code from your current app.</p>
-      {error && <div className="alert alert-error" role="alert">{error}</div>}
+      {error && <Alert type="error">{error}</Alert>}
 
       <label className="field">
         <span>Password</span>
@@ -610,7 +611,7 @@ function DeleteAccountPanel({ request, onCancel, onDeleted }) {
 
   return (
     <form className="settings-panel auth-form" onSubmit={handleSubmit}>
-      {error && <div className="alert alert-error" role="alert">{error}</div>}
+      {error && <Alert type="error">{error}</Alert>}
 
       <label className="field">
         <span>Password</span>

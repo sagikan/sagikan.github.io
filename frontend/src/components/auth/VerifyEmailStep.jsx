@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import CodeInput from "./CodeInput";
+import Alert from "../Alert";
 
 const RESEND_SECONDS = 60;
 
@@ -54,8 +55,8 @@ function VerifyEmailStep({ request, onNext, emailSent }) {
 
   return (
     <form className="auth-form" onSubmit={handleSubmit}>
-      {error && <div className="alert alert-error" role="alert">{error}</div>}
-      {info && <div className="alert alert-success" role="status">{info}</div>}
+      {error && <Alert type="error">{error}</Alert>}
+      {info && <Alert type="success">{info}</Alert>}
 
       <CodeInput value={code} onChange={setCode} label="Verification code" />
 

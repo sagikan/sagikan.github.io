@@ -1,6 +1,6 @@
 import { useState } from "react";
 import PasswordInput from "./PasswordInput";
-import { passwordRules } from "../../utils/passwordRules";
+import { passwordRules } from "../../utils/auth/passwordRules";
 
 function NewPasswordFields({ email, password, onPasswordChange, confirmPassword, onConfirmChange, submitted, label = "Password" }) {
   const [showRules, setShowRules] = useState(false);

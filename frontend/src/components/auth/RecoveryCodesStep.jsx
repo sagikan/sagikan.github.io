@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Alert from "../Alert";
 
 function RecoveryCodesStep({ codes, onContinue, continueLabel = "Continue to my applications" }) {
   const [saved, setSaved] = useState(false);
@@ -27,10 +28,10 @@ function RecoveryCodesStep({ codes, onContinue, continueLabel = "Continue to my 
 
   return (
     <div className="auth-form">
-      <div className="alert alert-warning">
+      <Alert type="warning">
         Each code works once. Keep them somewhere safe, like a password manager.
         They're the only way in if you lose your authenticator app, and they won't be shown again.
-      </div>
+      </Alert>
 
       <ul className="recovery-grid">
         {codes.map((code) => (

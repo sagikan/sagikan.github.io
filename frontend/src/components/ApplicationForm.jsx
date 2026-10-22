@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { STATUSES, WORKPLACE_MODELS, formatDate, jobDay, localISO, toDateInput } from "../api";
+import Alert from "./Alert";
 
 function initialValues(job) {
   return {
@@ -69,12 +70,12 @@ function ApplicationForm({ job, applications, onSubmit, onCancel }) {
 
   return (
     <form className="app-form" onSubmit={handleSubmit}>
-      {error && <div className="alert alert-error" role="alert">{error}</div>}
+      {error && <Alert type="error">{error}</Alert>}
 
       {earlierDuplicate && (
-        <div className="alert alert-warning" role="status">
+        <Alert type="warning">
           You already applied to this position at this company on {formatDate(jobDay(earlierDuplicate))}.
-        </div>
+        </Alert>
       )}
 
       <div className="form-grid">

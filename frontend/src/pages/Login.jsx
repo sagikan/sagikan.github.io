@@ -9,8 +9,9 @@ import RecoveryCodesStep from "../components/auth/RecoveryCodesStep";
 import ResetPasswordStep from "../components/auth/ResetPasswordStep";
 import VerifyEmailStep from "../components/auth/VerifyEmailStep";
 import { apiRequest } from "../api";
-import { newPasswordError } from "../utils/authForms";
+import { newPasswordError } from "../utils/auth/authForms";
 import { redirect } from "../router";
+import Alert from "../components/Alert";
 
 const STEP_HEADERS = {
   verify_email: {
@@ -40,6 +41,8 @@ const STEP_HEADERS = {
     text: (email) => `Enter the code we sent to ${email} and pick a new password.`
   }
 };
+
+const SIGNUPS_OPEN = import.meta.env.VITE_SIGNUPS_OPEN === "true";
 
 const BACK_ICON = (
   <svg viewBox="0 0 20 15" width="16" height="16" aria-hidden="true">
@@ -236,65 +239,71 @@ function Login({ mode, onAuthenticated, apiStatus }) {
             </div>
 
             {apiStatus === "offline" && (
-              <div className="alert alert-warning">
+              <Alert type="warning">
                 The server is unreachable right now. Please try again in a moment.
-              </div>
+              </Alert>
             )}
 
-            {notice && <div className="alert alert-success" role="status">{notice}</div>}
-            {error && <div className="alert alert-error" role="alert">{error}</div>}
+            {notice && <Alert type="success">{notice}</Alert>}
+            {error && <Alert type="error">{error}</Alert>}
 
-            <form className="auth-form" onSubmit={handleSubmit}>
-              <label className="field">
-                <span>Email</span>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="you@example.com"
-                  required
-                  autoComplete="email"
-                />
-              </label>
-
-              {isLogin ? (
+            {!isLogin && !SIGNUPS_OPEN ? (
+              <Alert type="warning">
+                Sign-ups are paused while the site is being worked on. Please check back soon.
+              </Alert>
+            ) : (
+              <form className="auth-form" onSubmit={handleSubmit}>
                 <label className="field">
-                  <span className="field-label-row">
-                    Password
-                    <button
-                      type="button"
-                      className="link-btn forgot-link"
-                      onClick={() => {
-                        setError("");
-                        setNotice("");
-                        setStep("forgot_password");
-                      }}
-                    >
-                      Forgot password?
-                    </button>
-                  </span>
-                  <PasswordInput
-                    value={password}
-                    onChange={setPassword}
-                    placeholder="Your password"
-                    autoComplete="current-password"
+                  <span>Email</span>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="you@example.com"
+                    required
+                    autoComplete="email"
                   />
                 </label>
-              ) : (
-                <NewPasswordFields
-                  email={email}
-                  password={password}
-                  onPasswordChange={setPassword}
-                  confirmPassword={confirmPassword}
-                  onConfirmChange={setConfirmPassword}
-                  submitted={submitted}
-                />
-              )}
 
-              <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
-                {loading ? "Please wait…" : isLogin ? "Log in" : "Create account"}
-              </button>
-            </form>
+                {isLogin ? (
+                  <label className="field">
+                    <span className="field-label-row">
+                      Password
+                      <button
+                        type="button"
+                        className="link-btn forgot-link"
+                        onClick={() => {
+                          setError("");
+                          setNotice("");
+                          setStep("forgot_password");
+                        }}
+                      >
+                        Forgot password?
+                      </button>
+                    </span>
+                    <PasswordInput
+                      value={password}
+                      onChange={setPassword}
+                      placeholder="Your password"
+                      autoComplete="current-password"
+                    />
+                  </label>
+                ) : (
+                  <NewPasswordFields
+                    email={email}
+                    password={password}
+                    onPasswordChange={setPassword}
+                    confirmPassword={confirmPassword}
+                    onConfirmChange={setConfirmPassword}
+                    submitted={submitted}
+                  />
+                )}
+
+                <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
+                  {loading ? "Please wait…" : isLogin ? "Log in" : "Create account"}
+                </button>
+              </form>
+            )}
 
             <p className="auth-switch">
               {isLogin ? "New here? " : "Already have an account? "}

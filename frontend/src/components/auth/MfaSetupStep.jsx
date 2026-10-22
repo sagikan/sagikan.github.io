@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import CodeInput from "./CodeInput";
+import Alert from "../Alert";
 
 function MfaSetupStep({
   request,
@@ -60,7 +61,7 @@ function MfaSetupStep({
 
   return (
     <form className="auth-form" onSubmit={handleSubmit}>
-      {error && <div className="alert alert-error" role="alert">{error}</div>}
+      {error && <Alert type="error">{error}</Alert>}
 
       <ol className="setup-steps">
         <li>Install an authenticator app such as Google Authenticator, Microsoft Authenticator or 1Password.</li>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Alert from "../Alert";
 
 function ForgotPasswordStep({ initialEmail, request, onSent }) {
   const [email, setEmail] = useState(initialEmail);
@@ -23,7 +24,7 @@ function ForgotPasswordStep({ initialEmail, request, onSent }) {
 
   return (
     <form className="auth-form" onSubmit={handleSubmit}>
-      {error && <div className="alert alert-error" role="alert">{error}</div>}
+      {error && <Alert type="error">{error}</Alert>}
 
       <label className="field">
         <span>Email</span>

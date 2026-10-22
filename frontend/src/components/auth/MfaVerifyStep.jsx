@@ -1,6 +1,7 @@
 import { useState } from "react";
 import SecondFactorInput from "./SecondFactorInput";
-import { emptySecondFactor, isSecondFactorComplete, secondFactorBody } from "../../utils/authForms";
+import { emptySecondFactor, isSecondFactorComplete, secondFactorBody } from "../../utils/auth/authForms";
+import Alert from "../Alert";
 
 function MfaVerifyStep({ request, onVerified, onModeChange }) {
   const [factor, setFactor] = useState(emptySecondFactor);
@@ -26,7 +27,7 @@ function MfaVerifyStep({ request, onVerified, onModeChange }) {
 
   return (
     <form className="auth-form" onSubmit={handleSubmit}>
-      {error && <div className="alert alert-error" role="alert">{error}</div>}
+      {error && <Alert type="error">{error}</Alert>}
 
       <SecondFactorInput
         value={factor}

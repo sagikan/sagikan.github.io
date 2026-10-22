@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import CodeInput from "./CodeInput";
 import NewPasswordFields from "./NewPasswordFields";
-import { newPasswordError } from "../../utils/authForms";
+import { newPasswordError } from "../../utils/auth/authForms";
+import Alert from "../Alert";
 
 const RESEND_SECONDS = 60;
 
@@ -65,8 +66,8 @@ function ResetPasswordStep({ email, sentMessage, request, onReset }) {
 
   return (
     <form className="auth-form" onSubmit={handleSubmit}>
-      {error && <div className="alert alert-error" role="alert">{error}</div>}
-      {info && <div className="alert alert-success" role="status">{info}</div>}
+      {error && <Alert type="error">{error}</Alert>}
+      {info && <Alert type="success">{info}</Alert>}
 
       <CodeInput value={code} onChange={setCode} label="Reset code" />
 
