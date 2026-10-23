@@ -6,6 +6,7 @@ const { requireCsrf } = require("../middleware/csrf");
 const claude = require("../services/anthropic");
 const profiles = require("../services/cvProfile");
 const jobSearch = require("../services/jobSearch");
+const feeds = require("../services/jobFeeds");
 const cvTailor = require("../services/cvTailor");
 const { APPLICATION_FIELDS } = require("../services/applicationFields");
 
@@ -209,8 +210,10 @@ router.get("/", async (req, res) => {
       db.query(
         `SELECT ${JOB_FIELDS} FROM jobs
          WHERE user_id = $1 AND state <> 'dismissed' AND NOT hidden
+           AND NOT (source = 'search' AND state = 'new'
+                    AND COALESCE(posted_at, created_at) < NOW() - make_interval(days => $2))
          ORDER BY (state = 'applied'), match_score DESC NULLS FIRST, created_at DESC`,
-        [req.user.id]
+        [req.user.id, feeds.MAX_AGE_DAYS]
       ),
       jobSearch.status(req.user.id)
     ]);

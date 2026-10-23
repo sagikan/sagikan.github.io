@@ -4,15 +4,23 @@ const feeds = require("./jobFeeds");
 const { areasFor, areaScore } = require("./locations");
 const { cvToText, normalizePreferences, object } = require("./cvProfile");
 const { companyScore, positionScore } = require("./emailMatcher");
+const { adjustForExperience, candidateYears, requiredExperience, requirementPhrase } = require("./experience");
+const postingCheck = require("./postingCheck");
 
+const CHECK_BATCH = 6;
+const RECHECK_HOURS = 24;
+const RECHECK_LIMIT = 30;
 const AUTO_INTERVAL_MINUTES = 15;
 const HOURLY_LIMIT = 20;
 const STALE_MINUTES = 5;
 const AUTO_RETRY_MINUTES = 15;
 const MAX_NEW_JOBS = 15;
 const MIN_SCORE = 35;
+const MAX_TAGS = 8;
 const CANDIDATES = 40;
-const SCORING_DESCRIPTION = 900;
+const SCORING_DESCRIPTION = 1400;
+const MAX_AGE_DAYS = feeds.MAX_AGE_DAYS;
+const REQUIREMENTS_HEADING = /\b(requirements|qualifications|what you(?:'ll)? (?:bring|need)|who you are|about you|you have|you bring|must have|what we're looking for)\b/i;
 
 const SCORE_SCHEMA = object({
   results: {
@@ -23,12 +31,12 @@ const SCORE_SCHEMA = object({
       have: {
         type: "array",
         items: { type: "string" },
-        description: "Up to 4 of the posting's requirements the candidate meets, as 1-4 word phrases (\"FastAPI\", \"REST APIs\"). No sentences."
+        description: "Up to 8 of the posting's requirements the candidate meets, most important first, as 1-4 word phrases (\"FastAPI\", \"REST APIs\"). No sentences."
       },
       missing: {
         type: "array",
         items: { type: "string" },
-        description: "Up to 4 of the posting's requirements the candidate lacks, as 1-4 word phrases (\"Java/Spring\", \"1+ years experience\"). No sentences."
+        description: "Up to 8 of the posting's requirements the candidate lacks, most important first, as 1-4 word phrases (\"Java/Spring\", \"1+ years experience\"). No sentences."
       }
     })
   }
@@ -37,6 +45,9 @@ const SCORE_SCHEMA = object({
 const SCORE_SYSTEM =
   "You score job postings for one candidate. Return one result for every posting. " +
   "Score honestly: a role needing much more experience than the candidate has, or in a different field, scores low. " +
+  "Professional experience matters most: if the posting asks for years of professional experience (\"3+ years\", " +
+  "\"proven experience\") and the candidate has none, score it below 25 however well the skills match. " +
+  "If they have some but fewer years than asked, lower the score for each missing year. " +
   "For have and missing, use only short phrases naming concrete skills, tools or requirements from the posting, " +
   "such as \"Kubernetes\", \"Go\" or \"3+ years experience\". Never use vague phrases like \"production experience\", " +
   "\"domain knowledge\", \"junior level fit\" or \"full-stack projects\". " +
@@ -144,19 +155,21 @@ async function run(userId, searchId) {
 
     const cv = profile.rows[0].cv;
     const prefs = normalizePreferences(profile.rows[0].preferences);
+    await recheckFound(userId);
+
     const candidates = await shortlist(cv, prefs, applications.rows, known.rows);
     const scored = candidates.length ? await score(cv, prefs, candidates, usage) : [];
-    const picked = scored
-      .filter((job) => job.match_score >= MIN_SCORE)
-      .sort((a, b) => b.match_score - a.match_score)
-      .slice(0, MAX_NEW_JOBS);
+    const picked = await stillOpen(
+      scored.filter((job) => job.match_score >= MIN_SCORE).sort((a, b) => b.match_score - a.match_score),
+      MAX_NEW_JOBS
+    );
 
     for (const job of picked) {
       await db.query(
         `INSERT INTO jobs
            (user_id, search_id, source, company, position, location, workplace_model, url, description,
-            match_score, match_have, match_missing, posted_at)
-         VALUES ($1, $2, 'search', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            match_score, match_have, match_missing, posted_at, checked_at)
+         VALUES ($1, $2, 'search', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
          ON CONFLICT (user_id, url) WHERE url IS NOT NULL DO NOTHING`,
         [userId, searchId, job.company, job.position, job.location, job.workplace_model, job.url, job.description,
          job.match_score, JSON.stringify(job.match_have), JSON.stringify(job.match_missing), job.posted_at]
@@ -169,6 +182,47 @@ async function run(userId, searchId) {
     const message = err instanceof claude.ClaudeError ? err.message : "The search failed. Please try again later.";
     await finish(searchId, "failed", message, 0, usage).catch((finishErr) => console.error(finishErr));
   }
+}
+
+async function stillOpen(jobs, limit) {
+  const open = [];
+  const closed = [];
+
+  for (let at = 0; at < jobs.length && open.length < limit; at += CHECK_BATCH) {
+    const batch = jobs.slice(at, at + CHECK_BATCH);
+    const checked = await postingCheck.statuses(batch.map((job) => job.url).filter(postingCheck.needsCheck));
+
+    for (const job of batch) {
+      if (checked.get(job.url) === "closed") {
+        closed.push(job.url);
+      } else if (open.length < limit) {
+        open.push(job);
+      }
+    }
+  }
+
+  await feeds.markClosed(closed);
+  return open;
+}
+
+async function recheckFound(userId) {
+  const { rows } = await db.query(
+    `SELECT id, url FROM jobs
+     WHERE user_id = $1 AND source = 'search' AND state = 'new' AND url IS NOT NULL
+       AND (checked_at IS NULL OR checked_at < NOW() - make_interval(hours => $2))
+     ORDER BY checked_at NULLS FIRST
+     LIMIT $3`,
+    [userId, RECHECK_HOURS, RECHECK_LIMIT]
+  );
+  const toCheck = rows.filter((row) => postingCheck.needsCheck(row.url));
+  const checked = await postingCheck.statuses(toCheck.map((row) => row.url));
+  const closed = toCheck.filter((row) => checked.get(row.url) === "closed").map((row) => row.url);
+
+  await feeds.markClosed(closed);
+  await db.query(
+    `UPDATE jobs SET checked_at = NOW() WHERE user_id = $1 AND id = ANY($2::bigint[])`,
+    [userId, rows.map((row) => row.id)]
+  );
 }
 
 function finish(searchId, state, error, found, usage) {
@@ -207,7 +261,9 @@ function sameJob(a, b, positionMin) {
 
 async function shortlist(cv, prefs, applications, known) {
   const { rows } = await db.query(
-    `SELECT id, company, title, location, workplace_model, url, description, posted_at FROM job_postings`
+    `SELECT id, company, title, location, workplace_model, url, description, posted_at FROM job_postings
+     WHERE COALESCE(posted_at, first_seen_at) >= NOW() - make_interval(days => $1)`,
+    [MAX_AGE_DAYS]
   );
   const areas = areasFor(prefs.locations);
   const roles = prefs.roles.length ? prefs.roles : [cv.headline].filter(Boolean);
@@ -245,28 +301,59 @@ async function shortlist(cv, prefs, applications, known) {
     results.push({ ...posting, rank: fit * 10 + Math.min(skillHits, 10) + where * 2 + fresh + levelBonus - levelPenalty });
   }
 
-  return results.sort((a, b) => b.rank - a.rank).slice(0, CANDIDATES);
+  const unique = [];
+
+  for (const posting of results.sort((a, b) => b.rank - a.rank)) {
+    const job = { company: posting.company, position: posting.title };
+
+    if (!unique.some((other) => sameJob(job, { company: other.company, position: other.title }, 0.9))) {
+      unique.push(posting);
+    }
+
+    if (unique.length === CANDIDATES) break;
+  }
+
+  return unique;
+}
+
+function scoringExcerpt(description) {
+  const text = String(description || "").replace(/\s+/g, " ").trim();
+
+  if (text.length <= SCORING_DESCRIPTION) {
+    return text;
+  }
+
+  const at = text.search(REQUIREMENTS_HEADING);
+  const intro = Math.floor(SCORING_DESCRIPTION * 0.35);
+
+  if (at < intro) {
+    return text.slice(0, SCORING_DESCRIPTION);
+  }
+
+  return `${text.slice(0, intro)} … ${text.slice(at, at + SCORING_DESCRIPTION - intro)}`;
 }
 
 function phrases(value) {
   return (Array.isArray(value) ? value : [])
     .map((item) => String(item).replace(/\s+/g, " ").trim().slice(0, 60))
     .filter(Boolean)
-    .slice(0, 4);
+    .slice(0, MAX_TAGS);
 }
 
 async function score(cv, prefs, candidates, usage) {
+  const haveYears = candidateYears(cv);
+  const required = new Map(candidates.map((posting) => [String(posting.id), requiredExperience(posting.description, posting.title)]));
   const postings = candidates.map((posting) => [
     `<posting id="${posting.id}">`,
     `${posting.title} at ${posting.company} (${posting.location || "location not given"})`,
-    posting.description.replace(/\s+/g, " ").slice(0, SCORING_DESCRIPTION),
+    scoringExcerpt(posting.description),
     "</posting>"
   ].join("\n"));
 
   const message = await claude.send(
     {
       model: claude.model("ANTHROPIC_MATCH_MODEL", claude.CHEAP_MODEL),
-      max_tokens: 8000,
+      max_tokens: 14000,
       system: SCORE_SYSTEM,
       output_config: claude.jsonFormat(SCORE_SCHEMA),
       messages: [{
@@ -276,6 +363,7 @@ async function score(cv, prefs, candidates, usage) {
           cvToText(cv),
           "",
           `Looking for: ${prefs.roles.join(", ") || "roles that fit the resume"}. Seniority: ${prefs.seniority}.`,
+          `Professional experience: ${haveYears ? `about ${haveYears} years` : "none"}.`,
           "",
           "## Postings",
           ...postings
@@ -295,6 +383,15 @@ async function score(cv, prefs, candidates, usage) {
     .filter((result) => byId.has(String(result?.id)))
     .map((result) => {
       const posting = byId.get(String(result.id));
+      const needs = required.get(String(result.id));
+      const raw = Math.max(0, Math.min(100, Math.round(Number(result.score) || 0)));
+      const missing = phrases(result.missing);
+      const phrase = requirementPhrase(needs);
+
+      if (phrase && haveYears < (needs.years || 1) && !missing.some((item) => /\b(years?|experience)\b/i.test(item))) {
+        missing.unshift(phrase);
+      }
+
       return {
         company: posting.company,
         position: posting.title,
@@ -303,15 +400,13 @@ async function score(cv, prefs, candidates, usage) {
         url: posting.url,
         description: posting.description,
         posted_at: posting.posted_at,
-        match_score: Math.max(0, Math.min(100, Math.round(Number(result.score) || 0))),
+        match_score: adjustForExperience(raw, haveYears, needs),
         match_have: phrases(result.have),
-        match_missing: phrases(result.missing)
+        match_missing: missing.slice(0, MAX_TAGS)
       };
     });
 }
 
-// Searches run inside the server process, so any search still marked running when the server
-// starts was cut off by a restart or deploy.
 function failInterrupted() {
   return db.query(
     `UPDATE job_searches

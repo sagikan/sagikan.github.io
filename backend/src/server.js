@@ -9,6 +9,7 @@ const emailRoutes = require("./routes/email");
 const emailIngestRoutes = require("./routes/emailIngest");
 const jobRoutes = require("./routes/jobs");
 const jobSearch = require("./services/jobSearch");
+const jobFeeds = require("./services/jobFeeds");
 require("dotenv").config();
 
 const app = express();
@@ -61,4 +62,9 @@ app.listen(port, "0.0.0.0", () => {
   console.log(`API listening on port ${port}`);
 
   jobSearch.failInterrupted().catch((err) => console.error("Could not clear interrupted job searches:", err.message));
+
+  const removeOldPostings = () => jobFeeds.removeOldPostings()
+    .catch((err) => console.error("Could not remove old job postings:", err.message));
+  removeOldPostings();
+  setInterval(removeOldPostings, 24 * 60 * 60 * 1000).unref();
 });

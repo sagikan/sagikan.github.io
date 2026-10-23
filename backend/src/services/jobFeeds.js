@@ -5,6 +5,16 @@ const { areasFor, areaScore, tidyLocation } = require("./locations");
 
 const REFRESH_HOURS = 6;
 const DISCOVERY_HOURS = 24;
+const MAX_AGE_DAYS = 90;
+const AGGREGATOR_UNSEEN_DAYS = 14;
+const JSEARCH_HOURS = 24;
+const JSEARCH_MAX_QUERIES = Math.max(1, Number(process.env.JSEARCH_MAX_QUERIES) || 6);
+const JSEARCH_PAGES = Math.min(5, Math.max(1, Number(process.env.JSEARCH_PAGES) || 1));
+const JSEARCH_HOST = "jsearch.p.rapidapi.com";
+const JSEARCH_GAP_MS = 1500;
+const JSEARCH_RETRY_MS = 5000;
+const JSEARCH_RETRY_HOURS = 1;
+const TRACKING_PARAMS = /^(utm_\w+|trk|trkInfo|refId|trackingId|src|source|ref|referrer|lipi|position|pageNum|from|tk|vjk|gclid|fbclid)$/i;
 const MAX_FAILURES = 3;
 const CONCURRENCY = 8;
 const DESCRIPTION_LIMIT = 6000;
@@ -42,6 +52,50 @@ function prettyName(token) {
 function toDate(value) {
   const date = value ? new Date(value) : null;
   return date && !Number.isNaN(date.getTime()) ? date.toISOString() : null;
+}
+
+function cleanUrl(value) {
+  try {
+    const url = new URL(value);
+    [...url.searchParams.keys()].filter((key) => TRACKING_PARAMS.test(key)).forEach((key) => url.searchParams.delete(key));
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return value;
+  }
+}
+
+const countryNames = new Intl.DisplayNames(["en"], { type: "region" });
+
+function countryName(code) {
+  try {
+    return code ? countryNames.of(String(code).toUpperCase()) : "";
+  } catch {
+    return code || "";
+  }
+}
+
+const COUNTRY_CODES = {
+  israel: "il", "united states": "us", usa: "us", us: "us", "united kingdom": "gb", uk: "gb", england: "gb",
+  germany: "de", france: "fr", netherlands: "nl", canada: "ca", ireland: "ie", spain: "es", poland: "pl",
+  portugal: "pt", italy: "it", india: "in", australia: "au", singapore: "sg", switzerland: "ch", sweden: "se"
+};
+
+function countryCode(place) {
+  const country = String(place || "").split(",").pop().trim().toLowerCase();
+  return COUNTRY_CODES[country] || null;
+}
+
+function unwrap(text) {
+  return String(text || "")
+    .replace(/([a-z])(?:\r?\n)+\r?([a-z])/g, "$1$2")
+    .replace(/(?:\r?\n\r?)+/g, "\n")
+    .trim();
+}
+
+function jsearchLink(job) {
+  const direct = (job.apply_options || []).find((option) => option?.is_direct && option.apply_link);
+  return direct?.apply_link || job.job_apply_link || job.job_google_link;
 }
 
 const PROVIDERS = {
@@ -87,8 +141,35 @@ const PROVIDERS = {
       description: job.descriptionPlain || htmlToText(job.descriptionHtml),
       postedAt: toDate(job.publishedAt)
     }))
+  },
+  jsearch: {
+    aggregator: true,
+    url: (token) => {
+      const [query, country] = token.split("|");
+      const params = new URLSearchParams({ query, page: "1", num_pages: String(JSEARCH_PAGES), date_posted: "month" });
+      if (country) params.set("country", country);
+      return `https://${JSEARCH_HOST}/search-v2?${params}`;
+    },
+    headers: () => ({ "X-RapidAPI-Key": process.env.JSEARCH_API_KEY, "X-RapidAPI-Host": JSEARCH_HOST }),
+    // /search-v2 returns the jobs in data.jobs; the old /search returned them in data.
+    parse: (data) => [data?.data?.jobs, data?.data].find(Array.isArray)?.map((job) => ({
+      externalId: job.job_id,
+      company: job.employer_name,
+      title: job.job_title,
+      location: [job.job_city, job.job_state, countryName(job.job_country)].filter(Boolean).join(", ") || job.job_location || "",
+      workplace: job.job_is_remote ? "Remote" : workplaceFrom(job.job_title),
+      url: jsearchLink(job),
+      description: unwrap(job.job_description),
+      expiresAt: toDate(job.job_offer_expiration_datetime_utc ||
+        (job.job_offer_expiration_timestamp && job.job_offer_expiration_timestamp * 1000)),
+      postedAt: toDate(job.job_posted_at_datetime_utc || (job.job_posted_at_timestamp && job.job_posted_at_timestamp * 1000))
+    })) || []
   }
 };
+
+function jsearchEnabled() {
+  return Boolean(process.env.JSEARCH_API_KEY);
+}
 
 function decoded(value) {
   try {
@@ -133,9 +214,9 @@ async function harvestUserBoards() {
   await addBoards(boardsIn(rows.map((row) => row.url).join("\n")), "user");
 }
 
-async function fetchJson(url) {
+async function fetchJson(url, headers = {}) {
   const response = await fetch(url, {
-    headers: { Accept: "application/json", "User-Agent": "JobTracker/1.0" },
+    headers: { Accept: "application/json", "User-Agent": "JobTracker/1.0", ...headers },
     signal: AbortSignal.timeout(20_000)
   });
 
@@ -144,10 +225,22 @@ async function fetchJson(url) {
   }
 
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
+    throw Object.assign(new Error(`HTTP ${response.status}`), { status: response.status });
   }
 
   return { data: await response.json() };
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function fetchAggregator(url, headers) {
+  try {
+    return await fetchJson(url, headers);
+  } catch (err) {
+    if (err.status !== 429) throw err;
+    await sleep(JSEARCH_RETRY_MS);
+    return fetchJson(url, headers);
+  }
 }
 
 async function wantedAreas() {
@@ -156,18 +249,59 @@ async function wantedAreas() {
   return locations.length ? areasFor(locations) : null;
 }
 
-// Removes closed postings from users' job lists. Jobs they applied to stay, since those are tied
-// to their applications, and so do jobs they added themselves.
 async function removeClosedJobs(urls) {
   if (urls.length === 0) {
     return 0;
   }
 
   const removed = await db.query(
-    `DELETE FROM jobs WHERE source = 'search' AND state <> 'applied' AND url = ANY($1::text[])`,
+    `DELETE FROM jobs WHERE source = 'search' AND state = 'new' AND url = ANY($1::text[])`,
     [urls]
   );
   return removed.rowCount;
+}
+
+async function removeOldPostings() {
+  await db.query(
+    `DELETE FROM job_postings WHERE COALESCE(posted_at, first_seen_at) < NOW() - make_interval(days => $1)`,
+    [MAX_AGE_DAYS]
+  );
+  await db.query(
+    `DELETE FROM job_postings WHERE seen_at < NOW() - make_interval(days => $1)`,
+    [AGGREGATOR_UNSEEN_DAYS]
+  );
+  await db.query(
+    `DELETE FROM closed_postings WHERE closed_at < NOW() - make_interval(days => $1)`,
+    [MAX_AGE_DAYS]
+  );
+  const removed = await db.query(
+    `DELETE FROM jobs
+     WHERE source = 'search' AND state = 'new' AND COALESCE(posted_at, created_at) < NOW() - make_interval(days => $1)`,
+    [MAX_AGE_DAYS]
+  );
+  return removed.rowCount;
+}
+
+async function knownClosed(urls) {
+  const { rows } = await db.query(`SELECT url FROM closed_postings WHERE url = ANY($1::text[])`, [urls]);
+  return new Set(rows.map((row) => row.url));
+}
+
+async function markClosed(urls) {
+  if (urls.length === 0) {
+    return;
+  }
+
+  await db.query(
+    `INSERT INTO closed_postings (url) SELECT UNNEST($1::text[]) ON CONFLICT (url) DO NOTHING`,
+    [urls]
+  );
+  await db.query(`DELETE FROM job_postings WHERE url = ANY($1::text[])`, [urls]);
+  await removeClosedJobs(urls);
+}
+
+function isTooOld(postedAt) {
+  return Boolean(postedAt) && new Date(postedAt) < new Date(Date.now() - MAX_AGE_DAYS * 86_400_000);
 }
 
 async function refreshBoard(board, areas = null) {
@@ -175,7 +309,12 @@ async function refreshBoard(board, areas = null) {
   const startedAt = new Date();
 
   try {
-    const { gone, data } = await fetchJson(provider.url(board.token));
+    const fetcher = provider.aggregator ? fetchAggregator : fetchJson;
+    const { gone, data } = await fetcher(provider.url(board.token), provider.headers?.());
+
+    if (gone && provider.aggregator) {
+      throw new Error("HTTP 404");
+    }
 
     if (gone) {
       await db.query(`UPDATE job_boards SET active = FALSE, last_fetched_at = NOW() WHERE id = $1`, [board.id]);
@@ -188,11 +327,15 @@ async function refreshBoard(board, areas = null) {
       .filter((job) => job.externalId && job.title && /^https?:\/\//.test(job.url || ""))
       .map((job) => {
         const tidy = tidyLocation(job.location);
-        return { ...job, location: tidy.location, workplace: job.workplace || tidy.workplace };
+        return { ...job, url: cleanUrl(job.url), location: tidy.location, workplace: job.workplace || tidy.workplace };
       });
     const openIds = open.map((job) => String(job.externalId).slice(0, 200));
+    const closedUrls = provider.aggregator ? await knownClosed(open.map((job) => job.url)) : new Set();
     const postings = open.filter((job) =>
-      !areas || areaScore(job.location, areas) > 0 || (job.workplace === "Remote" && !job.location)
+      !isTooOld(job.postedAt) &&
+      !closedUrls.has(job.url) &&
+      !(job.expiresAt && new Date(job.expiresAt) < startedAt) &&
+      (!areas || areaScore(job.location, areas) > 0 || (job.workplace === "Remote" && !job.location))
     );
     const column = (pick) => postings.map(pick);
 
@@ -222,15 +365,23 @@ async function refreshBoard(board, areas = null) {
       );
     }
 
-    const closed = await db.query(
-      `DELETE FROM job_postings
-       WHERE board_id = $1 AND seen_at < $2 AND NOT (external_id = ANY($3::text[]))
-       RETURNING url`,
-      [board.id, startedAt, openIds]
-    );
-    await removeClosedJobs(closed.rows.map((row) => row.url));
+    if (provider.aggregator) {
+      await addBoards(boardsIn(open.map((job) => job.url).join("\n")), "discovered");
+      await db.query(
+        `DELETE FROM job_postings WHERE board_id = $1 AND seen_at < NOW() - make_interval(days => $2)`,
+        [board.id, AGGREGATOR_UNSEEN_DAYS]
+      );
+    } else {
+      const closed = await db.query(
+        `DELETE FROM job_postings
+         WHERE board_id = $1 AND seen_at < $2 AND NOT (external_id = ANY($3::text[]))
+         RETURNING url`,
+        [board.id, startedAt, openIds]
+      );
+      await removeClosedJobs(closed.rows.map((row) => row.url));
 
-    await db.query(`DELETE FROM job_postings WHERE board_id = $1 AND seen_at < $2`, [board.id, startedAt]);
+      await db.query(`DELETE FROM job_postings WHERE board_id = $1 AND seen_at < $2`, [board.id, startedAt]);
+    }
     await db.query(
       `UPDATE job_boards SET failures = 0, last_fetched_at = NOW(), company = COALESCE($2, company) WHERE id = $1`,
       [board.id, postings[0]?.company || null]
@@ -238,6 +389,17 @@ async function refreshBoard(board, areas = null) {
     return postings.length;
   } catch (err) {
     console.error(`Job board ${board.provider}/${board.token} failed:`, err.message);
+
+    if (provider.aggregator) {
+      await db.query(
+        `UPDATE job_boards SET failures = failures + 1,
+           last_fetched_at = NOW() - make_interval(hours => $2::int) + make_interval(hours => $3::int)
+         WHERE id = $1`,
+        [board.id, JSEARCH_HOURS, JSEARCH_RETRY_HOURS]
+      );
+      return 0;
+    }
+
     await db.query(
       `UPDATE job_boards SET failures = failures + 1, active = failures + 1 < $2, last_fetched_at = NOW() WHERE id = $1`,
       [board.id, MAX_FAILURES]
@@ -249,19 +411,32 @@ async function refreshBoard(board, areas = null) {
 async function refreshStaleBoards() {
   const { rows: boards } = await db.query(
     `SELECT id, provider, token, company FROM job_boards
-     WHERE active AND (last_fetched_at IS NULL OR last_fetched_at < NOW() - make_interval(hours => $1))`,
-    [REFRESH_HOURS]
+     WHERE active AND (provider <> 'jsearch' OR $3::boolean)
+       AND (last_fetched_at IS NULL OR last_fetched_at < NOW() - make_interval(
+         hours => CASE WHEN provider = 'jsearch' THEN $2::int ELSE $1::int END))`,
+    [REFRESH_HOURS, JSEARCH_HOURS, jsearchEnabled()]
   );
 
   const areas = await wantedAreas();
+  const searches = boards.filter((board) => PROVIDERS[board.provider].aggregator);
+  const companyBoards = boards.filter((board) => !PROVIDERS[board.provider].aggregator);
   let next = 0;
   const worker = async () => {
-    while (next < boards.length) {
-      await refreshBoard(boards[next++], areas);
+    while (next < companyBoards.length) {
+      await refreshBoard(companyBoards[next++], areas);
+    }
+  };
+  const searchOneByOne = async () => {
+    for (const [index, board] of searches.entries()) {
+      if (index > 0) await sleep(JSEARCH_GAP_MS);
+      await refreshBoard(board, areas);
     }
   };
 
-  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, boards.length) }, worker));
+  await Promise.all([
+    searchOneByOne(),
+    ...Array.from({ length: Math.min(CONCURRENCY, companyBoards.length) }, worker)
+  ]);
   return boards.length;
 }
 
@@ -329,6 +504,66 @@ async function discover() {
   return boards.length;
 }
 
+const ENTRY_WORDS = /\b(junior|jr|entry|graduate|intern|internship|student)\b/i;
+
+function searchRoles(roles, seniority) {
+  const seen = new Set();
+  const result = [];
+
+  for (const raw of roles) {
+    const role = String(raw).trim();
+    let query = role;
+
+    if (!ENTRY_WORDS.test(role) && seniority === "Junior") query = `Junior ${role}`;
+    if (!ENTRY_WORDS.test(role) && seniority === "Student") query = `${role} Student`;
+
+    const key = query.toLowerCase().replace(/developer|programmer/g, "engineer").replace(/[^a-z]+/g, " ").trim();
+
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(query);
+    }
+  }
+
+  return result.slice(0, 3);
+}
+
+async function syncSearchBoards() {
+  const { rows } = await db.query(`SELECT preferences FROM cv_profiles`);
+  const tally = new Map();
+
+  for (const row of rows) {
+    const roles = searchRoles(row.preferences?.roles || [], row.preferences?.seniority);
+    const locations = (row.preferences?.locations || []).slice(0, 2).map((place) => String(place).trim());
+    const country = locations[0]?.includes(",") ? locations[0].split(",").pop().trim() : null;
+    const places = [...new Set([...locations, country].filter(Boolean))];
+
+    for (const role of roles) {
+      for (const place of places.length ? places : ["Israel"]) {
+        const token = `${String(role).trim()} in ${String(place).trim()}|${countryCode(place) || ""}`.slice(0, 200);
+        tally.set(token, (tally.get(token) || 0) + 1);
+      }
+    }
+  }
+
+  const wanted = [...tally.entries()].sort((a, b) => b[1] - a[1]).slice(0, JSEARCH_MAX_QUERIES).map(([token]) => token);
+
+  for (const token of wanted) {
+    await db.query(
+      `INSERT INTO job_boards (provider, token, company, source)
+       VALUES ('jsearch', $1, 'LinkedIn, Indeed and more', 'search')
+       ON CONFLICT (provider, LOWER(token)) DO UPDATE SET active = TRUE`,
+      [token]
+    );
+  }
+
+  await db.query(
+    `UPDATE job_boards SET active = FALSE
+     WHERE provider = 'jsearch' AND NOT (LOWER(token) = ANY($1::text[]))`,
+    [wanted.map((token) => token.toLowerCase())]
+  );
+}
+
 async function ensureFresh() {
   const client = await db.connect();
 
@@ -340,8 +575,13 @@ async function ensureFresh() {
     }
 
     try {
+      await removeOldPostings();
       await addBoards(SEED_BOARDS.map(([provider, token]) => ({ provider, token })), "seed");
       await harvestUserBoards();
+
+      if (jsearchEnabled()) {
+        await syncSearchBoards();
+      }
 
       if (claude.isConfigured() && await isDue("discovery", DISCOVERY_HOURS)) {
         try {
@@ -361,4 +601,4 @@ async function ensureFresh() {
   }
 }
 
-module.exports = { ensureFresh };
+module.exports = { ensureFresh, removeOldPostings, markClosed, MAX_AGE_DAYS };

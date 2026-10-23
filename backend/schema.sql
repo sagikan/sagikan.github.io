@@ -199,8 +199,6 @@ CREATE TABLE IF NOT EXISTS jobs (
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS match_have JSONB NOT NULL DEFAULT '[]';
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS match_missing JSONB NOT NULL DEFAULT '[]';
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS posted_at TIMESTAMPTZ;
--- An applied job the user removed from the Jobs page. It stays "applied" (so it's kept, with the
--- resume that was sent, for the Applications page) but isn't listed with the jobs.
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE INDEX IF NOT EXISTS jobs_user_id_idx
@@ -239,6 +237,13 @@ CREATE TABLE IF NOT EXISTS job_boards (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE job_boards DROP CONSTRAINT IF EXISTS job_boards_provider_check;
+ALTER TABLE job_boards ADD CONSTRAINT job_boards_provider_check
+    CHECK (provider IN ('greenhouse', 'lever', 'ashby', 'jsearch'));
+ALTER TABLE job_boards DROP CONSTRAINT IF EXISTS job_boards_source_check;
+ALTER TABLE job_boards ADD CONSTRAINT job_boards_source_check
+    CHECK (source IN ('seed', 'discovered', 'user', 'search'));
+
 CREATE UNIQUE INDEX IF NOT EXISTS job_boards_provider_token_idx
     ON job_boards(provider, LOWER(token));
 
@@ -257,6 +262,15 @@ CREATE TABLE IF NOT EXISTS job_postings (
     seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (board_id, external_id)
 );
+
+ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+CREATE TABLE IF NOT EXISTS closed_postings (
+    url TEXT PRIMARY KEY,
+    closed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS checked_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS feed_state (
     key TEXT PRIMARY KEY,
