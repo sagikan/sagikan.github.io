@@ -3544,8 +3544,12 @@ textarea {
 
 .job-card-top {
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 14px;
+}
+
+.job-card-top > .avatar {
+  align-self: flex-start;
 }
 
 .job-heading {
@@ -3629,6 +3633,10 @@ textarea {
   gap: 2px;
 }
 
+.job-card-side > :not(.job-dismiss) {
+  margin-block: auto;
+}
+
 .job-dismiss {
   margin: -8px -10px 0 0;
 }
@@ -3688,8 +3696,7 @@ textarea {
 .skill {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 9px 3px 7px;
+  padding: 3px 9px;
   border-radius: 999px;
   font-size: 0.8rem;
   font-weight: 500;
@@ -4716,6 +4723,12 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+}
+
+.viewbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 /* PDF preview */

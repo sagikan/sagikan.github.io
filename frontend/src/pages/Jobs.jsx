@@ -3,17 +3,13 @@ import CompanyAvatar from "../components/CompanyAvatar";
 import AddJobModal from "../components/jobs/AddJobModal";
 import ProfileModal from "../components/jobs/ProfileModal";
 import TailorModal from "../components/jobs/TailorModal";
-import { apiRequest, formatDate, localISO, toDateInput } from "../api";
+import JobDetails, { MatchSkills, PostedDate, ScoreRing } from "../components/jobs/JobDetails";
+import { CALENDAR_ICON, EXTERNAL_ICON, PIN_ICON, postingAge } from "../components/jobs/jobInfo";
+import { apiRequest, localISO, toDateInput } from "../api";
 import { downloadSavedCv } from "../utils/resume/cvPdf";
 import Alert from "../components/Alert";
 
 const POLL_MS = 5000;
-
-function scoreLevel(score) {
-  if (score >= 70) return "high";
-  if (score >= 45) return "mid";
-  return "low";
-}
 
 function timeAgo(value, now) {
   const minutes = Math.floor((now - new Date(value).getTime()) / 60000);
@@ -125,183 +121,6 @@ function inDateRange(job, rangeKey) {
   return day >= daysAgoISO(range.days - 1) && day <= daysAgoISO(0);
 }
 
-function postingAge(postedAt) {
-  const posted = new Date(`${String(postedAt).slice(0, 10)}T00:00:00`);
-  const days = Math.max(0, Math.floor((Date.now() - posted.getTime()) / 86_400_000));
-  const level = days <= 7 ? "fresh" : days <= 30 ? "aging" : "stale";
-  const ago = days === 0 ? "today"
-    : days === 1 ? "yesterday"
-      : days < 14 ? `${days} days ago`
-        : days < 60 ? `${Math.round(days / 7)} weeks ago`
-          : `${Math.round(days / 30)} months ago`;
-
-  return { level, label: `Posted ${ago}` };
-}
-
-function PostedDate({ postedAt }) {
-  return <span title={postingAge(postedAt).label}>{formatDate(postedAt)}</span>;
-}
-
-const PIN_ICON = (
-  <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
-    <path d="M10 17.5s5.5-4.9 5.5-9.25a5.5 5.5 0 0 0-11 0C4.5 12.6 10 17.5 10 17.5z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-    <circle cx="10" cy="8.25" r="2" fill="none" stroke="currentColor" strokeWidth="1.7" />
-  </svg>
-);
-
-const CALENDAR_ICON = (
-  <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
-    <rect x="3.5" y="4.5" width="13" height="12" rx="2" fill="none" stroke="currentColor" strokeWidth="1.7" />
-    <path d="M3.5 8.5h13M7 2.75v3.5M13 2.75v3.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-  </svg>
-);
-
-const CHECK_ICON = (
-  <svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true">
-    <path d="M5 10.5l3.2 3.2L15 7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-const CROSS_ICON = (
-  <svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true">
-    <path d="M6 6l8 8M14 6l-8 8" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
-  </svg>
-);
-
-function ScoreRing({ score }) {
-  return (
-    <div
-      className={`score-ring match-${scoreLevel(score)}`}
-      style={{ "--score": score }}
-      role="img"
-      aria-label={`${score}% match`}
-    >
-      <span>{score}</span>
-    </div>
-  );
-}
-
-const EXTERNAL_ICON = (
-  <svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true">
-    <path d="M11 4h5v5M16 4l-7 7M14 11.5V15a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h3.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-function MatchSkills({ job, split = false }) {
-  const have = job.match_have || [];
-  const missing = job.match_missing || [];
-
-  if (have.length === 0 && missing.length === 0) {
-    return job.match_reason ? <p className="job-reason">{job.match_reason}</p> : null;
-  }
-
-  const haveItems = have.map((item) => (
-    <li key={`have-${item}`} className="skill skill-have">{CHECK_ICON}{item}</li>
-  ));
-  const missingItems = missing.map((item) => (
-    <li key={`missing-${item}`} className="skill skill-missing">{CROSS_ICON}{item}</li>
-  ));
-
-  if (split) {
-    return (
-      <div className="job-skill-groups">
-        {haveItems.length > 0 && <ul className="job-skills" aria-label="Skills you have">{haveItems}</ul>}
-        {missingItems.length > 0 && <ul className="job-skills" aria-label="Skills you're missing">{missingItems}</ul>}
-      </div>
-    );
-  }
-
-  return (
-    <ul className="job-skills" aria-label="How your resume matches">
-      {haveItems}
-      {missingItems}
-    </ul>
-  );
-}
-
-function JobDetails({ job, onClose }) {
-  const dialogRef = useRef(null);
-  const titleId = `job-details-${job.id}`;
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    dialog.showModal();
-    return () => dialog.close();
-  }, []);
-
-  return (
-    <dialog
-      ref={dialogRef}
-      className="drawer"
-      aria-labelledby={titleId}
-      onCancel={(event) => {
-        event.preventDefault();
-        onClose();
-      }}
-      // The panel fills the dialog, so a click on the dialog itself is a click on the backdrop.
-      onClick={(event) => event.target === event.currentTarget && onClose()}
-    >
-      <div className="drawer-panel">
-        <header className="drawer-header">
-          <CompanyAvatar company={job.company} />
-          <div className="job-heading">
-            <h2 id={titleId} className="job-title">{job.position}</h2>
-            <p className="drawer-company">
-              {job.company}
-              {job.url && (
-                <a className="job-posting-link" href={job.url} target="_blank" rel="noreferrer">
-                  View posting {EXTERNAL_ICON}
-                </a>
-              )}
-            </p>
-          </div>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
-            <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
-              <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          </button>
-        </header>
-
-        <div className="drawer-body">
-          <div className="drawer-facts">
-            {job.match_score !== null && <ScoreRing score={job.match_score} />}
-            <dl>
-              {(job.location || job.workplace_model) && (
-                <>
-                  <dt>{PIN_ICON}<span className="visually-hidden">Location</span></dt>
-                  <dd>
-                    {job.location}
-                    {job.workplace_model && (
-                      <span className={`app-tag workplace-tag mix-${job.workplace_model.toLowerCase()}`}>{job.workplace_model}</span>
-                    )}
-                  </dd>
-                </>
-              )}
-              {job.posted_at && (
-                <>
-                  <dt className={job.state === "applied" ? "" : `posted-${postingAge(job.posted_at).level}`}>
-                    {CALENDAR_ICON}<span className="visually-hidden">Posted</span>
-                  </dt>
-                  <dd><PostedDate postedAt={job.posted_at} /></dd>
-                </>
-              )}
-            </dl>
-          </div>
-
-          <MatchSkills job={job} split />
-
-          {job.description && (
-            <section>
-              <h3 className="drawer-section-title">About the role</h3>
-              <p className="drawer-description">{job.description}</p>
-            </section>
-          )}
-        </div>
-      </div>
-    </dialog>
-  );
-}
-
 function JobCard({ job, onTailor, onApply, onDismiss, onDownload }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -407,13 +226,6 @@ function JobCard({ job, onTailor, onApply, onDismiss, onDownload }) {
                 Mark as applied
               </button>
               <button type="button" className="btn btn-primary btn-sm" onClick={() => onTailor(job)}>
-                {!job.has_tailoring && (
-                  <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true">
-                    <circle cx="5.5" cy="14.75" r="2.25" fill="none" stroke="currentColor" strokeWidth="1.7" />
-                    <circle cx="14.5" cy="14.75" r="2.25" fill="none" stroke="currentColor" strokeWidth="1.7" />
-                    <path d="M7.1 13.1 14.75 3.25M12.9 13.1 5.25 3.25" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-                  </svg>
-                )}
                 {job.has_tailoring ? "Open resume" : "Tailor resume"}
               </button>
             </>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Modal from "../Modal";
 import CvEditor from "./CvEditor";
+import JobDetails from "./JobDetails";
 import { apiRequest, apiUpload } from "../../api";
 import { downloadBlob, makeTailoredPdf } from "../../utils/resume/cvPdf";
 import { renderFirstPage } from "../../utils/resume/pdfPreview";
@@ -252,6 +253,7 @@ function TailorModal({ job, csrfToken, baseCv, gradeSheet, onGradeSheetChange, o
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
   const [showChanges, setShowChanges] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState("");
   const started = useRef(false);
@@ -408,18 +410,31 @@ function TailorModal({ job, csrfToken, baseCv, gradeSheet, onGradeSheetChange, o
             )}
 
             <div className="tailor-viewbar">
-              <button
-                type="button"
-                className="viewbar-btn changes-toggle"
-                aria-pressed={showChanges}
-                onClick={() => setShowChanges((value) => !value)}
-              >
-                <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true">
-                  <path d="M6 3.5v13M3.5 6h5M14 3.5v13M11.5 14h5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                Show changes
-                {changeCount > 0 && <span className="changes-count">{changeCount}</span>}
-              </button>
+              <div className="viewbar-group">
+                <button
+                  type="button"
+                  className="viewbar-btn"
+                  aria-haspopup="dialog"
+                  onClick={() => setShowDetails(true)}
+                >
+                  <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true">
+                    <path d="M5.5 2.75h6l3.75 3.75v9.25a1.5 1.5 0 0 1-1.5 1.5h-8.25a1.5 1.5 0 0 1-1.5-1.5v-11.5a1.5 1.5 0 0 1 1.5-1.5zM11.5 2.75v3.75h3.75M7 10.5h6M7 13.5h4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  Job details
+                </button>
+                <button
+                  type="button"
+                  className="viewbar-btn changes-toggle"
+                  aria-pressed={showChanges}
+                  onClick={() => setShowChanges((value) => !value)}
+                >
+                  <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true">
+                    <path d="M6 3.5v13M3.5 6h5M14 3.5v13M11.5 14h5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  Show changes
+                  {changeCount > 0 && <span className="changes-count">{changeCount}</span>}
+                </button>
+              </div>
               <button
                 type="button"
                 className="viewbar-btn"
@@ -501,6 +516,8 @@ function TailorModal({ job, csrfToken, baseCv, gradeSheet, onGradeSheetChange, o
           </>
         )}
       </div>
+
+      {showDetails && <JobDetails job={job} onClose={() => setShowDetails(false)} />}
     </Modal>
   );
 }
