@@ -39,8 +39,20 @@ jobs:
           BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
         run: |
           set -euo pipefail
+          bin="/usr/lib/postgresql/${PG_VERSION}/bin"
+
+          base=$(printf '%s' "$DATABASE_URL" | sed -E 's/([?&])(sslmode|sslrootcert)=[^&]*&?/\1/g; s/[?&]$//')
+          sep=$([[ "$base" == *\?* ]] && echo '&' || echo '?')
+          url="${base}${sep}sslmode=verify-full&sslrootcert=system"
+
+          if ! "$bin/psql" "$url" -XAtqc 'SELECT 1' > /dev/null 2> ssl-check.log; then
+            echo "::warning title=Database certificate not verified::$(head -c 300 ssl-check.log | tr '\n' ' ')"
+            url="${base}${sep}sslmode=require"
+          fi
+          rm -f ssl-check.log
+
           file="backups/job-tracker-$(date -u +%Y-%m-%d_%H%M).sql.gz.gpg"
-          "/usr/lib/postgresql/${PG_VERSION}/bin/pg_dump" --no-owner --no-privileges "$DATABASE_URL" \
+          "$bin/pg_dump" --no-owner --no-privileges "$url" \
             | gzip \
             | gpg --batch --yes --pinentry-mode loopback --symmetric --cipher-algo AES256 \
                 --passphrase "$BACKUP_PASSPHRASE" --output "$file"
