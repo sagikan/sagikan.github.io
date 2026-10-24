@@ -48,29 +48,29 @@ function AddJobModal({ csrfToken, onClose, onAdded, onUnauthorized }) {
         <div className="form-grid">
           <label className="field">
             <span>Position</span>
-            <input value={values.position} onChange={update("position")} placeholder="Backend Engineer" required autoFocus />
+            <input value={values.position} onChange={update("position")} placeholder="Software Engineer" required autoFocus />
           </label>
           <label className="field">
             <span>Company</span>
-            <input value={values.company} onChange={update("company")} placeholder="Acme Inc." required />
+            <input value={values.company} onChange={update("company")} placeholder="ABC Inc." required />
           </label>
           <label className="field">
-            <span>Location <small className="optional">(optional)</small></span>
-            <input value={values.location} onChange={update("location")} placeholder="Tel Aviv, Israel" />
+            <span>Location <small className="optional">&ensp;optional</small></span>
+            <input value={values.location} onChange={update("location")} placeholder="Tel Aviv-Yafo" />
           </label>
           <label className="field">
-            <span>Workplace model <small className="optional">(optional)</small></span>
+            <span>Workplace Model <small className="optional">&ensp;optional</small></span>
             <select value={values.workplace_model} onChange={update("workplace_model")}>
               <option value="">Not specified</option>
               {WORKPLACE_MODELS.map((model) => <option key={model} value={model}>{model}</option>)}
             </select>
           </label>
           <label className="field field-full">
-            <span>Job posting URL <small className="optional">(optional)</small></span>
+            <span>Job Posting URL <small className="optional">&ensp;optional</small></span>
             <input type="url" value={values.url} onChange={update("url")} placeholder="https://…" />
           </label>
           <label className="field field-full">
-            <span>Job description</span>
+            <span>Job Description</span>
             <textarea
               rows={8}
               value={values.description}
@@ -82,7 +82,7 @@ function AddJobModal({ csrfToken, onClose, onAdded, onUnauthorized }) {
 
         <div className="form-actions">
           <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? "Adding and scoring…" : "Add job"}</button>
+          <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? "Adding and scoring…" : "Add job post"}</button>
         </div>
       </form>
     </Modal>

@@ -1,5 +1,5 @@
-// Job Tracker email sync.
-// Looks for job-related emails in your Gmail and sends them to your Job Tracker, which suggests
+// Applicant Zero email sync.
+// Looks for job-related emails in your Gmail and sends them to your Applicant Zero account, which suggests
 // status updates for your applications. This script can only READ your mail (see appsscript.json);
 // it never changes it.
 
@@ -210,7 +210,7 @@ function post_(payload) {
 
   if (response.getResponseCode() !== 200) {
     throw new Error(
-      "Job Tracker replied " + response.getResponseCode() + ": " + response.getContentText()
+      "Applicant Zero replied " + response.getResponseCode() + ": " + response.getContentText()
     );
   }
 

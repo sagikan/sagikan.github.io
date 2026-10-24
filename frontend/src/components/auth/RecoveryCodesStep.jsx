@@ -18,10 +18,10 @@ function RecoveryCodesStep({ codes, onContinue, continueLabel = "Continue to my 
   }
 
   function handleDownload() {
-    const url = URL.createObjectURL(new Blob([`Job Tracker recovery codes\n\n${text}\n`], { type: "text/plain" }));
+    const url = URL.createObjectURL(new Blob([`Applicant Zero recovery codes\n\n${text}\n`], { type: "text/plain" }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = "job-tracker-recovery-codes.txt";
+    link.download = "applicant-zero-recovery-codes.txt";
     link.click();
     URL.revokeObjectURL(url);
   }

@@ -85,10 +85,7 @@ function Account({ csrfToken, onSessionChanged, onUnauthorized, onDeleted }) {
   return (
     <main className="dashboard account-page">
       <div className="dashboard-header">
-        <div>
-          <h1>Your Account</h1>
-          <p className="muted">Manage how you sign in to your account.</p>
-        </div>
+        <h1>Your Account</h1>
       </div>
 
       <div className="account-content">
@@ -99,7 +96,7 @@ function Account({ csrfToken, onSessionChanged, onUnauthorized, onDeleted }) {
           <div className="settings-row">
             <div>
               <div className="settings-heading">
-                <h2>Recovery codes</h2>
+                <h2>Recovery Codes</h2>
                 {recoveryCodesLeft !== null && (
                   <>
                     <span className="settings-divider" aria-hidden="true" />
@@ -178,7 +175,7 @@ function Account({ csrfToken, onSessionChanged, onUnauthorized, onDeleted }) {
         <section className="settings-card settings-card-danger">
           <div className="settings-row">
             <div>
-              <h2>Delete account</h2>
+              <h2>Delete Account</h2>
               <p className="muted">
                 Permanently delete your account and all of your job applications.
               </p>
@@ -237,7 +234,7 @@ function EmailSyncCard({ status, panel, request, openPanel, setPanel, closePanel
     const result = await request("/api/email/disconnect", {});
 
     if (result.ok) {
-      closePanel("Email sync is disconnected. You can delete the script from your Google account.");
+      closePanel("Gmail sync is disconnected. You can delete the script from your Google account.");
     } else {
       setError(result.error);
     }
@@ -248,7 +245,7 @@ function EmailSyncCard({ status, panel, request, openPanel, setPanel, closePanel
       <div className="settings-row">
         <div>
           <div className="settings-heading">
-            <h2>Email sync</h2>
+            <h2>Gmail Sync</h2>
             {status.connected && (
               <>
                 <span className="settings-divider" aria-hidden="true" />
@@ -262,7 +259,7 @@ function EmailSyncCard({ status, panel, request, openPanel, setPanel, closePanel
         </div>
         {panel !== "email" && (
           <button type="button" className="btn btn-ghost" onClick={() => openPanel("email")}>
-            {status.connected ? "Get a new script" : "Set up email sync"}
+            {status.connected ? "Get a new script" : "Set up Gmail sync"}
           </button>
         )}
       </div>
@@ -309,7 +306,7 @@ function EmailSyncCard({ status, panel, request, openPanel, setPanel, closePanel
           request={request}
           replacing={status.connected}
           onCancel={() => setPanel(null)}
-          onDone={() => closePanel("Email sync is set up. The first sync runs as soon as you start the script.")}
+          onDone={() => closePanel("Gmail sync is set up. The first sync runs as soon as you start the script.")}
         />
       )}
     </section>

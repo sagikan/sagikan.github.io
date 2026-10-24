@@ -69,7 +69,8 @@ function pulsePoints(applications, { days, bucket }) {
   });
 }
 
-export function PulseChart({ applications }) {
+// `bare`: picture only (no title, range buttons or hover points), always the month view.
+export function PulseChart({ applications, bare = false }) {
   const [rangeKey, setRangeKey] = useState("month");
   const range = PULSE_RANGES.find(({ key }) => key === rangeKey);
 
@@ -98,23 +99,27 @@ export function PulseChart({ applications }) {
   }, [applications, range]);
 
   return (
-    <div className="stat-card stat-card-pulse">
-      <span className="stat-label">
-        Pulse
-        <span className="info">
-          <button type="button" className="info-button" aria-label="About this graph" aria-describedby="pulse-help">?</button>
-          <span id="pulse-help" role="tooltip" className="info-tip">
-            How many applications have you sent over time?
+    <div className={`stat-card stat-card-pulse${bare ? " is-bare" : ""}`}>
+      {!bare && (
+        <span className="stat-label">
+          Pulse
+          <span className="info">
+            <button type="button" className="info-button" aria-label="About this graph" aria-describedby="pulse-help">?</button>
+            <span id="pulse-help" role="tooltip" className="info-tip">
+              How many applications have you sent over time?
+            </span>
           </span>
         </span>
-      </span>
-      <div className="range-tabs" role="group" aria-label="Pulse time range">
-        {PULSE_RANGES.map(({ key, label }) => (
-          <button key={key} type="button" aria-pressed={key === rangeKey} onClick={() => setRangeKey(key)}>
-            {label}
-          </button>
-        ))}
-      </div>
+      )}
+      {!bare && (
+        <div className="range-tabs" role="group" aria-label="Pulse time range">
+          {PULSE_RANGES.map(({ key, label }) => (
+            <button key={key} type="button" aria-pressed={key === rangeKey} onClick={() => setRangeKey(key)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="pulse-wrap">
         <svg
           className="pulse"
@@ -163,7 +168,7 @@ export function PulseChart({ applications }) {
           </Fragment>
         ))}
 
-        {points
+        {!bare && points
           .filter(({ count }) => count > 0)
           .map(({ x, y, count, label }) => {
             const side = x < PULSE_WIDTH * TIP_EDGE ? " tip-left" : x > PULSE_WIDTH * (1 - TIP_EDGE) ? " tip-right" : "";

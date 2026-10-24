@@ -86,16 +86,16 @@ function ApplicationForm({ job, applications, onSubmit, onCancel }) {
 
         <label className="field">
           <span>Company</span>
-          <input value={values.company} onChange={update("company")} placeholder="Acme Inc." required />
+          <input value={values.company} onChange={update("company")} placeholder="ABC Inc." required />
         </label>
 
         <label className="field">
           <span>Location</span>
-          <input value={values.location} onChange={update("location")} placeholder="Tel Aviv, Israel" required />
+          <input value={values.location} onChange={update("location")} placeholder="Tel Aviv-Yafo" required />
         </label>
 
         <label className="field">
-          <span>Workplace model <small className="optional">(optional)</small></span>
+          <span>Workplace Model <small className="optional">&ensp;optional</small></span>
           <select value={values.workplace_model} onChange={update("workplace_model")}>
             <option value="">Not specified</option>
             {WORKPLACE_MODELS.map((model) => (
@@ -114,22 +114,22 @@ function ApplicationForm({ job, applications, onSubmit, onCancel }) {
         </label>
 
         <label className="field">
-          <span>Date applied <small className="optional">(optional)</small></span>
+          <span>Date Applied <small className="optional">&ensp;optional</small></span>
           <input type="date" value={values.applied_at} onChange={update("applied_at")} />
         </label>
 
         <label className="field field-full">
-          <span>Job posting URL <small className="optional">(optional)</small></span>
+          <span>Job Posting URL <small className="optional">&ensp;optional</small></span>
           <input type="url" value={values.job_url} onChange={update("job_url")} placeholder="https://…" />
         </label>
 
         <label className="field field-full">
-          <span>Notes <small className="optional">(optional)</small></span>
+          <span>Notes <small className="optional">&ensp;optional</small></span>
           <textarea
             value={values.notes}
             onChange={update("notes")}
             rows={4}
-            placeholder="Recruiter name, salary range, next steps…"
+            placeholder="Recruiter name, salary range, next steps, etc."
           />
         </label>
       </div>

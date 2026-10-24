@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import CompanyAvatar from "../components/CompanyAvatar";
+import { PixelDigit, PixelZero } from "../components/Logo";
+import { PulseChart } from "../components/StatCharts";
 import StatusBadge from "../components/StatusBadge";
 
 function useInView(ref, threshold = 0.2) {
@@ -45,7 +47,7 @@ function CountUp({ value, run }) {
 }
 
 const CHECK = (
-  <svg viewBox="0 0 20 20" width="11" height="11" aria-hidden="true">
+  <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
     <path d="M5 10.5l3.2 3.2L15 7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
@@ -80,10 +82,10 @@ const DOWNLOAD = (
   </svg>
 );
 
-function WindowBar({ children }) {
+function WindowBar({ step, children }) {
   return (
     <div className="preview-bar">
-      <span /><span /><span />
+      {[1, 2, 3].map((dot) => <span key={dot} className={dot === step ? "is-on" : undefined} />)}
       {children && <div className="preview-bar-tools">{children}</div>}
     </div>
   );
@@ -123,6 +125,17 @@ function Stack({ ghost, children }) {
   );
 }
 
+// Made-up activity for the preview's Pulse graph; it doesn't match the preview's list.
+const PULSE_SAMPLE = Array.from({ length: 364 }, (_, daysAgo) => {
+  const daily = Math.sin(daysAgo * 1.9) * 1.6 + Math.sin(daysAgo * 0.77 + 1) * 1.1;
+  const waves = Math.sin(daysAgo / 17) * 0.9;
+  const recent = Math.max(0, 1 - daysAgo / 120);
+  const count = Math.max(0, Math.round(3 + daily + waves + recent * 2.5));
+  const day = new Date();
+  day.setDate(day.getDate() - daysAgo);
+  return Array.from({ length: count }, () => ({ created_at: day.toISOString() }));
+}).flat();
+
 function ApplicationsPreview({ active }) {
   const [filter, setFilter] = useState("All");
   const shown = APPLICATIONS.filter((item) => filter === "All" || item.status === filter);
@@ -130,11 +143,14 @@ function ApplicationsPreview({ active }) {
 
   return (
     <div className="preview-window showcase-window">
-      <WindowBar />
+      <WindowBar step={1} />
       <div className="preview-stats">
         <div><strong><CountUp value={APPLICATIONS.length} run={active} /></strong><small>Total</small></div>
         <div><strong><CountUp value={count("Interview")} run={active} /></strong><small>Interviews</small></div>
         <div><strong><CountUp value={count("Offer")} run={active} /></strong><small>Offers</small></div>
+        <div className="preview-pulse">
+          <PulseChart applications={PULSE_SAMPLE} bare />
+        </div>
       </div>
       <div className="preview-chips" role="group" aria-label="Filter the example applications">
         {STATUS_FILTERS.map((status) => (
@@ -232,7 +248,7 @@ function JobsPreview({ active }) {
 
   return (
     <div className="preview-window showcase-window">
-      <WindowBar />
+      <WindowBar step={2} />
       <div className="preview-section-head">
         <span>Found</span>
         <span className="preview-muted">{jobs.length}</span>
@@ -387,7 +403,7 @@ function TailorPreview() {
 
   return (
     <div className="preview-window showcase-window preview-doc">
-      <WindowBar>
+      <WindowBar step={3}>
         <button
           type="button"
           className="preview-tailor"
@@ -431,7 +447,7 @@ function Point({ children }) {
   );
 }
 
-function Story({ id, flip = false, title, text, points, link, preview }) {
+function Story({ id, flip = false, title, points, link, preview }) {
   const ref = useRef(null);
   const inView = useInView(ref);
 
@@ -443,7 +459,6 @@ function Story({ id, flip = false, title, text, points, link, preview }) {
     >
       <div className="showcase-copy">
         <h2>{title}</h2>
-        <p>{text}</p>
         <ul className="showcase-points">
           {points.map((point) => <Point key={point}>{point}</Point>)}
         </ul>
@@ -467,45 +482,37 @@ function Reveal({ className = "", children }) {
   return <div ref={ref} className={`${className} reveal${inView ? " is-visible" : ""}`}>{children}</div>;
 }
 
-const FEATURES = [
-  {
-    title: "Updates from your inbox",
-    text: "Connect Gmail and replies from employers suggest status changes for you to confirm.",
-    icon: "M4 6h16v12H4zM4 7l8 6 8-6"
-  },
-  {
-    title: "Your data, yours to take",
-    text: "Export every application to a spreadsheet whenever you like.",
-    icon: "M12 4v11M7.5 10.5 12 15l4.5-4.5M5 20h14"
-  },
-  {
-    title: "Private and secure",
-    text: "Two-factor sign-in, and your resume and applications stay behind your account.",
-    icon: "M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6l8-3z"
-  }
-];
-
-const NAV_ICONS = {
-  track: "M8 4.5h-1.5A1.5 1.5 0 0 0 5 6v10.5A1.5 1.5 0 0 0 6.5 18h7a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H12M8 3.5h4v2.5H8zM7.75 11.75l1.6 1.6 3.15-3.35",
-  find: "M9 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM13.5 13.5 17 17",
-  tailor: "M7.1 13.1 14.75 3.25M12.9 13.1 5.25 3.25M5.5 17a2.25 2.25 0 1 0 0-4.5 2.25 2.25 0 0 0 0 4.5zM14.5 17a2.25 2.25 0 1 0 0-4.5 2.25 2.25 0 0 0 0 4.5z"
-};
-
 const FEATURE_TABS = [
-  { id: "story-track", label: "Applications", icon: NAV_ICONS.track },
-  { id: "story-find", label: "Job Posts", icon: NAV_ICONS.find },
-  { id: "story-tailor", label: "Tailored Resumes", short: "Resumes", icon: NAV_ICONS.tailor }
+  { id: "story-track", label: "Applications" },
+  { id: "story-find", label: "Job Posts" },
+  { id: "story-tailor", label: "Tailored Resumes" }
 ];
 
 function scrollToStory(id) {
   document.getElementById(id)?.scrollIntoView({ behavior: REDUCED_MOTION ? "auto" : "smooth", block: "center" });
 }
 
+// Tabs share the bar equally, so their width (and this check) doesn't change when labels hide.
+function labelsOverflow(tabs, labels) {
+  return FEATURE_TABS.some(({ id }) => {
+    const tab = tabs[id];
+    const label = labels[id];
+    if (!tab || !label) return false;
+
+    const style = getComputedStyle(tab);
+    const number = tab.querySelector(".feature-tab-num")?.offsetWidth || 0;
+    const room = tab.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) - number - parseFloat(style.columnGap);
+    return label.scrollWidth > room;
+  });
+}
+
 function FeatureTabs() {
   const [active, setActive] = useState(null);
   const [pill, setPill] = useState(null);
+  const [compact, setCompact] = useState(false);
+  const bar = useRef(null);
+  const labels = useRef({});
   const tabs = useRef({});
-  // While a clicked tab's glide is on its way, the features it passes don't take the highlight.
   const heading = useRef(null);
   const release = useRef(null);
 
@@ -565,6 +572,17 @@ function FeatureTabs() {
 
   useLayoutEffect(place, [place]);
 
+  useLayoutEffect(() => {
+    const fit = () => setCompact(labelsOverflow(tabs.current, labels.current));
+    fit();
+    document.fonts?.ready.then(fit);
+
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const observer = new ResizeObserver(fit);
+    observer.observe(bar.current);
+    return () => observer.disconnect();
+  }, []);
+
   useEffect(() => {
     window.addEventListener("resize", place);
     return () => window.removeEventListener("resize", place);
@@ -572,19 +590,20 @@ function FeatureTabs() {
 
   return (
     <div className="feature-tabs-dock">
-      <nav className="feature-tabs hero-rise" aria-label="Features">
+      <nav ref={bar} className={`feature-tabs hero-rise${compact ? " is-compact" : ""}`} aria-label="Features">
         <span
           className={`feature-tabs-pill${pill ? " is-shown" : ""}`}
           style={pill ? { transform: `translateX(${pill.left}px)`, width: pill.width } : undefined}
           aria-hidden="true"
         />
-        {FEATURE_TABS.map((tab) => (
+        {FEATURE_TABS.map((tab, index) => (
           <button
             key={tab.id}
             ref={(node) => { tabs.current[tab.id] = node; }}
             type="button"
             className="feature-tab"
             aria-current={active === tab.id ? "true" : undefined}
+            title={compact ? tab.label : undefined}
             onClick={() => {
               setActive(tab.id);
               heading.current = tab.id;
@@ -593,15 +612,31 @@ function FeatureTabs() {
               scrollToStory(tab.id);
             }}
           >
-            <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
-              <path d={tab.icon} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <span className={tab.short ? "feature-tab-long" : undefined}>{tab.label}</span>
-            {tab.short && <span className="feature-tab-short">{tab.short}</span>}
+            <span className="feature-tab-num" aria-hidden="true">
+              <PixelDigit digit={index} crisp height="0.73em" />
+            </span>
+            {/* Visually hidden, not removed, so it can still be measured and read by screen readers. */}
+            <span ref={(node) => { labels.current[tab.id] = node; }} className={compact ? "visually-hidden" : undefined}>
+              {tab.label}
+            </span>
           </button>
         ))}
       </nav>
     </div>
+  );
+}
+
+// Gradient text has no color of its own, so `accent` gives the gradient's mix (% of --accent) at
+// that spot. The hidden "o" keeps the word whole for screen readers and copy-paste.
+function O({ accent }) {
+  const color = accent === undefined
+    ? undefined
+    : `color-mix(in srgb, var(--accent) ${accent}%, var(--accent-2))`;
+  return (
+    <span className="pixel-o">
+      <PixelZero color={color} />
+      <span className="visually-hidden">o</span>
+    </span>
   );
 }
 
@@ -610,41 +645,44 @@ function Landing({ authenticated }) {
 
   return (
     <main className="landing">
-      <section className="hero">
-        <h1 className="hero-rise">
-          Keep track of <i>every</i> application <span className="gradient-text">until you get the offer.</span>
-        </h1>
-        <p className="lede hero-rise">
-          <b>Job Tracker</b> keeps every application in one place, finds job posts that fit your resume,
-          and tailors your resume to each one.
-        </p>
-        <div className="hero-actions hero-rise">
-          <a href={ctaHref} className="btn btn-primary btn-lg">
-            {authenticated ? "Go to my applications" : "Get started"}
-            <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
-              <path d="M4 10h12m-5-5l5 5-5 5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </a>
-          {authenticated ? (
-            <a href="#/jobs" className="btn btn-ghost btn-lg">Browse job posts</a>
-          ) : (
-            <a href="#/login" className="btn btn-ghost btn-lg">I already have an account</a>
-          )}
-        </div>
-      </section>
-
+      {/* The hero is inside the zone so the sticky tabs can also rest at the screen's bottom. */}
       <div className="feature-zone">
+        <section className="hero">
+          <h1 className="hero-rise">
+            {/* Words with a pixel zero are kept whole, or the line could break inside them. */}
+            Keep track <span className="nowrap"><O />f</span> <i>every</i> <span className="nowrap">applicati<O />n</span>{" "}
+            <span className="gradient-text">
+              until <span className="nowrap">y<O accent={75} />u</span> get the <span className="nowrap"><O accent={30} />ffer.</span>
+            </span>
+          </h1>
+          <div className="hero-actions hero-rise">
+            <a href={ctaHref} className="btn btn-glass btn-lg">
+              {authenticated ? "My Applications" : "Start Now"}
+              <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+                <path d="M4 10h12m-5-5l5 5-5 5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </a>
+            {authenticated ? (
+              <a href="#/jobs" className="btn btn-ghost btn-lg">Browse Job Posts</a>
+            ) : (
+              <a href="#/login" className="btn btn-ghost btn-lg">I already have an account</a>
+            )}
+          </div>
+          <p className="lede hero-rise">
+            Everything you need to land your next role, in one place and with total control.
+          </p>
+        </section>
+
         <FeatureTabs />
 
         <div className="showcase">
           <Story
             id="story-track"
             title="Every application, one place"
-            text="Log each role with its posting, date and notes, and follow it from the first application to the offer."
             points={[
-              "See where your search stands at a glance",
-              "Filter by status or date, and search across everything",
-              "Keep the resume you sent with each application"
+              "See where your search stands with advanced stats",
+              "Filter your applications and search across everything",
+              "Track the resume you sent with each application"
             ]}
             link={{ href: "#/applications", label: "Track Applications" }}
             preview={(inView) => <ApplicationsPreview active={inView} />}
@@ -654,10 +692,9 @@ function Landing({ authenticated }) {
             id="story-find"
             flip
             title="Openings picked for you"
-            text="Upload your resume once. Job Tracker searches company career pages for roles that fit it and your preferences, and keeps the list fresh."
             points={[
-              "A match score for every post, with the skills you have and the ones you're missing",
-              "Filter by when it was posted, and spot new posts at a glance",
+              "Automated search across the most popular job boards",
+              "AI-powered, profile-based score and analysis for each post",
               "Add any job you found yourself"
             ]}
             link={{ href: "#/jobs", label: "Browse Job Posts" }}
@@ -666,31 +703,16 @@ function Landing({ authenticated }) {
 
           <Story
             id="story-tailor"
-            title="A resume made for each post"
-            text="One click rewrites your resume for the job, using only what's already in it. Nothing is made up, and every change is yours to keep, edit or undo."
+            title="Resume tailored for each opening"
             points={[
-              "See exactly what changed: reworded lines, reordered bullets and what was left out",
-              "Download a PDF in your own resume's design, with your grade sheet attached if you like",
-              "Restore anything with one click"
+              "Observe changes: rewording, reordering, additions, removals",
+              "Attach any additional PDF document (e.g. Gradesheet)",
+              "Download the final ATS-approved PDF version"
             ]}
             preview={() => <TailorPreview />}
           />
         </div>
       </div>
-
-      <Reveal className="features">
-        {FEATURES.map((feature) => (
-          <article key={feature.title} className="feature-card">
-            <span className="feature-icon">
-              <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-                <path d={feature.icon} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </span>
-            <h3>{feature.title}</h3>
-            <p>{feature.text}</p>
-          </article>
-        ))}
-      </Reveal>
 
       <Reveal className="cta-band">
         <h2>Ready to take control of your search?</h2>
@@ -700,7 +722,10 @@ function Landing({ authenticated }) {
             : "Create a free account, upload your resume and get your first matches in minutes."}
         </p>
         <a href={authenticated ? "#/jobs" : ctaHref} className="btn btn-light btn-lg">
-          {authenticated ? "Open job posts" : "Sign up"}
+          {authenticated ? "Browse Job Posts" : "Sign Up"}
+          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+            <path d="M4 10h12m-5-5l5 5-5 5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
         </a>
       </Reveal>
     </main>

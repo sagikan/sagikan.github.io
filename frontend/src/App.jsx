@@ -339,10 +339,12 @@ function App() {
       )}
       {page}
       <footer className="footer">
-        <div className={`api-pill api-${apiStatus}`} title={API_LABELS[apiStatus]}>
-          <span className="api-dot" aria-hidden="true" />
+        <div className="footer-inner">
+          <div className={`api-pill api-${apiStatus}`} title={API_LABELS[apiStatus]}>
+            <span className="api-dot" aria-hidden="true" />
+          </div>
+          © {new Date().getFullYear()} Applicant Zero
         </div>
-        © {new Date().getFullYear()} Job Tracker
       </footer>
     </div>
   );

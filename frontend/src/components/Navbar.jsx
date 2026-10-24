@@ -4,9 +4,9 @@ function Navbar({ route, authenticated, email, onLogout }) {
   return (
     <header className="navbar">
       <div className="navbar-inner">
-        <a href="#/" className={`brand ${route === "/" ? "active" : ""}`} aria-label="Job Tracker home">
+        <a href="#/" className={`brand ${route === "/" ? "active" : ""}`} aria-label="Applicant Zero home">
           <Logo />
-          <span>Job Tracker</span>
+          <span className="brand-name">applicant<span className="brand-zero">zero</span></span>
         </a>
 
         <nav className="navbar-links">
