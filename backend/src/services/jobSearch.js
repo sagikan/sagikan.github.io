@@ -1,5 +1,6 @@
 const db = require("../config/db");
 const claude = require("./anthropic");
+const dev = require("./devMode");
 const feeds = require("./jobFeeds");
 const { areasFor, areaScore } = require("./locations");
 const { cvToText, normalizePreferences, object } = require("./cvProfile");
@@ -340,9 +341,7 @@ function phrases(value) {
     .slice(0, MAX_TAGS);
 }
 
-async function score(cv, prefs, candidates, usage) {
-  const haveYears = candidateYears(cv);
-  const required = new Map(candidates.map((posting) => [String(posting.id), requiredExperience(posting.description, posting.title)]));
+async function askForScores(cv, prefs, candidates, haveYears, usage) {
   const postings = candidates.map((posting) => [
     `<posting id="${posting.id}">`,
     `${posting.title} at ${posting.company} (${posting.location || "location not given"})`,
@@ -376,8 +375,14 @@ async function score(cv, prefs, candidates, usage) {
   usage.input += message.usage?.input_tokens ?? 0;
   usage.output += message.usage?.output_tokens ?? 0;
 
+  return claude.readJson(message).results || [];
+}
+
+async function score(cv, prefs, candidates, usage) {
+  const haveYears = candidateYears(cv);
+  const required = new Map(candidates.map((posting) => [String(posting.id), requiredExperience(posting.description, posting.title)]));
+  const results = dev.offline ? dev.scores(cv, candidates) : await askForScores(cv, prefs, candidates, haveYears, usage);
   const byId = new Map(candidates.map((posting) => [String(posting.id), posting]));
-  const results = claude.readJson(message).results || [];
 
   return results
     .filter((result) => byId.has(String(result?.id)))

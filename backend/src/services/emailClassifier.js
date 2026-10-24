@@ -1,3 +1,5 @@
+const dev = require("./devMode");
+
 const EVENTS = ["received", "viewed", "assessment", "interview", "offer", "rejection", "other"];
 
 const TOOL = {
@@ -38,7 +40,7 @@ const SYSTEM =
   "If the body contains a decision (rejection, interview, offer), that decision is the event.";
 
 function isConfigured() {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
+  return dev.offline || Boolean(process.env.ANTHROPIC_API_KEY);
 }
 
 function clamp01(value) {
@@ -46,6 +48,10 @@ function clamp01(value) {
 }
 
 async function classifyEmail({ from, subject, body }) {
+  if (dev.offline) {
+    return dev.classify({ from, subject, body });
+  }
+
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {

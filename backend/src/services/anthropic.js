@@ -1,4 +1,5 @@
 const Anthropic = require("@anthropic-ai/sdk");
+const dev = require("./devMode");
 
 const DEFAULT_MODEL = "claude-sonnet-5-5";
 const CHEAP_MODEL = "claude-haiku-5-5";
@@ -9,7 +10,7 @@ let client;
 class ClaudeError extends Error {}
 
 function isConfigured() {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
+  return dev.offline || Boolean(process.env.ANTHROPIC_API_KEY);
 }
 
 function getClient() {
@@ -28,6 +29,11 @@ function model(envName, fallbackModel = DEFAULT_MODEL) {
 // With fallback on, a request Claude declines on safety grounds is retried on a fallback model.
 // Haiku doesn't support that, so its calls turn it off.
 async function send(params, { timeoutMs = 5 * 60 * 1000, fallback = true } = {}) {
+  // Safety net: callers use their stand-ins in development, so this should never be reached there.
+  if (dev.offline) {
+    throw new ClaudeError("Claude calls are off in development. Set USE_REAL_APIS=true to allow them.");
+  }
+
   const stream = fallback
     ? getClient().beta.messages.stream({ ...params, betas: [FALLBACK_BETA], fallbacks: "default" }, { timeout: timeoutMs })
     : getClient().messages.stream(params, { timeout: timeoutMs });

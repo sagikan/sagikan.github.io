@@ -10,6 +10,7 @@ const emailIngestRoutes = require("./routes/emailIngest");
 const jobRoutes = require("./routes/jobs");
 const jobSearch = require("./services/jobSearch");
 const jobFeeds = require("./services/jobFeeds");
+const devMode = require("./services/devMode");
 require("dotenv").config();
 
 const app = express();
@@ -60,6 +61,10 @@ const port = process.env.PORT || 3000;
 
 app.listen(port, "0.0.0.0", () => {
   console.log(`API listening on port ${port}`);
+
+  if (devMode.offline) {
+    console.log("[dev] Paid and optional outside services are off: Claude, JSearch, posting checks and emails use local stand-ins. Set USE_REAL_APIS=true to use them.");
+  }
 
   jobSearch.failInterrupted().catch((err) => console.error("Could not clear interrupted job searches:", err.message));
 

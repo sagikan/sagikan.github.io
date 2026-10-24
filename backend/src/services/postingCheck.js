@@ -1,3 +1,5 @@
+const dev = require("./devMode");
+
 const TIMEOUT_MS = 12_000;
 const CONCURRENCY = 4;
 const BOARD_HOSTS = /(^|\.)(greenhouse\.io|lever\.co|ashbyhq\.com)$/i;
@@ -23,6 +25,10 @@ function needsCheck(url) {
 }
 
 async function status(url) {
+  if (dev.offline) {
+    return "unknown";
+  }
+
   try {
     const response = await fetch(url, {
       redirect: "follow",

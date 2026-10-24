@@ -1,5 +1,6 @@
 const { PDFDocument } = require("pdf-lib");
 const claude = require("./anthropic");
+const dev = require("./devMode");
 
 const WORKPLACE_MODELS = ["On-site", "Hybrid", "Remote"];
 const SENIORITIES = ["Any", "Student", "Junior", "Mid", "Senior"];
@@ -343,6 +344,16 @@ function splitProject(entry) {
 }
 
 async function extractFromPdf(buffer) {
+  const result = dev.offline ? dev.sampleResume() : await readResume(buffer);
+  const cv = normalizeCv(result.cv);
+
+  cv.projects = cv.projects.map(splitProject);
+  cv.education = cv.education.map(splitDegree);
+
+  return { cv, preferences: normalizePreferences(result.preferences) };
+}
+
+async function readResume(buffer) {
   const message = await claude.send({
     model: claude.model("ANTHROPIC_TAILOR_MODEL"),
     max_tokens: 16000,
@@ -358,13 +369,7 @@ async function extractFromPdf(buffer) {
       }
     ]
   });
-  const result = claude.readJson(message);
-  const cv = normalizeCv(result.cv);
-
-  cv.projects = cv.projects.map(splitProject);
-  cv.education = cv.education.map(splitDegree);
-
-  return { cv, preferences: normalizePreferences(result.preferences) };
+  return claude.readJson(message);
 }
 
 function cvToText(cv) {

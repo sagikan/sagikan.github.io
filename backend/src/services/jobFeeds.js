@@ -1,5 +1,6 @@
 const db = require("../config/db");
 const claude = require("./anthropic");
+const dev = require("./devMode");
 const { htmlToText } = require("./htmlText");
 const { areasFor, areaScore, tidyLocation } = require("./locations");
 
@@ -168,7 +169,7 @@ const PROVIDERS = {
 };
 
 function jsearchEnabled() {
-  return Boolean(process.env.JSEARCH_API_KEY);
+  return !dev.offline && Boolean(process.env.JSEARCH_API_KEY);
 }
 
 function decoded(value) {
@@ -216,7 +217,7 @@ async function harvestUserBoards() {
 
 async function fetchJson(url, headers = {}) {
   const response = await fetch(url, {
-    headers: { Accept: "application/json", "User-Agent": "JobTracker/1.0", ...headers },
+    headers: { Accept: "application/json", "User-Agent": "ApplicantZero/1.0", ...headers },
     signal: AbortSignal.timeout(20_000)
   });
 
@@ -583,7 +584,7 @@ async function ensureFresh() {
         await syncSearchBoards();
       }
 
-      if (claude.isConfigured() && await isDue("discovery", DISCOVERY_HOURS)) {
+      if (!dev.offline && claude.isConfigured() && await isDue("discovery", DISCOVERY_HOURS)) {
         try {
           await discover();
         } catch (err) {

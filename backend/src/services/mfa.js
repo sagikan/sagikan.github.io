@@ -83,7 +83,7 @@ function generateTotpSecret() {
   return base32Encode(crypto.randomBytes(20));
 }
 
-function totpUri(secret, email, issuer = "Job Tracker") {
+function totpUri(secret, email, issuer = "Applicant Zero") {
   const label = `${encodeURIComponent(issuer)}:${encodeURIComponent(email)}`;
   const params = {
     secret,

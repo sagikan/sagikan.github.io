@@ -1,4 +1,5 @@
 const nodemailer = require("nodemailer");
+const dev = require("./devMode");
 
 const isProduction = process.env.NODE_ENV === "production";
 let transporter;
@@ -30,15 +31,15 @@ function getTransporter() {
 
 const TEMPLATES = {
   verify: {
-    subject: (code) => `${code} is your Job Tracker verification code`,
+    subject: (code) => `${code} is your Applicant Zero verification code`,
     heading: "Verify your email",
-    intro: "Enter this code in Job Tracker to finish creating your account.",
+    intro: "Enter this code in Applicant Zero to finish creating your account.",
     ignore: "If you didn't create an account, you can ignore this email."
   },
   reset: {
-    subject: (code) => `${code} is your Job Tracker password reset code`,
+    subject: (code) => `${code} is your Applicant Zero password reset code`,
     heading: "Reset your password",
-    intro: "Enter this code in Job Tracker to choose a new password.",
+    intro: "Enter this code in Applicant Zero to choose a new password.",
     ignore: "If you didn't ask to reset your password, you can ignore this email. Your password won't change."
   }
 };
@@ -46,8 +47,8 @@ const TEMPLATES = {
 function parseSender(value) {
   const match = /^\s*(.*?)\s*<([^>]+)>\s*$/.exec(value || "");
   return match
-    ? { name: match[1] || "Job Tracker", email: match[2].trim() }
-    : { name: "Job Tracker", email: String(value || "").trim() };
+    ? { name: match[1] || "Applicant Zero", email: match[2].trim() }
+    : { name: "Applicant Zero", email: String(value || "").trim() };
 }
 
 async function sendWithBrevo(message) {
@@ -97,6 +98,11 @@ async function sendCodeEmail(to, code, kind) {
       </div>`
   };
 
+  if (dev.offline) {
+    console.log(`[mailer] ${kind} code for ${to}: ${code} (not emailed in development)`);
+    return;
+  }
+
   if (process.env.BREVO_API_KEY) {
     return sendWithBrevo(message);
   }
@@ -114,7 +120,7 @@ async function sendCodeEmail(to, code, kind) {
 
   await transport.sendMail({
     ...message,
-    from: process.env.MAIL_FROM || `Job Tracker <${process.env.SMTP_USER}>`
+    from: process.env.MAIL_FROM || `Applicant Zero <${process.env.SMTP_USER}>`
   });
 }
 
