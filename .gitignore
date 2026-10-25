@@ -25,3 +25,19 @@ Thumbs.db
 
 # Test coverage
 coverage/
+
+# Keys, certificates and database dumps (never publish these)
+*.pem
+*.key
+*.crt
+*.p12
+*.dump
+*.sql.gz
+*.sql.gz.gpg
+backups/
+
+# Claude Code's local settings
+.claude/
+
+# Private notes
+LIMITS.md
