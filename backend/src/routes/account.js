@@ -33,6 +33,7 @@ router.post("/recovery-codes", async (req, res) => {
       auth.replaceRecoveryCodes(client, user.id)
     );
 
+    auth.notifySecurityChange(user.email, "recovery_codes");
     res.set("Cache-Control", "no-store");
     res.json({ recoveryCodes });
   } catch (err) {
@@ -110,10 +111,12 @@ router.post("/mfa/reset/confirm", async (req, res) => {
          WHERE id = $1`,
         [user.id, step]
       );
+      await auth.endAllSessions(client, user.id);
       return auth.replaceRecoveryCodes(client, user.id);
     });
 
-    auth.issueSession(res, await auth.getUser(user.id));
+    auth.notifySecurityChange(user.email, "mfa_reset");
+    await auth.issueSession(res, await auth.getUser(user.id));
     res.set("Cache-Control", "no-store");
     res.json({ recoveryCodes });
   } catch (err) {
@@ -153,6 +156,7 @@ router.post("/delete", async (req, res) => {
 
     await db.query(`DELETE FROM users WHERE id = $1`, [user.id]);
 
+    auth.notifySecurityChange(user.email, "account_deleted");
     auth.clearSessionCookies(res);
     res.json({ message: "Your account has been deleted." });
   } catch (err) {

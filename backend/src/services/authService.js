@@ -2,37 +2,34 @@ const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const QRCode = require("qrcode");
 const db = require("../config/db");
-const { sendCodeEmail } = require("./mailer");
+const { sendCodeEmail, sendSecurityNotice } = require("./mailer");
 const mfa = require("./mfa");
 
 const isProduction = process.env.NODE_ENV === "production";
-
 const baseCookieOptions = {
   httpOnly: true,
   secure: isProduction,
   sameSite: isProduction ? "none" : "lax",
   path: "/",
 };
-
-const cookieOptions = {
-  ...baseCookieOptions,
-  maxAge: 60 * 60 * 1000,
-};
-
+const JWT_ALGORITHM = "HS256";
+const SESSION_IDLE_MINUTES = 60;
+const SESSION_MAX_HOURS = 24;
 const PENDING_COOKIE = "pending_auth";
 const PENDING_MINUTES = 15;
 const EMAIL_CODE_MINUTES = 15;
 const EMAIL_RESEND_SECONDS = 60;
+const EMAIL_MAX_SENDS_PER_DAY = 8;
 const EMAIL_MAX_ATTEMPTS = 5;
 const MFA_MAX_ATTEMPTS = 5;
 const MFA_LOCK_MINUTES = 15;
 const LOGIN_MAX_ATTEMPTS = 10;
 const LOGIN_LOCK_MINUTES = 15;
-
 const EMAIL_CODE_TABLES = {
   verify: "email_verifications",
   reset: "password_resets",
 };
+const RENEW_AFTER_MINUTES = 5;
 
 function validatePassword(password, email) {
   if (typeof password !== "string") {
@@ -69,41 +66,66 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-function issueSession(res, user) {
-  const token = jwt.sign(
-    {
-      id: user.id,
-      typ: "session",
-      ver: user.token_version,
-      csrfToken: crypto.randomBytes(32).toString("hex"),
-    },
-    process.env.JWT_SECRET,
-    { expiresIn: "1h" }
+function signToken(payload, expiresInSeconds) {
+  return jwt.sign(payload, process.env.JWT_SECRET, {
+    algorithm: JWT_ALGORITHM,
+    expiresIn: Math.max(1, Math.floor(expiresInSeconds)),
+  });
+}
+
+function verifyToken(token) {
+  return jwt.verify(token, process.env.JWT_SECRET, { algorithms: [JWT_ALGORITHM] });
+}
+
+function hashSessionId(sessionId) {
+  return crypto.createHash("sha256").update(String(sessionId)).digest("hex");
+}
+
+function sessionCookie(res, payload, sessionEndsAt) {
+  const seconds = Math.min(SESSION_IDLE_MINUTES * 60, (sessionEndsAt - Date.now()) / 1000);
+  res.cookie("token", signToken(payload, seconds), { ...baseCookieOptions, maxAge: seconds * 1000 });
+}
+
+async function issueSession(res, user) {
+  const sessionId = crypto.randomBytes(32).toString("hex");
+  const result = await db.query(
+    `INSERT INTO sessions (id_hash, user_id, expires_at)
+     VALUES ($1, $2, NOW() + make_interval(hours => $3))
+     RETURNING expires_at`,
+    [hashSessionId(sessionId), user.id, SESSION_MAX_HOURS]
   );
 
   res.clearCookie(PENDING_COOKIE, baseCookieOptions);
-  res.cookie("token", token, cookieOptions);
+  sessionCookie(res, {
+    id: user.id,
+    typ: "session",
+    ver: user.token_version,
+    sid: sessionId,
+    csrfToken: crypto.randomBytes(32).toString("hex"),
+  }, result.rows[0].expires_at.getTime());
 }
 
-// Sessions last an hour from the user's last request, not from logging in: a session older
-// than RENEW_AFTER_MINUTES gets a fresh hour. It keeps the same CSRF token, so the site's copy
-// of it stays valid.
-const RENEW_AFTER_MINUTES = 5;
-
-function renewSession(res, payload) {
+function renewSession(res, payload, sessionEndsAt) {
   const ageSeconds = Math.floor(Date.now() / 1000) - (payload.iat ?? 0);
 
   if (ageSeconds < RENEW_AFTER_MINUTES * 60) {
     return;
   }
 
-  const token = jwt.sign(
-    { id: payload.id, typ: "session", ver: payload.ver, csrfToken: payload.csrfToken },
-    process.env.JWT_SECRET,
-    { expiresIn: "1h" }
-  );
+  const { id, typ, ver, sid, csrfToken } = payload;
+  sessionCookie(res, { id, typ, ver, sid, csrfToken }, sessionEndsAt);
+}
 
-  res.cookie("token", token, cookieOptions);
+function endSession(sessionId) {
+  return db.query(`DELETE FROM sessions WHERE id_hash = $1`, [hashSessionId(sessionId)]);
+}
+
+function endAllSessions(client, userId) {
+  return client.query(`DELETE FROM sessions WHERE user_id = $1`, [userId]);
+}
+
+function removeExpiredSessions() {
+  return db.query(`DELETE FROM sessions WHERE expires_at < NOW()`);
 }
 
 function clearSessionCookies(res) {
@@ -111,12 +133,8 @@ function clearSessionCookies(res) {
   res.clearCookie(PENDING_COOKIE, baseCookieOptions);
 }
 
-function setPending(res, userId, stage) {
-  const token = jwt.sign(
-    { id: userId, typ: "pending", stage },
-    process.env.JWT_SECRET,
-    { expiresIn: `${PENDING_MINUTES}m` }
-  );
+function setPending(res, user, stage) {
+  const token = signToken({ id: user.id, typ: "pending", ver: user.token_version, stage }, PENDING_MINUTES * 60);
 
   res.cookie(PENDING_COOKIE, token, {
     ...baseCookieOptions,
@@ -125,22 +143,31 @@ function setPending(res, userId, stage) {
 }
 
 function requirePending(stage) {
-  return (req, res, next) => {
+  return async (req, res, next) => {
+    let payload;
+
     try {
-      const payload = jwt.verify(req.cookies?.[PENDING_COOKIE], process.env.JWT_SECRET);
+      payload = verifyToken(req.cookies?.[PENDING_COOKIE]);
 
       if (payload.typ !== "pending" || payload.stage !== stage) {
         throw new Error("Wrong stage");
       }
 
-      req.pending = payload;
-      next();
+      const result = await db.query(`SELECT token_version FROM users WHERE id = $1`, [payload.id]);
+
+      if (!result.rows[0] || result.rows[0].token_version !== payload.ver) {
+        throw new Error("Stale sign-in");
+      }
     } catch {
+      res.clearCookie(PENDING_COOKIE, baseCookieOptions);
       return res.status(401).json({
         error: "Your sign-in session expired. Please log in again.",
         restart: true,
       });
     }
+
+    req.pending = payload;
+    next();
   };
 }
 
@@ -180,35 +207,44 @@ async function sendEmailCode(user, kind, { force = false } = {}) {
   const table = EMAIL_CODE_TABLES[kind];
   const existing = await db.query(
     `SELECT EXTRACT(EPOCH FROM (NOW() - sent_at)) AS age,
-            expires_at > NOW() AS valid
+            expires_at > NOW() AS valid,
+            CASE WHEN window_started_at > NOW() - INTERVAL '24 hours' THEN send_count ELSE 0 END AS sends_today
      FROM ${table} WHERE user_id = $1`,
     [user.id]
   );
   const row = existing.rows[0];
 
   if (row && row.valid && Number(row.age) < EMAIL_RESEND_SECONDS) {
-    return Math.ceil(EMAIL_RESEND_SECONDS - Number(row.age));
+    return { retryAfter: Math.ceil(EMAIL_RESEND_SECONDS - Number(row.age)) };
   }
 
   if (row && row.valid && !force) {
-    return 0;
+    return { sent: false };
+  }
+
+  if (row && Number(row.sends_today) >= EMAIL_MAX_SENDS_PER_DAY) {
+    return { dailyLimit: true };
   }
 
   const code = mfa.generateEmailCode();
 
   await sendCodeEmail(user.email, code, kind);
   await db.query(
-    `INSERT INTO ${table} (user_id, code_hash, attempts, expires_at, sent_at)
-     VALUES ($1, $2, 0, NOW() + make_interval(mins => $3), NOW())
+    `INSERT INTO ${table} (user_id, code_hash, attempts, expires_at, sent_at, send_count, window_started_at)
+     VALUES ($1, $2, 0, NOW() + make_interval(mins => $3), NOW(), 1, NOW())
      ON CONFLICT (user_id) DO UPDATE
        SET code_hash = EXCLUDED.code_hash,
            attempts = 0,
            expires_at = EXCLUDED.expires_at,
-           sent_at = EXCLUDED.sent_at`,
+           sent_at = EXCLUDED.sent_at,
+           send_count = CASE WHEN ${table}.window_started_at > NOW() - INTERVAL '24 hours'
+                             THEN ${table}.send_count + 1 ELSE 1 END,
+           window_started_at = CASE WHEN ${table}.window_started_at > NOW() - INTERVAL '24 hours'
+                                    THEN ${table}.window_started_at ELSE NOW() END`,
     [user.id, mfa.hashCode(code), EMAIL_CODE_MINUTES]
   );
 
-  return 0;
+  return { sent: true };
 }
 
 async function checkEmailCode(kind, userId, rawCode) {
@@ -348,12 +384,22 @@ async function mfaSetupPayload(secret, email) {
   };
 }
 
+function notifySecurityChange(email, kind) {
+  sendSecurityNotice(email, kind).catch((err) => console.error(`Could not send the ${kind} notice:`, err.message));
+}
+
 module.exports = {
+  notifySecurityChange,
   validatePassword,
   normalizeEmail,
   isValidEmail,
+  verifyToken,
+  hashSessionId,
   issueSession,
   renewSession,
+  endSession,
+  endAllSessions,
+  removeExpiredSessions,
   clearSessionCookies,
   setPending,
   requirePending,

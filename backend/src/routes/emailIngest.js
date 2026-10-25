@@ -5,14 +5,13 @@ const classifier = require("../services/emailClassifier");
 const emailService = require("../services/emailService");
 
 const router = express.Router();
-
 const MAX_MESSAGES = 25;
 const MAX_IDS = 100;
 const LIMITS = { id: 200, from: 300, subject: 400, body: 4000 };
-
+// High on purpose: all users' syncs share Google's IPs. Tokens are 256-bit, so guessing isn't a risk.
 const failureLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 30,
+  limit: 200,
   skipSuccessfulRequests: true,
   standardHeaders: "draft-8",
   legacyHeaders: false,
@@ -20,7 +19,6 @@ const failureLimiter = rateLimit({
     res.status(429).json({ error: "Too many failed requests. Please try again later." });
   }
 });
-
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 60,
@@ -31,7 +29,6 @@ const limiter = rateLimit({
     res.status(429).json({ error: "Too many requests. Please try again later." });
   }
 });
-
 const NAMED_ENTITIES = { nbsp: " ", amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'", zwnj: "", zwj: "", shy: "" };
 
 function cleanText(text) {

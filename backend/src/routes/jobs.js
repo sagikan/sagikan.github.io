@@ -1,5 +1,5 @@
 const express = require("express");
-const { rateLimit } = require("express-rate-limit");
+const { userLimiter } = require("../middleware/rateLimit");
 const db = require("../config/db");
 const requireAuth = require("../middleware/auth");
 const { requireCsrf } = require("../middleware/csrf");
@@ -8,7 +8,7 @@ const profiles = require("../services/cvProfile");
 const jobSearch = require("../services/jobSearch");
 const feeds = require("../services/jobFeeds");
 const cvTailor = require("../services/cvTailor");
-const { APPLICATION_FIELDS } = require("../services/applicationFields");
+const { APPLICATION_FIELDS, isCalendarDate, isWebUrl } = require("../services/applicationFields");
 
 const router = express.Router();
 
@@ -23,20 +23,17 @@ const JOB_FIELDS = `
   EXISTS (SELECT 1 FROM cv_tailorings WHERE cv_tailorings.job_id = jobs.id) AS has_tailoring
 `;
 const TAILORING_FIELDS = `job_id, cv, gaps, flags, include_grade_sheet, updated_at`;
-
-function userLimiter(limit, minutes, error) {
-  return rateLimit({
-    windowMs: minutes * 60 * 1000,
-    limit,
-    keyGenerator: (req) => `user:${req.user.id}`,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-    handler: (req, res) => res.status(429).json({ error })
-  });
-}
-
-const readCvLimiter = userLimiter(5, 60, "You've uploaded your resume several times this hour. Please try again later.");
-const tailorLimiter = userLimiter(20, 60, "You've tailored a lot of resumes this hour. Please try again later.");
+const MAX_MANUAL_JOBS = 2000;
+const readCvLimiter = userLimiter(5, 60, "You've uploaded your resume several times this hour.");
+const tailorLimiter = [
+  userLimiter(10, 60, "You've tailored a lot of resumes this hour."),
+  userLimiter(40, 24 * 60, "You've reached today's limit of tailored resumes.")
+];
+const addJobLimiter = [
+  userLimiter(30, 60, "You've added a lot of jobs this hour."),
+  userLimiter(100, 24 * 60, "You've reached today's limit of added jobs.")
+];
+const gradeSheetLimiter = userLimiter(20, 60, "You've uploaded your grade sheet several times this hour.");
 
 function pdfBody(megabytes) {
   return express.raw({ type: "application/pdf", limit: `${megabytes}mb` });
@@ -154,7 +151,7 @@ router.put("/profile", async (req, res) => {
   }
 });
 
-router.put("/grade-sheet", pdfBody(2), async (req, res) => {
+router.put("/grade-sheet", gradeSheetLimiter, pdfBody(2), async (req, res) => {
   try {
     const pdf = await profiles.inspectPdf(req.body);
 
@@ -188,6 +185,7 @@ router.get("/grade-sheet", async (req, res) => {
     res
       .set("Content-Type", "application/pdf")
       .set("Cache-Control", "no-store")
+      .set("Content-Disposition", "attachment; filename=\"grade-sheet.pdf\"")
       .set("X-File-Name", encodeURIComponent(result.rows[0].filename))
       .send(result.rows[0].pdf);
   } catch (err) {
@@ -232,7 +230,7 @@ router.post("/search", requireClaude, async (req, res) => {
   }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", addJobLimiter, async (req, res) => {
   try {
     const company = text(req.body?.company, 200);
     const position = text(req.body?.position, 200);
@@ -244,8 +242,14 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "Company and position are required." });
     }
 
-    if (url && !/^https?:\/\//i.test(url)) {
+    if (url && !isWebUrl(url)) {
       return res.status(400).json({ error: "The link must start with http:// or https://." });
+    }
+
+    const count = await db.query(`SELECT COUNT(*)::int AS count FROM jobs WHERE user_id = $1 AND source = 'manual'`, [req.user.id]);
+
+    if (count.rows[0].count >= MAX_MANUAL_JOBS) {
+      return res.status(400).json({ error: `You can add up to ${MAX_MANUAL_JOBS} jobs yourself. Dismiss some old ones first.` });
     }
 
     const added = await db.query(
@@ -440,7 +444,7 @@ router.post("/:id/apply", async (req, res) => {
   const id = jobId(req, res);
   if (!id) return;
 
-  const appliedAt = /^\d{4}-\d{2}-\d{2}$/.test(req.body?.applied_at) ? req.body.applied_at : null;
+  const appliedAt = isCalendarDate(req.body?.applied_at) ? req.body.applied_at : null;
   const client = await db.connect();
 
   try {

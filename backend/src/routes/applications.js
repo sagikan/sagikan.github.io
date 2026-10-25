@@ -2,14 +2,13 @@ const express = require("express");
 const db = require("../config/db");
 const requireAuth = require("../middleware/auth");
 const { requireCsrf } = require("../middleware/csrf");
-const { APPLICATION_FIELDS } = require("../services/applicationFields");
+const { APPLICATION_FIELDS, MAX_APPLICATIONS, checkApplicationField } = require("../services/applicationFields");
 
 const router = express.Router();
 
 router.use(requireAuth, requireCsrf);
 
-const allowedStatuses = ["Applied", "Interview", "Offer", "Rejected", "Withdrawn"];
-const allowedWorkplaceModels = ["On-site", "Hybrid", "Remote"];
+const ID_PATTERN = /^[1-9]\d{0,17}$/;
 const applicationFields = {
   company: "company",
   position: "position",
@@ -19,8 +18,12 @@ const applicationFields = {
   job_url: "job_url",
   notes: "notes",
   applied_at: "applied_at"
-}
+};
 const returnedFields = APPLICATION_FIELDS;
+
+function cleanValue(field, value) {
+  return typeof value === "string" ? value.trim() || (["job_url", "notes"].includes(field) ? null : value) : value;
+}
 
 router.get("/", async (req, res) => {
   try {
@@ -41,22 +44,38 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const { company, position, location, workplace_model, status, job_url, notes, applied_at } = req.body;
+    const body = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {};
+    const values = {
+      company: body.company,
+      position: body.position,
+      location: body.location,
+      workplace_model: body.workplace_model ?? null,
+      status: body.status ?? "Applied",
+      job_url: cleanValue("job_url", body.job_url ?? null),
+      notes: cleanValue("notes", body.notes ?? null),
+      applied_at: body.applied_at || null
+    };
 
     if (
-      typeof company !== "string" || !company.trim() ||
-      typeof position !== "string" || !position.trim() ||
-      typeof location !== "string" || !location.trim()
+      typeof values.company !== "string" || !values.company.trim() ||
+      typeof values.position !== "string" || !values.position.trim() ||
+      typeof values.location !== "string" || !values.location.trim()
     ) {
       return res.status(400).json({ error: "Company, position and location are required." });
     }
 
-    if (!allowedStatuses.includes(status ?? "Applied")) {
-      return res.status(400).json({ error: "Invalid status." });
+    for (const [field, value] of Object.entries(values)) {
+      const problem = checkApplicationField(field, value);
+
+      if (problem) {
+        return res.status(400).json({ error: problem });
+      }
     }
 
-    if (workplace_model != null && !allowedWorkplaceModels.includes(workplace_model)) {
-      return res.status(400).json({ error: "Invalid workplace model." });
+    const count = await db.query(`SELECT COUNT(*)::int AS count FROM applications WHERE user_id = $1`, [req.user.id]);
+
+    if (count.rows[0].count >= MAX_APPLICATIONS) {
+      return res.status(400).json({ error: `You can keep up to ${MAX_APPLICATIONS} applications. Delete some old ones first.` });
     }
 
     const result = await db.query(
@@ -66,14 +85,14 @@ router.post("/", async (req, res) => {
        RETURNING ${returnedFields}`,
       [
         req.user.id,
-        company.trim(),
-        position.trim(),
-        location.trim(),
-        workplace_model ?? null,
-        status ?? "Applied",
-        job_url ?? null,
-        notes ?? null,
-        applied_at ?? null
+        values.company.trim(),
+        values.position.trim(),
+        values.location.trim(),
+        values.workplace_model,
+        values.status,
+        values.job_url,
+        values.notes,
+        values.applied_at
       ]
     );
 
@@ -85,6 +104,10 @@ router.post("/", async (req, res) => {
 });
 
 router.delete("/:id", async (req, res) => {
+  if (!ID_PATTERN.test(req.params.id)) {
+    return res.status(400).json({ error: "Invalid application ID." });
+  }
+
   try {
     const result = await db.query(
       `DELETE FROM applications
@@ -108,12 +131,12 @@ router.patch("/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!/^[1-9]\d*$/.test(id)) {
+    if (!ID_PATTERN.test(id)) {
       return res.status(400).json({ error: "Invalid application ID." });
     }
 
     const updates = req.body;
-    
+
     if (
       !updates ||
       typeof updates !== "object" ||
@@ -126,67 +149,26 @@ router.patch("/:id", async (req, res) => {
 
     if (fields.length === 0) {
       return res.status(400).json({ error: "At least one field must be provided." });
-    };
-
-    if (
-      fields.filter(
-        (field) => !Object.hasOwn(applicationFields, field)
-      ).length > 0
-    ) {
-      return res.status(400).json({error: "One or more fields cannot be updated." });
     }
 
-    for (const field of fields) {
-      const value = updates[field];
-
-      switch (field) {
-        case "company":
-        case "position":
-        case "location":
-          if (typeof value !== "string" || !value.trim()) {
-            return res.status(400).json({ error: `${field} must be a non-empty string.` });
-          }
-          break;
-        case "status":
-          if (!allowedStatuses.includes(value)) {
-            return res.status(400).json({ error: `Invalid ${field}.` });
-          }
-          break;
-        case "workplace_model":
-          if (value !== null && !allowedWorkplaceModels.includes(value)) {
-            return res.status(400).json({ error: "Invalid workplace model." });
-          }
-          break;
-        case "job_url":
-        case "notes":
-          if (value !== null && typeof value !== "string") {
-            return res.status(400).json({ error: `${field} must be a string or null.` });
-          }
-          break;
-        case "applied_at":
-          if (
-            value !== null &&
-            (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value))
-          ) {
-            return res.status(400).json({ error: `${field} must be in YYYY-MM-DD format or null.` });
-          }
-          break;
-        default:
-          return res.status(400).json({ error: `${field} cannot be updated.` });
-      }
+    if (fields.some((field) => !Object.hasOwn(applicationFields, field))) {
+      return res.status(400).json({ error: "One or more fields cannot be updated." });
     }
 
     const values = [];
-    const assignments = fields.map((field, index) => {
-      let value = updates[field];
+    const assignments = [];
 
-      if (field === "company" || field === "position" || field === "location") {
-        value = value.trim();
+    for (const field of fields) {
+      const value = cleanValue(field, updates[field]);
+      const problem = checkApplicationField(field, value);
+
+      if (problem) {
+        return res.status(400).json({ error: problem });
       }
 
       values.push(value);
-      return `${applicationFields[field]} = $${index + 1}`;
-    });
+      assignments.push(`${applicationFields[field]} = $${values.length}`);
+    }
 
     values.push(id);
     const idParam = values.length;

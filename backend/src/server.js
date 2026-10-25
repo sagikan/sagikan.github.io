@@ -1,7 +1,11 @@
+require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
-const { requireTrustedOrigin } = require("./middleware/csrf");
+const { requireTrustedOrigin, allowedOrigins } = require("./middleware/csrf");
+const { checkSecrets, securityHeaders, errorHandler } = require("./middleware/security");
+const { apiLimiter } = require("./middleware/rateLimit");
 const authRoutes = require("./routes/auth");
 const accountRoutes = require("./routes/account");
 const applicationRoutes = require("./routes/applications");
@@ -10,33 +14,37 @@ const emailIngestRoutes = require("./routes/emailIngest");
 const jobRoutes = require("./routes/jobs");
 const jobSearch = require("./services/jobSearch");
 const jobFeeds = require("./services/jobFeeds");
+const authService = require("./services/authService");
 const devMode = require("./services/devMode");
-require("dotenv").config();
+
+checkSecrets();
 
 const app = express();
 
+app.disable("x-powered-by");
 app.set("trust proxy", Number(process.env.TRUST_PROXY ?? (process.env.NODE_ENV === "production" ? 1 : 0)));
 
-const allowedOrigins = [
-  "http://localhost:5173",
-  process.env.FRONTEND_ORIGIN
-].filter(Boolean);
+app.use(securityHeaders);
 
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin || allowedOrigins().includes(origin)) {
       return callback(null, true);
     }
-    callback(new Error(`Origin not allowed: ${origin}`));
+    callback(Object.assign(new Error(`Origin not allowed: ${origin}`), { corsRejected: true }));
   },
   credentials: true,
   // Lets the site read the name of a downloaded file (the grade sheet's).
   exposedHeaders: ["X-File-Name"]
 }));
 
-app.use("/api/email/ingest", express.json({ limit: "1mb" }), emailIngestRoutes);
+// inflate: false blocks body-parser's decompression DoS (GHSA-27r3-jxmh-p828).
+// Sync is mounted before apiLimiter: its requests share Google's IPs, so it's limited per token.
+app.use("/api/email/ingest", express.json({ limit: "1mb", inflate: false }), emailIngestRoutes);
 
-app.use(express.json({ limit: "100kb" }));
+app.use("/api", apiLimiter);
+
+app.use(express.json({ limit: "100kb", inflate: false }));
 app.use(cookieParser());
 
 app.use((req, res, next) => {
@@ -57,6 +65,12 @@ app.use("/api/applications", applicationRoutes);
 app.use("/api/email", emailRoutes);
 app.use("/api/jobs", jobRoutes);
 
+app.use((req, res) => {
+  res.status(404).json({ error: "Not found." });
+});
+
+app.use(errorHandler);
+
 const port = process.env.PORT || 3000;
 
 app.listen(port, "0.0.0.0", () => {
@@ -68,8 +82,10 @@ app.listen(port, "0.0.0.0", () => {
 
   jobSearch.failInterrupted().catch((err) => console.error("Could not clear interrupted job searches:", err.message));
 
-  const removeOldPostings = () => jobFeeds.removeOldPostings()
-    .catch((err) => console.error("Could not remove old job postings:", err.message));
-  removeOldPostings();
-  setInterval(removeOldPostings, 24 * 60 * 60 * 1000).unref();
+  const dailyCleanup = () => {
+    jobFeeds.removeOldPostings().catch((err) => console.error("Could not remove old job postings:", err.message));
+    authService.removeExpiredSessions().catch((err) => console.error("Could not remove expired sessions:", err.message));
+  };
+  dailyCleanup();
+  setInterval(dailyCleanup, 24 * 60 * 60 * 1000).unref();
 });

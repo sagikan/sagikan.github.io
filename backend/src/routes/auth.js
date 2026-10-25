@@ -8,7 +8,6 @@ const auth = require("../services/authService");
 const { loginLimiter, registerLimiter, passwordResetLimiter, codeLimiter } = require("../middleware/rateLimit");
 
 const router = express.Router();
-
 const DUMMY_PASSWORD_HASH = bcrypt.hashSync("not-a-real-password", 12);
 
 router.get("/csrf", requireAuth, (req, res) => {
@@ -61,12 +60,12 @@ router.post("/register", registerLimiter, async (req, res) => {
     const result = await db.query(
       `INSERT INTO users (email, password_hash)
        VALUES ($1, $2)
-       RETURNING id, email`,
+       RETURNING id, email, token_version`,
       [email, passwordHash]
     );
     const user = result.rows[0];
 
-    auth.setPending(res, user.id, "verify_email");
+    auth.setPending(res, user, "verify_email");
 
     let emailSent = true;
 
@@ -100,7 +99,7 @@ router.post("/login", loginLimiter, async (req, res) => {
     }
 
     const result = await db.query(
-      `SELECT id, email, password_hash, email_verified, totp_enabled, login_locked_until
+      `SELECT id, email, password_hash, email_verified, totp_enabled, login_locked_until, token_version
        FROM users WHERE email = $1`,
       [email]
     );
@@ -128,13 +127,13 @@ router.post("/login", loginLimiter, async (req, res) => {
     );
 
     const next = auth.nextStage(user);
-    auth.setPending(res, user.id, next);
+    auth.setPending(res, user, next);
 
     let emailSent = true;
 
     if (next === "verify_email") {
       try {
-        await auth.sendEmailCode(user, "verify");
+        emailSent = !(await auth.sendEmailCode(user, "verify")).dailyLimit;
       } catch (err) {
         console.error(err);
         emailSent = false;
@@ -163,7 +162,7 @@ router.post("/verify-email", codeLimiter, auth.requirePending("verify_email"), a
 
     const user = await auth.getUser(req.pending.id);
     const next = auth.nextStage(user);
-    auth.setPending(res, user.id, next);
+    auth.setPending(res, user, next);
 
     res.json({ next });
   } catch (err) {
@@ -175,7 +174,11 @@ router.post("/verify-email", codeLimiter, auth.requirePending("verify_email"), a
 router.post("/resend-verification", codeLimiter, auth.requirePending("verify_email"), async (req, res) => {
   try {
     const user = await auth.getUser(req.pending.id);
-    const retryAfter = await auth.sendEmailCode(user, "verify", { force: true });
+    const { retryAfter, dailyLimit } = await auth.sendEmailCode(user, "verify", { force: true });
+
+    if (dailyLimit) {
+      return res.status(429).json({ error: "You've requested too many codes today. Please try again tomorrow." });
+    }
 
     if (retryAfter > 0) {
       return res.status(429).json({
@@ -245,7 +248,7 @@ router.post("/mfa/setup/confirm", codeLimiter, auth.requirePending("mfa_setup"),
       return auth.replaceRecoveryCodes(client, user.id);
     });
 
-    auth.issueSession(res, user);
+    await auth.issueSession(res, user);
     res.set("Cache-Control", "no-store");
     res.json({ user: { id: user.id, email: user.email }, recoveryCodes });
   } catch (err) {
@@ -263,7 +266,7 @@ router.post("/mfa/verify", codeLimiter, auth.requirePending("mfa"), async (req, 
       return res.status(result.status).json({ error: result.error });
     }
 
-    auth.issueSession(res, user);
+    await auth.issueSession(res, user);
     res.json({ user: { id: user.id, email: user.email }, recoveryCodesLeft: result.recoveryCodesLeft });
   } catch (err) {
     console.error(err);
@@ -331,9 +334,11 @@ router.post("/password/reset", passwordResetLimiter, async (req, res) => {
         [user.id, passwordHash]
       );
       await client.query(`DELETE FROM password_resets WHERE user_id = $1`, [user.id]);
+      await auth.endAllSessions(client, user.id);
       await client.query(`DELETE FROM email_verifications WHERE user_id = $1`, [user.id]);
     });
 
+    auth.notifySecurityChange(email, "password_reset");
     auth.clearSessionCookies(res);
     res.json({ message: "Your password has been reset. You can now log in." });
   } catch (err) {
@@ -342,7 +347,14 @@ router.post("/password/reset", passwordResetLimiter, async (req, res) => {
   }
 });
 
-router.post("/logout", requireAuth, requireCsrf, (req, res) => {
+router.post("/logout", requireAuth, requireCsrf, async (req, res) => {
+  try {
+    await auth.endSession(req.user.sid);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Could not log out." });
+  }
+
   auth.clearSessionCookies(res);
   res.json({ message: "Logged out successfully." });
 });

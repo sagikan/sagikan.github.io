@@ -1,4 +1,5 @@
 const dev = require("./devMode");
+const { safeFetch } = require("./safeFetch");
 
 const TIMEOUT_MS = 12_000;
 const CONCURRENCY = 4;
@@ -30,9 +31,8 @@ async function status(url) {
   }
 
   try {
-    const response = await fetch(url, {
-      redirect: "follow",
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+    const response = await safeFetch(url, {
+      timeoutMs: TIMEOUT_MS,
       headers: { "User-Agent": USER_AGENT, "Accept-Language": "en", Accept: "text/html" }
     });
 
@@ -45,7 +45,7 @@ async function status(url) {
     }
 
     const page = await response.text();
-    const name = host(response.url || url);
+    const name = host(response.url);
     const closed = CLOSED_MARKERS.some(([site, marker]) => site.test(name) && marker.test(page));
     return closed ? "closed" : "open";
   } catch {

@@ -1,5 +1,8 @@
 function allowedOrigins() {
-  return ["http://localhost:5173", process.env.FRONTEND_ORIGIN].filter(Boolean);
+  return [
+    process.env.NODE_ENV === "production" ? null : "http://localhost:5173",
+    process.env.FRONTEND_ORIGIN
+  ].filter(Boolean);
 }
 
 function requireTrustedOrigin(req, res, next) {
@@ -30,4 +33,4 @@ function requireCsrf(req, res, next) {
   next();
 }
 
-module.exports = { requireTrustedOrigin, requireCsrf };
+module.exports = { allowedOrigins, requireTrustedOrigin, requireCsrf };
