@@ -34,12 +34,9 @@ app.use(cors({
     callback(Object.assign(new Error(`Origin not allowed: ${origin}`), { corsRejected: true }));
   },
   credentials: true,
-  // Lets the site read the name of a downloaded file (the grade sheet's).
   exposedHeaders: ["X-File-Name"]
 }));
 
-// inflate: false blocks body-parser's decompression DoS (GHSA-27r3-jxmh-p828).
-// Sync is mounted before apiLimiter: its requests share Google's IPs, so it's limited per token.
 app.use("/api/email/ingest", express.json({ limit: "1mb", inflate: false }), emailIngestRoutes);
 
 app.use("/api", apiLimiter);
