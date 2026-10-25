@@ -5,8 +5,19 @@ const ISRAEL_PLACES = [
   "rishon le zion", "modiin", "rosh haayin", "rosh ha ayin", "or yehuda", "lod", "ashdod", "ashkelon", "nazareth",
   "kiryat gat", "kiryat ono", "omer", "matam"
 ];
-
 const ANYWHERE = /\b(anywhere|worldwide|global|emea|europe)\b/i;
+const ISRAEL_CITY_NAMES = {
+  "tel aviv": "Tel Aviv", "jerusalem": "Jerusalem", "haifa": "Haifa", "herzliya": "Herzliya", "herzlia": "Herzliya",
+  "petah tikva": "Petah Tikva", "petach tikva": "Petah Tikva", "petah tiqva": "Petah Tikva", "ramat gan": "Ramat Gan",
+  "raanana": "Ra'anana", "ra anana": "Ra'anana", "netanya": "Netanya", "rehovot": "Rehovot", "beer sheva": "Be'er Sheva",
+  "be er sheva": "Be'er Sheva", "beersheba": "Be'er Sheva", "kfar saba": "Kfar Saba", "hod hasharon": "Hod HaSharon",
+  "yokneam": "Yokneam", "caesarea": "Caesarea", "airport city": "Airport City", "bnei brak": "Bnei Brak",
+  "givatayim": "Givatayim", "holon": "Holon", "rishon lezion": "Rishon LeZion", "rishon le zion": "Rishon LeZion",
+  "modiin": "Modi'in", "rosh haayin": "Rosh HaAyin", "rosh ha ayin": "Rosh HaAyin", "or yehuda": "Or Yehuda",
+  "lod": "Lod", "ashdod": "Ashdod", "ashkelon": "Ashkelon", "nazareth": "Nazareth", "kiryat gat": "Kiryat Gat",
+  "kiryat ono": "Kiryat Ono", "omer": "Omer"
+};
+const WORKPLACE_WORDS = /\b(on[\s-]?site|onsite|in[\s-]?office|hybrid|remote)\b/gi;
 
 function normalize(text) {
   return ` ${String(text || "").toLowerCase().normalize("NFKD").replace(/[^a-z]+/g, " ").trim()} `;
@@ -42,20 +53,6 @@ function areaScore(jobLocation, areas) {
   if (ANYWHERE.test(jobLocation) || /^\s*remote\s*$/i.test(jobLocation)) return 1;
   return 0;
 }
-
-const ISRAEL_CITY_NAMES = {
-  "tel aviv": "Tel Aviv", "jerusalem": "Jerusalem", "haifa": "Haifa", "herzliya": "Herzliya", "herzlia": "Herzliya",
-  "petah tikva": "Petah Tikva", "petach tikva": "Petah Tikva", "petah tiqva": "Petah Tikva", "ramat gan": "Ramat Gan",
-  "raanana": "Ra'anana", "ra anana": "Ra'anana", "netanya": "Netanya", "rehovot": "Rehovot", "beer sheva": "Be'er Sheva",
-  "be er sheva": "Be'er Sheva", "beersheba": "Be'er Sheva", "kfar saba": "Kfar Saba", "hod hasharon": "Hod HaSharon",
-  "yokneam": "Yokneam", "caesarea": "Caesarea", "airport city": "Airport City", "bnei brak": "Bnei Brak",
-  "givatayim": "Givatayim", "holon": "Holon", "rishon lezion": "Rishon LeZion", "rishon le zion": "Rishon LeZion",
-  "modiin": "Modi'in", "rosh haayin": "Rosh HaAyin", "rosh ha ayin": "Rosh HaAyin", "or yehuda": "Or Yehuda",
-  "lod": "Lod", "ashdod": "Ashdod", "ashkelon": "Ashkelon", "nazareth": "Nazareth", "kiryat gat": "Kiryat Gat",
-  "kiryat ono": "Kiryat Ono", "omer": "Omer"
-};
-
-const WORKPLACE_WORDS = /\b(on[\s-]?site|onsite|in[\s-]?office|hybrid|remote)\b/gi;
 
 function workplaceIn(text) {
   if (/\bremote\b/i.test(text)) return "Remote";

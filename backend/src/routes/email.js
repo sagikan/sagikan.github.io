@@ -20,6 +20,11 @@ class HttpError extends Error {
   }
 }
 
+const eventFields = `
+  e.id, e.received_at, e.sender, e.subject, e.snippet, e.event_type, e.company, e.position,
+  e.suggested_status, e.application_id, e.candidate_ids, e.previous_status, e.state, e.resolved_at
+`;
+
 function fail(res, err, fallback) {
   if (err instanceof HttpError) {
     return res.status(err.status).json({ error: err.message });
@@ -28,11 +33,6 @@ function fail(res, err, fallback) {
   console.error(err);
   res.status(500).json({ error: fallback });
 }
-
-const eventFields = `
-  e.id, e.received_at, e.sender, e.subject, e.snippet, e.event_type, e.company, e.position,
-  e.suggested_status, e.application_id, e.candidate_ids, e.previous_status, e.state, e.resolved_at
-`;
 
 router.get("/status", async (req, res) => {
   try {

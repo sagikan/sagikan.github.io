@@ -3,11 +3,11 @@ const COMPANY_NOISE = new Set([
   "gmbh", "plc", "the", "israel", "il", "technologies", "technology", "systems", "group"
 ]);
 const POSITION_NOISE = new Set(["a", "an", "and", "the", "of", "in", "for", "at", "to"]);
-
 const COMPANY_MATCH_MIN = 0.8;
 const POSITION_MATCH_MIN = 0.5;
 const POSITION_GAP_MIN = 0.15;
 const MAX_CANDIDATES = 8;
+const RANK = { Applied: 0, Interview: 1, Offer: 2 };
 
 function tokens(text, noise) {
   return String(text || "")
@@ -114,8 +114,6 @@ function matchApplication(event, applications, receivedDay) {
     candidates: ranked.slice(0, MAX_CANDIDATES).map(({ application }) => application)
   };
 }
-
-const RANK = { Applied: 0, Interview: 1, Offer: 2 };
 
 function transition(current, target) {
   if (current === target || current === "Rejected" || current === "Withdrawn") {

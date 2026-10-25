@@ -4,7 +4,6 @@ const dev = require("./devMode");
 const DEFAULT_MODEL = "claude-sonnet-5-5";
 const CHEAP_MODEL = "claude-haiku-5-5";
 const FALLBACK_BETA = "server-side-fallback-2026-07-01";
-
 let client;
 
 class ClaudeError extends Error {}

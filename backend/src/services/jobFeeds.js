@@ -21,84 +21,24 @@ const CONCURRENCY = 8;
 const DESCRIPTION_LIMIT = 6000;
 const LOCK_KEY = 73_514_201;
 const TOKEN = /^[A-Za-z0-9._-]{1,80}$/;
-
 const SEED_BOARDS = [
   ["greenhouse", "melio"], ["greenhouse", "atbayjobs"], ["greenhouse", "bringg"], ["greenhouse", "similarweb"],
   ["greenhouse", "descope"], ["greenhouse", "via"], ["lever", "lendbuzz"], ["lever", "emilabs"],
   ["lever", "appnation"], ["lever", "walkme"], ["lever", "tonkean"], ["ashby", "moonactive"],
   ["ashby", "HUMAN"], ["ashby", "wynd-labs"]
 ];
-
 const BOARD_PATTERNS = [
   ["greenhouse", /(?:job-boards|boards)\.greenhouse\.io\/(?:embed\/job_board\?for=)?([A-Za-z0-9_-]+)/gi],
   ["lever", /jobs\.lever\.co\/([A-Za-z0-9._-]+)/gi],
   ["ashby", /jobs\.ashbyhq\.com\/([A-Za-z0-9._%-]+)/gi]
 ];
 const NOT_TOKENS = new Set(["embed", "v1", "api", "jobs", "boards", "job_board"]);
-
-function workplaceFrom(text) {
-  if (/\bremote\b/i.test(text || "")) return "Remote";
-  if (/\bhybrid\b/i.test(text || "")) return "Hybrid";
-  return null;
-}
-
-function prettyName(token) {
-  return token
-    .split(/[-_.]+/)
-    .filter(Boolean)
-    .map((word) => (word === word.toLowerCase() ? word[0].toUpperCase() + word.slice(1) : word))
-    .join(" ");
-}
-
-function toDate(value) {
-  const date = value ? new Date(value) : null;
-  return date && !Number.isNaN(date.getTime()) ? date.toISOString() : null;
-}
-
-function cleanUrl(value) {
-  try {
-    const url = new URL(value);
-    [...url.searchParams.keys()].filter((key) => TRACKING_PARAMS.test(key)).forEach((key) => url.searchParams.delete(key));
-    url.hash = "";
-    return url.toString();
-  } catch {
-    return value;
-  }
-}
-
 const countryNames = new Intl.DisplayNames(["en"], { type: "region" });
-
-function countryName(code) {
-  try {
-    return code ? countryNames.of(String(code).toUpperCase()) : "";
-  } catch {
-    return code || "";
-  }
-}
-
 const COUNTRY_CODES = {
   israel: "il", "united states": "us", usa: "us", us: "us", "united kingdom": "gb", uk: "gb", england: "gb",
   germany: "de", france: "fr", netherlands: "nl", canada: "ca", ireland: "ie", spain: "es", poland: "pl",
   portugal: "pt", italy: "it", india: "in", australia: "au", singapore: "sg", switzerland: "ch", sweden: "se"
 };
-
-function countryCode(place) {
-  const country = String(place || "").split(",").pop().trim().toLowerCase();
-  return COUNTRY_CODES[country] || null;
-}
-
-function unwrap(text) {
-  return String(text || "")
-    .replace(/([a-z])(?:\r?\n)+\r?([a-z])/g, "$1$2")
-    .replace(/(?:\r?\n\r?)+/g, "\n")
-    .trim();
-}
-
-function jsearchLink(job) {
-  const direct = (job.apply_options || []).find((option) => option?.is_direct && option.apply_link);
-  return direct?.apply_link || job.job_apply_link || job.job_google_link;
-}
-
 const PROVIDERS = {
   greenhouse: {
     url: (token) => `https://boards-api.greenhouse.io/v1/boards/${token}/jobs?content=true`,
@@ -167,6 +107,62 @@ const PROVIDERS = {
     })) || []
   }
 };
+const ENTRY_WORDS = /\b(junior|jr|entry|graduate|intern|internship|student)\b/i;
+
+function workplaceFrom(text) {
+  if (/\bremote\b/i.test(text || "")) return "Remote";
+  if (/\bhybrid\b/i.test(text || "")) return "Hybrid";
+  return null;
+}
+
+function prettyName(token) {
+  return token
+    .split(/[-_.]+/)
+    .filter(Boolean)
+    .map((word) => (word === word.toLowerCase() ? word[0].toUpperCase() + word.slice(1) : word))
+    .join(" ");
+}
+
+function toDate(value) {
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime()) ? date.toISOString() : null;
+}
+
+function cleanUrl(value) {
+  try {
+    const url = new URL(value);
+    [...url.searchParams.keys()].filter((key) => TRACKING_PARAMS.test(key)).forEach((key) => url.searchParams.delete(key));
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return value;
+  }
+}
+
+function countryName(code) {
+  try {
+    return code ? countryNames.of(String(code).toUpperCase()) : "";
+  } catch {
+    return code || "";
+  }
+}
+
+function countryCode(place) {
+  const country = String(place || "").split(",").pop().trim().toLowerCase();
+  return COUNTRY_CODES[country] || null;
+}
+
+function unwrap(text) {
+  return String(text || "")
+    .replace(/([a-z])(?:\r?\n)+\r?([a-z])/g, "$1$2")
+    .replace(/(?:\r?\n\r?)+/g, "\n")
+    .trim();
+}
+
+function jsearchLink(job) {
+  const direct = (job.apply_options || []).find((option) => option?.is_direct && option.apply_link);
+  return direct?.apply_link || job.job_apply_link || job.job_google_link;
+}
 
 function jsearchEnabled() {
   return !dev.offline && Boolean(process.env.JSEARCH_API_KEY);
@@ -504,8 +500,6 @@ async function discover() {
   await addBoards(boards, "discovered");
   return boards.length;
 }
-
-const ENTRY_WORDS = /\b(junior|jr|entry|graduate|intern|internship|student)\b/i;
 
 function searchRoles(roles, seniority) {
   const seen = new Set();

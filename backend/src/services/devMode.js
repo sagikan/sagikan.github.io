@@ -1,3 +1,9 @@
+const TECH_WORDS = [
+  "JavaScript", "TypeScript", "Python", "Java", "Go", "C#", "C++", "SQL", "Node.js", "React", "Angular", "Vue",
+  "PostgreSQL", "MySQL", "MongoDB", "Redis", "Kafka", "Docker", "Kubernetes", "AWS", "GCP", "Azure",
+  "Terraform", "GraphQL", "REST", "CI/CD", "Linux", "Git"
+];
+
 // With NODE_ENV=development, paid and non-essential outside calls (Claude, JSearch, posting checks,
 // emails) are swapped for free local stand-ins. USE_REAL_APIS=true turns the real ones back on.
 // Read on each use, since .env may load after this module does.
@@ -83,12 +89,6 @@ function sampleResume() {
     }
   };
 }
-
-const TECH_WORDS = [
-  "JavaScript", "TypeScript", "Python", "Java", "Go", "C#", "C++", "SQL", "Node.js", "React", "Angular", "Vue",
-  "PostgreSQL", "MySQL", "MongoDB", "Redis", "Kafka", "Docker", "Kubernetes", "AWS", "GCP", "Azure",
-  "Terraform", "GraphQL", "REST", "CI/CD", "Linux", "Git"
-];
 
 function mentions(text, word) {
   const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
