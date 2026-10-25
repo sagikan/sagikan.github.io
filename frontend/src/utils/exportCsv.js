@@ -13,7 +13,7 @@ const COLUMNS = [
 function cell(value) {
   let text = value == null ? "" : String(value);
 
-  if (/^[=+@\t\r]/.test(text)) {
+  if (/^[=+\-@\t\r]/.test(text)) {
     text = `'${text}`;
   }
 

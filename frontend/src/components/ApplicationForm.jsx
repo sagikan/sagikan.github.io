@@ -81,17 +81,17 @@ function ApplicationForm({ job, applications, onSubmit, onCancel }) {
       <div className="form-grid">
         <label className="field">
           <span>Position</span>
-          <input value={values.position} onChange={update("position")} placeholder="Software Engineer" required autoFocus />
+          <input value={values.position} onChange={update("position")} placeholder="Software Engineer" maxLength={200} required autoFocus />
         </label>
 
         <label className="field">
           <span>Company</span>
-          <input value={values.company} onChange={update("company")} placeholder="ABC Inc." required />
+          <input value={values.company} onChange={update("company")} placeholder="ABC Inc." maxLength={200} required />
         </label>
 
         <label className="field">
           <span>Location</span>
-          <input value={values.location} onChange={update("location")} placeholder="Tel Aviv-Yafo" required />
+          <input value={values.location} onChange={update("location")} placeholder="Tel Aviv-Yafo" maxLength={200} required />
         </label>
 
         <label className="field">
@@ -120,7 +120,7 @@ function ApplicationForm({ job, applications, onSubmit, onCancel }) {
 
         <label className="field field-full">
           <span>Job Posting URL <small className="optional">&ensp;optional</small></span>
-          <input type="url" value={values.job_url} onChange={update("job_url")} placeholder="https://…" />
+          <input type="url" value={values.job_url} onChange={update("job_url")} placeholder="https://…" maxLength={1000} />
         </label>
 
         <label className="field field-full">
@@ -129,6 +129,7 @@ function ApplicationForm({ job, applications, onSubmit, onCancel }) {
             value={values.notes}
             onChange={update("notes")}
             rows={4}
+            maxLength={5000}
             placeholder="Recruiter name, salary range, next steps, etc."
           />
         </label>
