@@ -1,5 +1,7 @@
 import { passwordRules } from "./passwordRules";
 
+export const emptySecondFactor = { useRecovery: false, code: "", recoveryCode: "" };
+
 export function newPasswordError(password, confirmPassword, email) {
   if (!passwordRules(password, email).every((rule) => rule.met)) {
     return "Password doesn't meet all the requirements.";
@@ -11,8 +13,6 @@ export function newPasswordError(password, confirmPassword, email) {
 
   return "";
 }
-
-export const emptySecondFactor = { useRecovery: false, code: "", recoveryCode: "" };
 
 export function secondFactorBody(value) {
   return value.useRecovery ? { recoveryCode: value.recoveryCode } : { code: value.code };

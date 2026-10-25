@@ -4,6 +4,114 @@ import { PixelDigit, PixelZero } from "../components/Logo";
 import { PulseChart } from "../components/StatCharts";
 import StatusBadge from "../components/StatusBadge";
 
+const REDUCED_MOTION = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+const CHECK = (
+  <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
+    <path d="M5 10.5l3.2 3.2L15 7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const CROSS = (
+  <svg viewBox="0 0 20 20" width="11" height="11" aria-hidden="true">
+    <path d="M6 6l8 8M14 6l-8 8" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+  </svg>
+);
+const REFRESH = (
+  <svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true">
+    <path d="M16 10a6 6 0 1 1-1.76-4.24M16 4v3.5h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const ARROW_UP = (
+  <svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true">
+    <path d="M10 15V5M5.5 9.5L10 5l4.5 4.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const ARROW_DOWN = (
+  <svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true">
+    <path d="M10 5v10M5.5 10.5L10 15l4.5-4.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const DOWNLOAD = (
+  <svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true">
+    <path d="M10 3.5v9M6 8.75l4 4 4-4M4 15.5h12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const APPLICATIONS = [
+  { company: "Northwind", position: "Frontend Engineer", status: "Interview", date: "Oct 12" },
+  { company: "Globex", position: "Full-stack Developer", status: "Applied", date: "Oct 9" },
+  { company: "Initech", position: "Software Engineer II", status: "Offer", date: "Sep 28" },
+  { company: "Hooli", position: "Backend Engineer", status: "Interview", date: "Sep 24" },
+  { company: "Umbrella", position: "React Developer", status: "Rejected", date: "Sep 20" },
+  { company: "Stark", position: "Platform Engineer", status: "Applied", date: "Sep 18" }
+];
+const STATUS_FILTERS = ["All", "Applied", "Interview", "Offer", "Rejected"];
+const PULSE_SAMPLE = Array.from({ length: 364 }, (_, daysAgo) => {
+  const daily = Math.sin(daysAgo * 1.9) * 1.6 + Math.sin(daysAgo * 0.77 + 1) * 1.1;
+  const waves = Math.sin(daysAgo / 17) * 0.9;
+  const recent = Math.max(0, 1 - daysAgo / 120);
+  const count = Math.max(0, Math.round(3 + daily + waves + recent * 2.5));
+  const day = new Date();
+  day.setDate(day.getDate() - daysAgo);
+  return Array.from({ length: count }, () => ({ created_at: day.toISOString() }));
+}).flat();
+const JOBS = [
+  { company: "Northwind", position: "Backend Engineer", place: "Tel Aviv · Hybrid", score: 86, days: 1, have: ["Node.js", "REST APIs"], missing: ["Kubernetes"] },
+  { company: "Globex", position: "Full-stack Developer", place: "Remote", score: 72, days: 5, have: ["React", "PostgreSQL"], missing: ["GraphQL"] },
+  { company: "Initech", position: "Software Engineer", place: "Haifa · On-site", score: 58, days: 21, have: ["Python"], missing: ["Go", "AWS"] }
+];
+const NEW_JOB = { company: "Hooli", position: "Platform Engineer", place: "Tel Aviv · Hybrid", score: 91, days: 0, have: ["Docker", "TypeScript"], missing: ["Terraform"], fresh: true };
+const DATE_FILTERS = [
+  { key: "all", label: "All Time" },
+  { key: "today", label: "Today", days: 0 },
+  { key: "week", label: "Last Week", days: 7 }
+];
+const PROJECTS = {
+  email: (
+    <>
+      <p className="preview-doc-title">
+        <span className="preview-doc-moved" title="Moved up">{ARROW_UP}</span>
+        Email Service <small>| Node.js, MongoDB</small>
+      </p>
+      <ul className="preview-doc-bullets">
+        <li>Built a JWT-secured REST API with search and pagination</li>
+        <li className="preview-doc-cut">Designed the inbox UI across web and Android</li>
+      </ul>
+    </>
+  ),
+  weather: (
+    <>
+      <p className="preview-doc-title">
+        <span className="preview-doc-moved" title="Moved down">{ARROW_DOWN}</span>
+        Weather Bot <small>| Python</small>
+      </p>
+      <ul className="preview-doc-bullets">
+        <li>Built a Telegram bot that sends personalized daily forecasts</li>
+      </ul>
+    </>
+  )
+};
+const ORDER_BEFORE = ["weather", "email"];
+const ORDER_AFTER = ["email", "weather"];
+const SCISSORS = (
+  <svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true">
+    <path d="M7.1 13.1 14.75 3.25M12.9 13.1 5.25 3.25M5.5 17a2.25 2.25 0 1 0 0-4.5 2.25 2.25 0 0 0 0 4.5zM14.5 17a2.25 2.25 0 1 0 0-4.5 2.25 2.25 0 0 0 0 4.5z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const UNDO = (
+  <svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true">
+    <path d="M4.5 9.5a5.75 5.75 0 1 1 1.7 4.1M4.5 4.75V9.5h4.75" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const DONE = (
+  <svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true">
+    <path d="M5 10.5l3.2 3.2L15 7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const FEATURE_TABS = [
+  { id: "story-track", label: "Applications" },
+  { id: "story-find", label: "Job Posts" },
+  { id: "story-tailor", label: "Tailored Resumes" }
+];
+
 function useInView(ref, threshold = 0.2) {
   const [inView, setInView] = useState(() => typeof IntersectionObserver === "undefined");
 
@@ -23,8 +131,6 @@ function useInView(ref, threshold = 0.2) {
 
   return inView;
 }
-
-const REDUCED_MOTION = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
 function CountUp({ value, run }) {
   const [shown, setShown] = useState(REDUCED_MOTION ? value : 0);
@@ -46,42 +152,6 @@ function CountUp({ value, run }) {
   return shown;
 }
 
-const CHECK = (
-  <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
-    <path d="M5 10.5l3.2 3.2L15 7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-const CROSS = (
-  <svg viewBox="0 0 20 20" width="11" height="11" aria-hidden="true">
-    <path d="M6 6l8 8M14 6l-8 8" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
-  </svg>
-);
-
-const REFRESH = (
-  <svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true">
-    <path d="M16 10a6 6 0 1 1-1.76-4.24M16 4v3.5h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-const ARROW_UP = (
-  <svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true">
-    <path d="M10 15V5M5.5 9.5L10 5l4.5 4.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-const ARROW_DOWN = (
-  <svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true">
-    <path d="M10 5v10M5.5 10.5L10 15l4.5-4.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-const DOWNLOAD = (
-  <svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true">
-    <path d="M10 3.5v9M6 8.75l4 4 4-4M4 15.5h12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
 function WindowBar({ step, children }) {
   return (
     <div className="preview-bar">
@@ -90,17 +160,6 @@ function WindowBar({ step, children }) {
     </div>
   );
 }
-
-const APPLICATIONS = [
-  { company: "Northwind", position: "Frontend Engineer", status: "Interview", date: "Oct 12" },
-  { company: "Globex", position: "Full-stack Developer", status: "Applied", date: "Oct 9" },
-  { company: "Initech", position: "Software Engineer II", status: "Offer", date: "Sep 28" },
-  { company: "Hooli", position: "Backend Engineer", status: "Interview", date: "Sep 24" },
-  { company: "Umbrella", position: "React Developer", status: "Rejected", date: "Sep 20" },
-  { company: "Stark", position: "Platform Engineer", status: "Applied", date: "Sep 18" }
-];
-
-const STATUS_FILTERS = ["All", "Applied", "Interview", "Offer", "Rejected"];
 
 function applicationRow(item) {
   return (
@@ -124,17 +183,6 @@ function Stack({ ghost, children }) {
     </div>
   );
 }
-
-// Made-up activity for the preview's Pulse graph; it doesn't match the preview's list.
-const PULSE_SAMPLE = Array.from({ length: 364 }, (_, daysAgo) => {
-  const daily = Math.sin(daysAgo * 1.9) * 1.6 + Math.sin(daysAgo * 0.77 + 1) * 1.1;
-  const waves = Math.sin(daysAgo / 17) * 0.9;
-  const recent = Math.max(0, 1 - daysAgo / 120);
-  const count = Math.max(0, Math.round(3 + daily + waves + recent * 2.5));
-  const day = new Date();
-  day.setDate(day.getDate() - daysAgo);
-  return Array.from({ length: count }, () => ({ created_at: day.toISOString() }));
-}).flat();
 
 function ApplicationsPreview({ active }) {
   const [filter, setFilter] = useState("All");
@@ -172,20 +220,6 @@ function ApplicationsPreview({ active }) {
     </div>
   );
 }
-
-const JOBS = [
-  { company: "Northwind", position: "Backend Engineer", place: "Tel Aviv · Hybrid", score: 86, days: 1, have: ["Node.js", "REST APIs"], missing: ["Kubernetes"] },
-  { company: "Globex", position: "Full-stack Developer", place: "Remote", score: 72, days: 5, have: ["React", "PostgreSQL"], missing: ["GraphQL"] },
-  { company: "Initech", position: "Software Engineer", place: "Haifa · On-site", score: 58, days: 21, have: ["Python"], missing: ["Go", "AWS"] }
-];
-
-const NEW_JOB = { company: "Hooli", position: "Platform Engineer", place: "Tel Aviv · Hybrid", score: 91, days: 0, have: ["Docker", "TypeScript"], missing: ["Terraform"], fresh: true };
-
-const DATE_FILTERS = [
-  { key: "all", label: "All Time" },
-  { key: "today", label: "Today", days: 0 },
-  { key: "week", label: "Last Week", days: 7 }
-];
 
 function ageClass(days) {
   return days <= 7 ? "posted-fresh" : days <= 30 ? "posted-aging" : "posted-stale";
@@ -281,35 +315,6 @@ function JobsPreview({ active }) {
   );
 }
 
-const PROJECTS = {
-  email: (
-    <>
-      <p className="preview-doc-title">
-        <span className="preview-doc-moved" title="Moved up">{ARROW_UP}</span>
-        Email Service <small>| Node.js, MongoDB</small>
-      </p>
-      <ul className="preview-doc-bullets">
-        <li>Built a JWT-secured REST API with search and pagination</li>
-        <li className="preview-doc-cut">Designed the inbox UI across web and Android</li>
-      </ul>
-    </>
-  ),
-  weather: (
-    <>
-      <p className="preview-doc-title">
-        <span className="preview-doc-moved" title="Moved down">{ARROW_DOWN}</span>
-        Weather Bot <small>| Python</small>
-      </p>
-      <ul className="preview-doc-bullets">
-        <li>Built a Telegram bot that sends personalized daily forecasts</li>
-      </ul>
-    </>
-  )
-};
-
-const ORDER_BEFORE = ["weather", "email"];
-const ORDER_AFTER = ["email", "weather"];
-
 function useGlide(order, delay) {
   const nodes = useRef({});
   const tops = useRef({});
@@ -348,24 +353,6 @@ function useGlide(order, delay) {
     nodes.current[key] = node;
   };
 }
-
-const SCISSORS = (
-  <svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true">
-    <path d="M7.1 13.1 14.75 3.25M12.9 13.1 5.25 3.25M5.5 17a2.25 2.25 0 1 0 0-4.5 2.25 2.25 0 0 0 0 4.5zM14.5 17a2.25 2.25 0 1 0 0-4.5 2.25 2.25 0 0 0 0 4.5z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-const UNDO = (
-  <svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true">
-    <path d="M4.5 9.5a5.75 5.75 0 1 1 1.7 4.1M4.5 4.75V9.5h4.75" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-const DONE = (
-  <svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true">
-    <path d="M5 10.5l3.2 3.2L15 7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
 
 function DocBody({ tailored, order = tailored ? ORDER_AFTER : ORDER_BEFORE, delay = 0 }) {
   const glide = useGlide(order, delay);
@@ -481,12 +468,6 @@ function Reveal({ className = "", children }) {
   const inView = useInView(ref, 0.15);
   return <div ref={ref} className={`${className} reveal${inView ? " is-visible" : ""}`}>{children}</div>;
 }
-
-const FEATURE_TABS = [
-  { id: "story-track", label: "Applications" },
-  { id: "story-find", label: "Job Posts" },
-  { id: "story-tailor", label: "Tailored Resumes" }
-];
 
 function scrollToStory(id) {
   document.getElementById(id)?.scrollIntoView({ behavior: REDUCED_MOTION ? "auto" : "smooth", block: "center" });

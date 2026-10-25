@@ -5,7 +5,6 @@ const STROKE = {
   strokeLinecap: "round",
   strokeLinejoin: "round"
 };
-
 const ICONS = {
   login: (
     <>

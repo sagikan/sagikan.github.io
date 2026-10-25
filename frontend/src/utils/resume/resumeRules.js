@@ -16,7 +16,6 @@ export const LIMITS = {
   roles: 5,
   locations: 3
 };
-
 export const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export function titleCase(value) {
@@ -67,6 +66,7 @@ function monthNumber(value) {
 }
 
 const filled = (value) => String(value ?? "").trim() !== "";
+
 const bulletText = (item) => (typeof item === "string" ? item : item.text);
 
 export function resumeProblems(cv) {

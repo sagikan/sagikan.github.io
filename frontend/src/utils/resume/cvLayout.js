@@ -7,11 +7,9 @@ export const FONTS = {
     bolditalics: "EBGaramond-BoldItalic.ttf"
   }
 };
-
 const INK = "#000000";
 const DARK = "#262626";
 const GREY = "#404040";
-
 const PAGE_MARGIN = 48.2;
 const CONTENT_WIDTH = 612 - PAGE_MARGIN * 2;
 const BODY = 10.5;
@@ -22,27 +20,20 @@ const PARAGRAPH_GAP = 3.5;
 const BULLET_X = 2.1;
 const BULLET_Y = 7.2;
 const BULLET_R = 1.75;
-
-// Word's line spacing is a multiple of the font's own line height, which is shorter for the
-// Word Garamond than for EB Garamond. lines(n) converts a Word multiple; the ratio was
-// measured against a Word export of the resume.
-const lines = (multiple) => multiple * 0.865;
 const LINE = lines(1.05);
 const BULLET_LINE = 0.859;
-
 const LETTER_SPACING = 0;
-
-// EB Garamond supports most characters, but the built-in Times font for the tech stacks only
-// covers Western European ones, so those get the same clean-up the old layout used.
 const WIN_ANSI_EXTRAS = new Set("€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ");
+const SEPARATOR = { text: " | ", bold: false, color: DARK };
+
+function lines(multiple) {
+  return multiple * 0.865;
+}
 
 function text(value) {
   return String(value ?? "").replace(/[\u00a0\u2007\u202f]/g, " ").trim();
 }
 
-// Justified text with words like "Hands-on" and "models/services" kept whole. The PDF library
-// would otherwise break them at the "-" or "/" and stretch a gap there when justifying the line.
-// The space after such a word stays with it, so the next piece doesn't start with a space.
 function justified(value) {
   return text(value)
     .split(/(\S+[-/]\S+\s*)/)
@@ -70,8 +61,6 @@ function dates(entry) {
 function gap(size) {
   return { text: " ", fontSize: size, lineHeight: lines(1) };
 }
-
-const SEPARATOR = { text: " | ", bold: false, color: DARK };
 
 function heading(title) {
   const runs = [];

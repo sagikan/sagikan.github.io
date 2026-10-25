@@ -12,7 +12,6 @@ import { useDismiss } from "../../hooks/useDismiss";
 
 const PREVIEW_WIDTH = 220;
 const PREVIEW_DELAY_MS = 300;
-
 const previews = new WeakMap();
 
 function previewOf(pdf) {

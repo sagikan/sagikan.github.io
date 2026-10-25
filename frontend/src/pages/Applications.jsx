@@ -11,6 +11,7 @@ import Alert from "../components/Alert";
 const STATUS_ORDER = ["Offer", "Interview", "Applied", "Rejected", "Withdrawn"];
 
 const byNewest = (a, b) => sortDate(b).localeCompare(sortDate(a));
+
 const byStatus = (a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status);
 
 const SORTS = {
@@ -23,11 +24,8 @@ const SORTS = {
   status: { label: "Status", compare: (a, b) => byStatus(a, b) || byNewest(a, b) },
   company: { label: "Company A–Z", compare: (a, b) => a.company.localeCompare(b.company) }
 };
-
 const DEFAULT_SORT = Object.keys(SORTS)[0];
-
 const GROUPED_SORTS = ["newestStatus", "newest", "oldest"];
-
 const DATE_RANGES = [
   { key: "all", label: "All Time" },
   { key: "today", label: "Today", days: 1 },
@@ -96,8 +94,6 @@ function Chevron() {
 function StatusPill({ status }) {
   return <span className={`status-pill status-${status.toLowerCase()}`}>{status}</span>;
 }
-
-
 
 function Applications({
   applications, emailUpdates, onResolveEmailUpdate, error, onDismissError, onSave, onDelete, onQuickStatus

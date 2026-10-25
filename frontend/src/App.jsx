@@ -12,7 +12,6 @@ import Jobs from "./pages/Jobs";
 const PROTECTED_ROUTES = ["/applications", "/jobs", "/account"];
 const NO_EMAIL_UPDATES = { pending: [], recent: [] };
 const EMAIL_REFRESH_MS = 2 * 60 * 1000;
-
 const API_LABELS = {
   checking: "Connecting…",
   online: "API online",
@@ -46,7 +45,7 @@ function App() {
     }
   }, []);
 
-  async function refreshCsrfToken() {
+  const refreshCsrfToken = useCallback(async () => {
     const { response, data } = await apiRequest("/api/auth/csrf");
 
     if (!response.ok) {
@@ -56,17 +55,17 @@ function App() {
 
     setCsrfToken(data.csrfToken);
     return true;
-  }
+  }, []);
 
-  async function loadUser() {
+  const loadUser = useCallback(async () => {
     const { response, data } = await apiRequest("/api/auth/me");
 
     if (response.ok) {
       setEmail(data.user.email);
     }
-  }
+  }, []);
 
-  async function loadApps() {
+  const loadApps = useCallback(async () => {
     try {
       const { response, data } = await apiRequest("/api/applications");
 
@@ -86,7 +85,7 @@ function App() {
     } catch (err) {
       setError(err.message);
     }
-  }
+  }, [clearSession, loadEmailUpdates]);
 
   useEffect(() => {
     async function initialize() {
@@ -114,7 +113,7 @@ function App() {
     }
 
     initialize();
-  }, []);
+  }, [refreshCsrfToken, loadUser, loadApps]);
 
   useEffect(() => {
     if (booting) {

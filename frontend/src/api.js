@@ -1,5 +1,4 @@
 export const API_URL = import.meta.env.VITE_API_URL;
-
 export const STATUSES = ["Applied", "Interview", "Offer", "Rejected", "Withdrawn"];
 export const WORKPLACE_MODELS = ["On-site", "Hybrid", "Remote"];
 

@@ -7,10 +7,12 @@ import { LIMITS, MONTHS, digitsOnly, formatMonth, isEntryComplete, parseMonth, t
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: 46 }, (_, i) => String(CURRENT_YEAR + 1 - i));
-
 let nextId = 0;
+
 const newId = (prefix) => `${prefix}-new-${++nextId}`;
+
 const filled = (value) => String(value ?? "").trim() !== "";
+
 const textOf = (item) => (typeof item === "string" ? item : item.text);
 
 function RemoveButton({ label, onClick, className = "" }) {
@@ -135,25 +137,21 @@ const ARROW_UP = (
     <path d="M10 15V5M5.5 9.5L10 5l4.5 4.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
-
 const ARROW_DOWN = (
   <svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true">
     <path d="M10 5v10M5.5 10.5L10 15l4.5-4.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
-
 const RESTORE_ICON = (
   <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
     <path d="M4.5 9.5a5.75 5.75 0 1 1 1.7 4.1M4.5 4.75V9.5h4.75" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
-
 const RESTORE_MARK = (
   <svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true">
     <path d="M4.5 9.5a5.75 5.75 0 1 1 1.7 4.1M4.5 4.75V9.5h4.75" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
-
 const PLUS_ICON = (
   <svg viewBox="0 0 20 20" width="11" height="11" aria-hidden="true">
     <path d="M10 4.5v11M4.5 10h11" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />

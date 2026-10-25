@@ -11,7 +11,6 @@ const FONT_URLS = {
   "EBGaramond-Italic.ttf": garamondItalic,
   "EBGaramond-BoldItalic.ttf": garamondBoldItalic
 };
-
 let fontsLoaded = null;
 
 function loadPdfMake() {

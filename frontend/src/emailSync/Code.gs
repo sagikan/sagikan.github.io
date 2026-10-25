@@ -5,7 +5,6 @@
 
 const API_URL = "__API_URL__";
 const TOKEN = "__TOKEN__";
-
 const FIRST_RUN_DAYS = 45;
 const MAX_PER_RUN = 300;
 const BATCH_SIZE = 20;

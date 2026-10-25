@@ -1,7 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
 
-// Pixel glyphs. public/favicon.svg draws the same zero as the logo, so keep the two in sync.
-
 const ZERO = [
   ".#####.",
   "#######",
@@ -14,19 +12,16 @@ const ZERO = [
   "#######",
   ".#####."
 ];
-
 const DIGITS = {
   0: [".###.", "#...#", "#..##", "#.#.#", "##..#", "#...#", ".###."],
   1: ["..#..", ".##..", "..#..", "..#..", "..#..", "..#..", ".###."],
   2: [".###.", "#...#", "....#", "...#.", "..#..", ".#...", "#####"]
 };
+const MIN_SNAP_ROW = 1.2;
 
 function pixelsOf(grid) {
   return grid.flatMap((row, y) => [...row].map((cell, x) => (cell === "#" ? [x, y] : null)).filter(Boolean));
 }
-
-// Below about a screen pixel per row (small glyphs at low zoom), snapping rounds whole rows away.
-const MIN_SNAP_ROW = 1.2;
 
 function useSnapToPixels(enabled, rows) {
   const ref = useRef(null);
@@ -47,7 +42,6 @@ function useSnapToPixels(enabled, rows) {
   return [ref, enabled && snap];
 }
 
-// Without a gap the pixels are one path: separate squares would show hairline seams between them.
 function PixelGrid({ grid, color = "currentColor", gap = 0, crisp = false, height, className, style }) {
   const width = grid[0].length;
   const rows = grid.length;

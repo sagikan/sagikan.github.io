@@ -10,6 +10,12 @@ import { downloadSavedCv } from "../utils/resume/cvPdf";
 import Alert from "../components/Alert";
 
 const POLL_MS = 5000;
+const DATE_RANGES = [
+  { key: "all", label: "All Time" },
+  { key: "today", label: "Today", days: 1 },
+  { key: "week", label: "Last Week", days: 7 },
+  { key: "month", label: "Last Month", days: 30 }
+];
 
 function timeAgo(value, now) {
   const minutes = Math.floor((now - new Date(value).getTime()) / 60000);
@@ -92,13 +98,6 @@ function useRememberedOpen(key) {
 
   return [open, toggle];
 }
-
-const DATE_RANGES = [
-  { key: "all", label: "All Time" },
-  { key: "today", label: "Today", days: 1 },
-  { key: "week", label: "Last Week", days: 7 },
-  { key: "month", label: "Last Month", days: 30 }
-];
 
 function jobPostedDay(job) {
   return toDateInput(job.posted_at) || (job.created_at ? localISO(new Date(job.created_at)) : "");

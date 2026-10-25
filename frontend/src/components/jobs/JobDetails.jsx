@@ -3,6 +3,8 @@ import CompanyAvatar from "../CompanyAvatar";
 import { formatDate } from "../../api";
 import { CALENDAR_ICON, EXTERNAL_ICON, PIN_ICON, postingAge, scoreLevel } from "./jobInfo";
 
+const CARD_TAGS = 4;
+
 export function PostedDate({ postedAt }) {
   return <span title={postingAge(postedAt).label}>{formatDate(postedAt)}</span>;
 }
@@ -19,8 +21,6 @@ export function ScoreRing({ score }) {
     </div>
   );
 }
-
-const CARD_TAGS = 4;
 
 export function MatchSkills({ job, split = false }) {
   const limit = split ? Infinity : CARD_TAGS;
