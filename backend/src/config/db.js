@@ -1,5 +1,4 @@
 require("dotenv").config();
-
 const { Pool } = require("pg");
 
 const LOCAL_HOSTS = ["localhost", "127.0.0.1", "::1"];
@@ -8,6 +7,7 @@ const pool = new Pool({
   ssl: sslOptions(),
 });
 
+// Checks whether the connection string points at this machine
 function isLocalDatabase(connectionString = process.env.DATABASE_URL) {
   if (!connectionString) {
     return true;
@@ -16,21 +16,25 @@ function isLocalDatabase(connectionString = process.env.DATABASE_URL) {
   try {
     const url = new URL(connectionString);
     const host = url.searchParams.get("host") || url.hostname.replace(/^\[|\]$/g, "");
+
     return !host || host.startsWith("/") || LOCAL_HOSTS.includes(host);
   } catch {
     return false;
   }
 }
 
+// Checks whether the host is a private network name without a domain
 function isPrivateNetworkHost(connectionString = process.env.DATABASE_URL) {
   try {
     const host = new URL(connectionString).hostname;
+
     return Boolean(host) && !host.includes(".") && !host.includes(":");
   } catch {
     return false;
   }
 }
 
+// Builds the SSL settings for the database connection
 function sslOptions() {
   if (isLocalDatabase()) {
     return false;
@@ -38,10 +42,11 @@ function sslOptions() {
 
   if (process.env.DATABASE_SSL_VERIFY === "false") {
     console.warn("[db] DATABASE_SSL_VERIFY=false: the database certificate is not checked.");
+
     return { rejectUnauthorized: false };
   }
 
-  // Render's internal host is private-network only; its certificate names the public host.
+  // Render's internal host is private-network only; its certificate names the public host
   if (isPrivateNetworkHost()) {
     return { rejectUnauthorized: false };
   }
@@ -51,10 +56,12 @@ function sslOptions() {
     : { rejectUnauthorized: true };
 }
 
+// Removes SSL query parameters so they don't override the SSL settings
 function withoutSslParams(connectionString) {
   try {
     const url = new URL(connectionString);
     ["sslmode", "sslrootcert", "sslcert", "sslkey"].forEach((key) => url.searchParams.delete(key));
+
     return url.toString();
   } catch {
     return connectionString;

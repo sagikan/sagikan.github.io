@@ -4,13 +4,15 @@ const TECH_WORDS = [
   "Terraform", "GraphQL", "REST", "CI/CD", "Linux", "Git"
 ];
 
-// With NODE_ENV=development, paid and non-essential outside calls (Claude, JSearch, posting checks,
-// emails) are swapped for free local stand-ins. USE_REAL_APIS=true turns the real ones back on.
-// Read on each use, since .env may load after this module does.
+/* Checks whether outside services are swapped for local stand-ins
+   With NODE_ENV=development, paid and non-essential outside calls (Claude, JSearch, posting checks,
+   emails) are swapped for free local stand-ins. USE_REAL_APIS=true turns the real ones back on.
+   Read on each use, since .env may load after this module does */
 function isOffline() {
   return process.env.NODE_ENV === "development" && process.env.USE_REAL_APIS !== "true";
 }
 
+// Returns a sample resume in place of reading a PDF
 function sampleResume() {
   return {
     cv: {
@@ -90,11 +92,14 @@ function sampleResume() {
   };
 }
 
+// Checks whether a text mentions a word
 function mentions(text, word) {
   const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
   return new RegExp(`(^|[^A-Za-z0-9])${escaped}($|[^A-Za-z0-9])`, "i").test(text);
 }
 
+// Scores postings by the resume skills they mention
 function scores(cv, candidates) {
   const skills = [...new Set(cv.skills.flatMap((group) => group.items))];
 
@@ -105,11 +110,14 @@ function scores(cv, candidates) {
       .filter((word) => mentions(text, word) && !skills.some((skill) => skill.toLowerCase() === word.toLowerCase()))
       .slice(0, 6);
     const score = Math.max(15, Math.min(95, 45 + have.length * 9 - missing.length * 6));
+
     return { id: String(posting.id), score, have, missing };
   });
 }
 
+// Returns a fake tailoring of the resume
 function tailoring(base, job) {
+  // Reorders and marks the first bullets as tailored
   const reworkBullets = (bullets) => bullets
     .slice(0, 2)
     .reverse()
@@ -117,6 +125,7 @@ function tailoring(base, job) {
       source_id: bullet.id,
       text: index === 0 ? `${bullet.text} (tailored for ${job.company || "this job"})` : bullet.text
     }));
+
   const skills = base.skills.flatMap((group) => group.items);
 
   return {
@@ -129,9 +138,13 @@ function tailoring(base, job) {
   };
 }
 
+// Classifies an email with simple patterns
 function classify({ from, subject, body }) {
   const text = `${subject}\n${body}`;
+
+  // Checks whether the email matches a pattern
   const has = (pattern) => pattern.test(text);
+
   const sender = /^\s*"?([^"<]+?)"?\s*</.exec(from || "")?.[1]?.trim() || "";
   let event = "other";
 

@@ -1,5 +1,6 @@
 const isProduction = process.env.NODE_ENV === "production";
 
+// Throws when required secrets are missing or unsafe
 function checkSecrets() {
   const problems = [];
   const jwtSecret = process.env.JWT_SECRET || "";
@@ -26,6 +27,7 @@ function checkSecrets() {
   }
 }
 
+// Adds security headers to every response
 function securityHeaders(req, res, next) {
   res.set({
     "X-Content-Type-Options": "nosniff",
@@ -43,6 +45,7 @@ function securityHeaders(req, res, next) {
   next();
 }
 
+// Turns unhandled errors into JSON responses
 function errorHandler(err, req, res, next) {
   if (res.headersSent) {
     return next(err);
@@ -65,6 +68,7 @@ function errorHandler(err, req, res, next) {
   }
 
   console.error(err);
+
   res.status(err.status && err.status < 500 ? err.status : 500).json({ error: "Something went wrong." });
 }
 

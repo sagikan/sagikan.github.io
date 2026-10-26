@@ -1,14 +1,14 @@
 const express = require("express");
 const { rateLimit } = require("express-rate-limit");
 const db = require("../config/db");
-const classifier = require("../services/emailClassifier");
-const emailService = require("../services/emailService");
+const classifier = require("../services/email/emailClassifier");
+const emailService = require("../services/email/emailService");
 
 const router = express.Router();
 const MAX_MESSAGES = 25;
 const MAX_IDS = 100;
 const LIMITS = { id: 200, from: 300, subject: 400, body: 4000 };
-// High on purpose: all users' syncs share Google's IPs. Tokens are 256-bit, so guessing isn't a risk.
+// High on purpose: all users' syncs share Google's IPs. Tokens are 256-bit, so guessing isn't a risk
 const failureLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 200,
@@ -31,6 +31,7 @@ const limiter = rateLimit({
 });
 const NAMED_ENTITIES = { nbsp: " ", amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'", zwnj: "", zwj: "", shy: "" };
 
+// Decodes HTML entities, removes invisible characters and collapses whitespace
 function cleanText(text) {
   return String(text ?? "")
     .replace(/&#x([0-9a-f]+);/gi, (match, hex) => safeChar(parseInt(hex, 16), match))
@@ -41,10 +42,12 @@ function cleanText(text) {
     .trim();
 }
 
+// Turns a code point into a character, keeping the original text if invalid
 function safeChar(code, fallback) {
   return Number.isInteger(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : fallback;
 }
 
+// Validates and cleans one message from the Apps Script
 function readMessage(raw) {
   if (!raw || typeof raw !== "object" || typeof raw.id !== "string" || !raw.id) {
     return null;
@@ -61,6 +64,7 @@ function readMessage(raw) {
   };
 }
 
+// Receives emails from the Apps Script and records their outcomes
 router.post("/", failureLimiter, limiter, async (req, res) => {
   const header = req.get("Authorization") || "";
   const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
@@ -95,6 +99,7 @@ router.post("/", failureLimiter, limiter, async (req, res) => {
       const seen = new Set(known.rows.map((row) => row.message_id));
 
       await db.query(`UPDATE email_sync SET last_ingest_at = NOW() WHERE user_id = $1`, [userId]);
+
       return res.json({ unknown: ids.filter((id) => !seen.has(id)) });
     }
 
@@ -113,6 +118,7 @@ router.post("/", failureLimiter, limiter, async (req, res) => {
     res.json(await emailService.ingest(userId, autoUpdate, messages));
   } catch (err) {
     console.error(err);
+
     res.status(500).json({ error: "Could not process messages." });
   }
 });

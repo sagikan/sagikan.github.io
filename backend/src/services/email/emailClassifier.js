@@ -1,4 +1,4 @@
-const dev = require("./devMode");
+const dev = require("../shared/devMode");
 
 const EVENTS = ["received", "viewed", "assessment", "interview", "offer", "rejection", "other"];
 const TOOL = {
@@ -37,14 +37,17 @@ const SYSTEM =
   "\"Thank you for applying\" and only say further down that the employer is not moving forward. " +
   "If the body contains a decision (rejection, interview, offer), that decision is the event.";
 
+// Checks whether emails can be classified
 function isConfigured() {
   return dev.offline || Boolean(process.env.ANTHROPIC_API_KEY);
 }
 
+// Limits a number to the 0–1 range
 function clamp01(value) {
   return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
 }
 
+// Asks Claude what kind of job email this is
 async function classifyEmail({ from, subject, body }) {
   if (dev.offline) {
     return dev.classify({ from, subject, body });

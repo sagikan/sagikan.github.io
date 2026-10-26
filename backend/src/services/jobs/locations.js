@@ -19,10 +19,12 @@ const ISRAEL_CITY_NAMES = {
 };
 const WORKPLACE_WORDS = /\b(on[\s-]?site|onsite|in[\s-]?office|hybrid|remote)\b/gi;
 
+// Lowercases text, removes accents and pads it with spaces
 function normalize(text) {
   return ` ${String(text || "").toLowerCase().normalize("NFKD").replace(/[^a-z]+/g, " ").trim()} `;
 }
 
+// Finds the cities and regions for the wanted locations
 function areasFor(locations) {
   const cities = new Set();
   const regions = new Set();
@@ -36,6 +38,7 @@ function areasFor(locations) {
 
     for (const part of parts.slice(parts.length > 1 ? 1 : 0)) {
       regions.add(part);
+
       if (part === "israel" || ISRAEL_PLACES.includes(part)) {
         ISRAEL_PLACES.forEach((place) => regions.add(place));
       }
@@ -45,27 +48,31 @@ function areasFor(locations) {
   return { cities: [...cities], regions: [...regions] };
 }
 
+// Scores how well a job's location matches the wanted areas
 function areaScore(jobLocation, areas) {
   const text = normalize(jobLocation);
 
   if (areas.cities.some((city) => text.includes(` ${city} `))) return 2;
   if (areas.regions.some((region) => text.includes(` ${region} `))) return 1;
   if (ANYWHERE.test(jobLocation) || /^\s*remote\s*$/i.test(jobLocation)) return 1;
+
   return 0;
 }
 
+// Detects the workplace model from text
 function workplaceIn(text) {
   if (/\bremote\b/i.test(text)) return "Remote";
   if (/\bhybrid\b/i.test(text)) return "Hybrid";
   if (/\b(on[\s-]?site|onsite|in[\s-]?office)\b/i.test(text)) return "On-site";
+
   return null;
 }
 
+// Cleans a job's location into a readable place name
 function tidyLocation(raw) {
   const text = String(raw || "").replace(/\s+/g, " ").trim();
   const workplace = workplaceIn(text);
   const words = normalize(text);
-
   const cities = Object.entries(ISRAEL_CITY_NAMES)
     .map(([key, name]) => ({ name, at: words.indexOf(` ${key} `) }))
     .filter((city) => city.at >= 0)

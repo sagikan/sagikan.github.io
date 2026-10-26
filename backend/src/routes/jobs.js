@@ -3,17 +3,14 @@ const { userLimiter } = require("../middleware/rateLimit");
 const db = require("../config/db");
 const requireAuth = require("../middleware/auth");
 const { requireCsrf } = require("../middleware/csrf");
-const claude = require("../services/anthropic");
-const profiles = require("../services/cvProfile");
-const jobSearch = require("../services/jobSearch");
-const feeds = require("../services/jobFeeds");
-const cvTailor = require("../services/cvTailor");
-const { APPLICATION_FIELDS, isCalendarDate, isWebUrl } = require("../services/applicationFields");
+const claude = require("../services/ai/anthropic");
+const profiles = require("../services/resume/cvProfile");
+const jobSearch = require("../services/jobs/jobSearch");
+const feeds = require("../services/jobs/jobFeeds");
+const cvTailor = require("../services/resume/cvTailor");
+const { APPLICATION_FIELDS, isCalendarDate, isWebUrl } = require("../services/applications/applicationFields");
 
 const router = express.Router();
-
-router.use(requireAuth, requireCsrf);
-
 const MAX_CV_PAGES = 10;
 const FULL_DESCRIPTION_MIN = 1200;
 const JOB_FIELDS = `
@@ -35,10 +32,14 @@ const addJobLimiter = [
 ];
 const gradeSheetLimiter = userLimiter(20, 60, "You've uploaded your grade sheet several times this hour.");
 
+router.use(requireAuth, requireCsrf);
+
+// Parses a raw PDF request body up to the given size
 function pdfBody(megabytes) {
   return express.raw({ type: "application/pdf", limit: `${megabytes}mb` });
 }
 
+// Rejects AI requests when Claude isn't configured
 function requireClaude(req, res, next) {
   if (!claude.isConfigured()) {
     return res.status(503).json({ error: "AI features are not configured on the server." });
@@ -47,6 +48,7 @@ function requireClaude(req, res, next) {
   next();
 }
 
+// Decodes a URL-encoded header value
 function decodedHeader(value) {
   try {
     return decodeURIComponent(value || "");
@@ -55,28 +57,34 @@ function decodedHeader(value) {
   }
 }
 
+// Reads and validates the job ID, sending an error if invalid
 function jobId(req, res) {
   if (!/^[1-9]\d*$/.test(req.params.id)) {
     res.status(400).json({ error: "Invalid job ID." });
+
     return null;
   }
 
   return req.params.id;
 }
 
+// Sends Claude errors as-is, or logs the error and sends a generic message
 function fail(res, err, message) {
   if (err instanceof claude.ClaudeError) {
     return res.status(502).json({ error: err.message });
   }
 
   console.error(err);
+
   res.status(500).json({ error: message });
 }
 
+// Trims a string and cuts it to the given length
 function text(value, max) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
 
+// Loads the user's resume profile and grade sheet details
 async function loadProfile(userId) {
   const [profile, gradeSheet] = await Promise.all([
     db.query(`SELECT cv, preferences, updated_at FROM cv_profiles WHERE user_id = $1`, [userId]),
@@ -91,6 +99,7 @@ async function loadProfile(userId) {
   };
 }
 
+// Returns the user's profile
 router.get("/profile", async (req, res) => {
   try {
     res.json(await loadProfile(req.user.id));
@@ -99,6 +108,7 @@ router.get("/profile", async (req, res) => {
   }
 });
 
+// Reads an uploaded resume PDF with Claude
 router.put("/profile/cv", requireClaude, readCvLimiter, pdfBody(5), async (req, res) => {
   try {
     const pdf = await profiles.inspectPdf(req.body);
@@ -123,6 +133,7 @@ router.put("/profile/cv", requireClaude, readCvLimiter, pdfBody(5), async (req, 
   }
 });
 
+// Saves the edited resume and preferences
 router.put("/profile", async (req, res) => {
   try {
     const cv = profiles.normalizeCv(req.body?.cv);
@@ -151,6 +162,7 @@ router.put("/profile", async (req, res) => {
   }
 });
 
+// Saves an uploaded grade sheet PDF
 router.put("/grade-sheet", gradeSheetLimiter, pdfBody(2), async (req, res) => {
   try {
     const pdf = await profiles.inspectPdf(req.body);
@@ -174,6 +186,7 @@ router.put("/grade-sheet", gradeSheetLimiter, pdfBody(2), async (req, res) => {
   }
 });
 
+// Downloads the grade sheet PDF
 router.get("/grade-sheet", async (req, res) => {
   try {
     const result = await db.query(`SELECT pdf, filename FROM grade_sheets WHERE user_id = $1`, [req.user.id]);
@@ -193,15 +206,18 @@ router.get("/grade-sheet", async (req, res) => {
   }
 });
 
+// Removes the grade sheet
 router.delete("/grade-sheet", async (req, res) => {
   try {
     await db.query(`DELETE FROM grade_sheets WHERE user_id = $1`, [req.user.id]);
+
     res.json(await loadProfile(req.user.id));
   } catch (err) {
     fail(res, err, "Could not remove your grade sheet.");
   }
 });
 
+// Lists the user's jobs and the latest search status
 router.get("/", async (req, res) => {
   try {
     const [jobs, search] = await Promise.all([
@@ -222,6 +238,7 @@ router.get("/", async (req, res) => {
   }
 });
 
+// Starts a job search
 router.post("/search", requireClaude, async (req, res) => {
   try {
     res.json(await jobSearch.start(req.user.id, { auto: req.body?.auto === true }));
@@ -230,6 +247,7 @@ router.post("/search", requireClaude, async (req, res) => {
   }
 });
 
+// Adds a job by hand
 router.post("/", addJobLimiter, async (req, res) => {
   try {
     const company = text(req.body?.company, 200);
@@ -267,6 +285,7 @@ router.post("/", addJobLimiter, async (req, res) => {
   }
 });
 
+// Scores a hand-added job against the user's resume
 async function scoreAddedJob(userId, job) {
   if (job.match_score !== null || !claude.isConfigured()) {
     return job;
@@ -306,20 +325,23 @@ async function scoreAddedJob(userId, job) {
        RETURNING ${JOB_FIELDS}`,
       [job.id, userId, description, result.match_score, JSON.stringify(result.match_have), JSON.stringify(result.match_missing)]
     );
+
     return updated.rows[0] ?? job;
   } catch (err) {
     console.error("Could not score the added job:", err.message);
+
     return job;
   }
 }
 
+// Dismisses a new job, or hides an applied one
 router.post("/:id/dismiss", async (req, res) => {
   const id = jobId(req, res);
   if (!id) return;
 
   try {
-    // A new job is dismissed. An applied one is only hidden from the Jobs page: it stays applied,
-    // so it and the resume that was sent are kept for the Applications page.
+    /* A new job is dismissed. An applied one is only hidden from the Jobs page: it stays applied,
+       so it and the resume that was sent are kept for the Applications page */
     const result = await db.query(
       `UPDATE jobs
        SET state = CASE WHEN state = 'new' THEN 'dismissed' ELSE state END,
@@ -339,6 +361,7 @@ router.post("/:id/dismiss", async (req, res) => {
   }
 });
 
+// Returns the saved tailored resume for a job
 router.get("/:id/tailoring", async (req, res) => {
   const id = jobId(req, res);
   if (!id) return;
@@ -355,6 +378,7 @@ router.get("/:id/tailoring", async (req, res) => {
   }
 });
 
+// Tailors the resume for a job with Claude
 router.post("/:id/tailor", requireClaude, tailorLimiter, async (req, res) => {
   const id = jobId(req, res);
   if (!id) return;
@@ -379,6 +403,7 @@ router.post("/:id/tailor", requireClaude, tailorLimiter, async (req, res) => {
     if (posting.url && posting.description.length < FULL_DESCRIPTION_MIN) {
       fullDescription = await cvTailor.fetchPosting(posting.url).catch((err) => {
         console.error("Could not read posting:", err.message);
+
         return null;
       });
 
@@ -405,6 +430,7 @@ router.post("/:id/tailor", requireClaude, tailorLimiter, async (req, res) => {
   }
 });
 
+// Saves edits to a tailored resume
 router.put("/:id/tailoring", async (req, res) => {
   const id = jobId(req, res);
   if (!id) return;
@@ -426,7 +452,6 @@ router.put("/:id/tailoring", async (req, res) => {
     const includeGradeSheet = typeof req.body?.include_grade_sheet === "boolean"
       ? req.body.include_grade_sheet
       : current.rows[0].include_grade_sheet;
-
     const saved = await db.query(
       `UPDATE cv_tailorings SET cv = $3, include_grade_sheet = $4, updated_at = NOW()
        WHERE job_id = $1 AND user_id = $2
@@ -440,6 +465,7 @@ router.put("/:id/tailoring", async (req, res) => {
   }
 });
 
+// Marks a job as applied and creates its application
 router.post("/:id/apply", async (req, res) => {
   const id = jobId(req, res);
   if (!id) return;
@@ -458,6 +484,7 @@ router.post("/:id/apply", async (req, res) => {
 
     if (job.rowCount === 0 || job.rows[0].state === "applied") {
       await client.query("ROLLBACK");
+
       return res.status(job.rowCount === 0 ? 404 : 409).json({
         error: job.rowCount === 0 ? "Job not found." : "You already marked this job as applied."
       });
@@ -471,7 +498,6 @@ router.post("/:id/apply", async (req, res) => {
       [req.user.id, company, position, location || "Not specified", workplace, url, appliedAt]
     );
     const applicationId = inserted.rows[0].id;
-
     const updated = await client.query(
       `UPDATE jobs SET state = 'applied', application_id = $3 WHERE id = $1 AND user_id = $2 RETURNING ${JOB_FIELDS}`,
       [id, req.user.id, applicationId]
@@ -479,6 +505,7 @@ router.post("/:id/apply", async (req, res) => {
     const application = await client.query(`SELECT ${APPLICATION_FIELDS} FROM applications WHERE id = $1`, [applicationId]);
 
     await client.query("COMMIT");
+
     res.json({ job: updated.rows[0], application: application.rows[0] });
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
@@ -488,6 +515,7 @@ router.post("/:id/apply", async (req, res) => {
   }
 });
 
+// Turns oversized uploads into a clear error
 router.use((err, req, res, next) => {
   if (err.type === "entity.too.large") {
     return res.status(413).json({ error: "That file is too large." });

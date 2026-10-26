@@ -1,10 +1,10 @@
-const db = require("../config/db");
-const claude = require("./anthropic");
-const dev = require("./devMode");
+const db = require("../../config/db");
+const claude = require("../ai/anthropic");
+const dev = require("../shared/devMode");
 const feeds = require("./jobFeeds");
 const { areasFor, areaScore } = require("./locations");
-const { cvToText, normalizePreferences, object } = require("./cvProfile");
-const { companyScore, positionScore } = require("./emailMatcher");
+const { cvToText, normalizePreferences, object } = require("../resume/cvProfile");
+const { companyScore, positionScore } = require("../email/emailMatcher");
 const { adjustForExperience, candidateYears, requiredExperience, requirementPhrase } = require("./experience");
 const postingCheck = require("./postingCheck");
 
@@ -59,10 +59,12 @@ const TOO_SENIOR = {
   Mid: /\b(staff|principal|director|head|vp|chief)\b/
 };
 
+// Returns the time the given number of hours ago
 function hoursAgo(hours) {
   return new Date(Date.now() - hours * 3600 * 1000);
 }
 
+// Returns the user's search status, failing stale searches first
 async function status(userId, client = db) {
   await client.query(
     `UPDATE job_searches
@@ -79,7 +81,6 @@ async function status(userId, client = db) {
      LIMIT 20`,
     [userId]
   );
-
   const counted = rows.filter((row) => row.status !== "failed");
   const lastHour = counted.filter((row) => row.started_at > hoursAgo(1));
   const latest = rows[0] || null;
@@ -99,6 +100,7 @@ async function status(userId, client = db) {
   };
 }
 
+// Starts a background search when the user is allowed one
 async function start(userId, { auto = false } = {}) {
   const client = await db.connect();
   let searchId = null;
@@ -135,6 +137,7 @@ async function start(userId, { auto = false } = {}) {
   return { started: Boolean(searchId), search: await status(userId) };
 }
 
+// Runs a search and stores the found jobs
 async function run(userId, searchId) {
   const usage = { input: 0, output: 0, searches: 0, fetches: 0 };
 
@@ -182,6 +185,7 @@ async function run(userId, searchId) {
   }
 }
 
+// Keeps the jobs whose postings are still open, up to the limit
 async function stillOpen(jobs, limit) {
   const open = [];
   const closed = [];
@@ -200,9 +204,11 @@ async function stillOpen(jobs, limit) {
   }
 
   await feeds.markClosed(closed);
+
   return open;
 }
 
+// Removes found jobs whose postings closed since the last check
 async function recheckFound(userId) {
   const { rows } = await db.query(
     `SELECT id, url FROM jobs
@@ -223,6 +229,7 @@ async function recheckFound(userId) {
   );
 }
 
+// Records how a search ended
 function finish(searchId, state, error, found, usage) {
   return db.query(
     `UPDATE job_searches
@@ -233,6 +240,7 @@ function finish(searchId, state, error, found, usage) {
   );
 }
 
+// Splits a title into normalized words
 function words(text) {
   return String(text || "")
     .toLowerCase()
@@ -245,18 +253,23 @@ function words(text) {
     .filter((word) => word.length > 1);
 }
 
+// Scores how well a title matches the wanted roles
 function titleScore(title, roles) {
   const titleWords = new Set(words(title));
+
   return Math.max(0, ...roles.map((role) => {
     const roleWords = words(role);
+
     return roleWords.length ? roleWords.filter((word) => titleWords.has(word)).length / roleWords.length : 0;
   }));
 }
 
+// Checks whether two jobs are the same position at the same company
 function sameJob(a, b, positionMin) {
   return companyScore(a.company, b.company) >= 0.8 && positionScore(a.position, b.position) >= positionMin;
 }
 
+// Picks the postings worth scoring for this user
 async function shortlist(cv, prefs, applications, known) {
   const { rows } = await db.query(
     `SELECT id, company, title, location, workplace_model, url, description, posted_at FROM job_postings
@@ -314,6 +327,7 @@ async function shortlist(cv, prefs, applications, known) {
   return unique;
 }
 
+// Shortens a description, keeping the intro and the requirements
 function scoringExcerpt(description) {
   const text = String(description || "").replace(/\s+/g, " ").trim();
 
@@ -331,6 +345,7 @@ function scoringExcerpt(description) {
   return `${text.slice(0, intro)} … ${text.slice(at, at + SCORING_DESCRIPTION - intro)}`;
 }
 
+// Cleans a list of short phrases from Claude
 function phrases(value) {
   return (Array.isArray(value) ? value : [])
     .map((item) => String(item).replace(/\s+/g, " ").trim().slice(0, 60))
@@ -338,6 +353,7 @@ function phrases(value) {
     .slice(0, MAX_TAGS);
 }
 
+// Asks Claude to score the postings against the resume
 async function askForScores(cv, prefs, candidates, haveYears, usage) {
   const postings = candidates.map((posting) => [
     `<posting id="${posting.id}">`,
@@ -345,7 +361,6 @@ async function askForScores(cv, prefs, candidates, haveYears, usage) {
     scoringExcerpt(posting.description),
     "</posting>"
   ].join("\n"));
-
   const message = await claude.send(
     {
       model: claude.model("ANTHROPIC_MATCH_MODEL", claude.CHEAP_MODEL),
@@ -375,6 +390,7 @@ async function askForScores(cv, prefs, candidates, haveYears, usage) {
   return claude.readJson(message).results || [];
 }
 
+// Scores the postings and adjusts for required experience
 async function score(cv, prefs, candidates, usage) {
   const haveYears = candidateYears(cv);
   const required = new Map(candidates.map((posting) => [String(posting.id), requiredExperience(posting.description, posting.title)]));
@@ -409,6 +425,7 @@ async function score(cv, prefs, candidates, usage) {
     });
 }
 
+// Fails searches left running when the server restarted
 function failInterrupted() {
   return db.query(
     `UPDATE job_searches

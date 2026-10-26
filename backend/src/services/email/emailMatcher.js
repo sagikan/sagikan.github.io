@@ -9,6 +9,7 @@ const POSITION_GAP_MIN = 0.15;
 const MAX_CANDIDATES = 8;
 const RANK = { Applied: 0, Interview: 1, Offer: 2 };
 
+// Splits text into lowercase words, without the given noise words
 function tokens(text, noise) {
   return String(text || "")
     .normalize("NFKD")
@@ -20,6 +21,7 @@ function tokens(text, noise) {
     .filter((token) => token && !noise.has(token));
 }
 
+// Checks whether one word list contains another in order
 function containsSequence(haystack, needle) {
   if (!needle.length || needle.length > haystack.length) {
     return false;
@@ -34,6 +36,7 @@ function containsSequence(haystack, needle) {
   return false;
 }
 
+// Measures how much two word lists overlap
 function jaccard(a, b) {
   const setA = new Set(a);
   const setB = new Set(b);
@@ -43,6 +46,7 @@ function jaccard(a, b) {
   return total ? shared / total : 0;
 }
 
+// Scores how likely two company names are the same
 function companyScore(a, b) {
   const tokensA = tokens(a, COMPANY_NOISE);
   const tokensB = tokens(b, COMPANY_NOISE);
@@ -62,10 +66,12 @@ function companyScore(a, b) {
   return jaccard(tokensA, tokensB);
 }
 
+// Scores how similar two job titles are
 function positionScore(a, b) {
   return jaccard(tokens(a, POSITION_NOISE), tokens(b, POSITION_NOISE));
 }
 
+// Finds the application an email is about
 function matchApplication(event, applications, receivedDay) {
   const candidates = applications
     .map((application) => ({
@@ -115,6 +121,7 @@ function matchApplication(event, applications, receivedDay) {
   };
 }
 
+// Decides whether a status change is applied, reviewed or ignored
 function transition(current, target) {
   if (current === target || current === "Rejected" || current === "Withdrawn") {
     return "ignore";

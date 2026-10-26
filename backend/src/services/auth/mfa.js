@@ -5,6 +5,7 @@ const TOTP_PERIOD_SECONDS = 30;
 const TOTP_DIGITS = 6;
 const TOTP_WINDOW = 1;
 
+// Reads the 32-byte encryption key from the environment
 function getKey() {
   const raw = process.env.MFA_ENCRYPTION_KEY || "";
   const key = /^[0-9a-f]{64}$/i.test(raw) ? Buffer.from(raw, "hex") : Buffer.from(raw, "base64");
@@ -16,6 +17,7 @@ function getKey() {
   return key;
 }
 
+// Encodes bytes as base32
 function base32Encode(buffer) {
   let bits = 0;
   let value = 0;
@@ -38,6 +40,7 @@ function base32Encode(buffer) {
   return output;
 }
 
+// Decodes a base32 string into bytes
 function base32Decode(input) {
   let bits = 0;
   let value = 0;
@@ -62,6 +65,7 @@ function base32Decode(input) {
   return Buffer.from(bytes);
 }
 
+// Computes the HOTP code for a counter
 function hotp(secret, counter) {
   const message = Buffer.alloc(8);
   message.writeBigUInt64BE(BigInt(counter));
@@ -73,16 +77,20 @@ function hotp(secret, counter) {
   return String(code).padStart(TOTP_DIGITS, "0");
 }
 
+// Compares two strings in constant time
 function safeEqual(a, b) {
   const bufferA = Buffer.from(a);
   const bufferB = Buffer.from(b);
+
   return bufferA.length === bufferB.length && crypto.timingSafeEqual(bufferA, bufferB);
 }
 
+// Generates a new TOTP secret
 function generateTotpSecret() {
   return base32Encode(crypto.randomBytes(20));
 }
 
+// Builds the otpauth link for authenticator apps
 function totpUri(secret, email, issuer = "Applicant Zero") {
   const label = `${encodeURIComponent(issuer)}:${encodeURIComponent(email)}`;
   const params = {
@@ -99,6 +107,7 @@ function totpUri(secret, email, issuer = "Applicant Zero") {
   return `otpauth://totp/${label}?${query}`;
 }
 
+// Checks a TOTP code and returns its time step, or null
 function verifyTotp(secret, token, lastStep) {
   const code = String(token || "").replace(/\s/g, "");
 
@@ -122,6 +131,7 @@ function verifyTotp(secret, token, lastStep) {
   return null;
 }
 
+// Encrypts a secret with AES-256-GCM
 function encryptSecret(plaintext) {
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-256-gcm", getKey(), iv);
@@ -130,6 +140,7 @@ function encryptSecret(plaintext) {
   return [iv, cipher.getAuthTag(), ciphertext].map((part) => part.toString("base64")).join(".");
 }
 
+// Decrypts a secret stored by encryptSecret
 function decryptSecret(stored) {
   const [iv, tag, ciphertext] = stored.split(".").map((part) => Buffer.from(part, "base64"));
   const decipher = crypto.createDecipheriv("aes-256-gcm", getKey(), iv);
@@ -138,21 +149,26 @@ function decryptSecret(stored) {
   return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
 }
 
+// Hashes a code with the encryption key
 function hashCode(code) {
   return crypto.createHmac("sha256", getKey()).update(code).digest("hex");
 }
 
+// Generates a 6-digit email code
 function generateEmailCode() {
   return String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
 }
 
+// Uppercases a recovery code and removes invalid characters
 function normalizeRecoveryCode(code) {
   return String(code || "").toUpperCase().replace(/[^A-Z2-7]/g, "");
 }
 
+// Generates a set of recovery codes
 function generateRecoveryCodes(count = 10) {
   return Array.from({ length: count }, () => {
     const code = base32Encode(crypto.randomBytes(7)).slice(0, 10);
+
     return `${code.slice(0, 5)}-${code.slice(5)}`;
   });
 }

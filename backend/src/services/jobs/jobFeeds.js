@@ -1,7 +1,7 @@
-const db = require("../config/db");
-const claude = require("./anthropic");
-const dev = require("./devMode");
-const { htmlToText } = require("./htmlText");
+const db = require("../../config/db");
+const claude = require("../ai/anthropic");
+const dev = require("../shared/devMode");
+const { htmlToText } = require("../shared/htmlText");
 const { areasFor, areaScore, tidyLocation } = require("./locations");
 
 const REFRESH_HOURS = 6;
@@ -89,10 +89,11 @@ const PROVIDERS = {
       const [query, country] = token.split("|");
       const params = new URLSearchParams({ query, page: "1", num_pages: String(JSEARCH_PAGES), date_posted: "month" });
       if (country) params.set("country", country);
+
       return `https://${JSEARCH_HOST}/search-v2?${params}`;
     },
     headers: () => ({ "X-RapidAPI-Key": process.env.JSEARCH_API_KEY, "X-RapidAPI-Host": JSEARCH_HOST }),
-    // /search-v2 returns the jobs in data.jobs; the old /search returned them in data.
+    // /search-v2 returns the jobs in data.jobs; the old /search returned them in data
     parse: (data) => [data?.data?.jobs, data?.data].find(Array.isArray)?.map((job) => ({
       externalId: job.job_id,
       company: job.employer_name,
@@ -109,12 +110,15 @@ const PROVIDERS = {
 };
 const ENTRY_WORDS = /\b(junior|jr|entry|graduate|intern|internship|student)\b/i;
 
+// Detects a remote or hybrid workplace from text
 function workplaceFrom(text) {
   if (/\bremote\b/i.test(text || "")) return "Remote";
   if (/\bhybrid\b/i.test(text || "")) return "Hybrid";
+
   return null;
 }
 
+// Turns a board token into a company name
 function prettyName(token) {
   return token
     .split(/[-_.]+/)
@@ -123,22 +127,27 @@ function prettyName(token) {
     .join(" ");
 }
 
+// Turns a date value into an ISO string, or null
 function toDate(value) {
   const date = value ? new Date(value) : null;
+
   return date && !Number.isNaN(date.getTime()) ? date.toISOString() : null;
 }
 
+// Removes tracking parameters and the hash from a URL
 function cleanUrl(value) {
   try {
     const url = new URL(value);
     [...url.searchParams.keys()].filter((key) => TRACKING_PARAMS.test(key)).forEach((key) => url.searchParams.delete(key));
     url.hash = "";
+
     return url.toString();
   } catch {
     return value;
   }
 }
 
+// Turns a country code into its English name
 function countryName(code) {
   try {
     return code ? countryNames.of(String(code).toUpperCase()) : "";
@@ -147,11 +156,14 @@ function countryName(code) {
   }
 }
 
+// Finds the country code of a place name
 function countryCode(place) {
   const country = String(place || "").split(",").pop().trim().toLowerCase();
+
   return COUNTRY_CODES[country] || null;
 }
 
+// Joins words split across lines and removes empty lines
 function unwrap(text) {
   return String(text || "")
     .replace(/([a-z])(?:\r?\n)+\r?([a-z])/g, "$1$2")
@@ -159,15 +171,19 @@ function unwrap(text) {
     .trim();
 }
 
+// Picks the best apply link for a JSearch job
 function jsearchLink(job) {
   const direct = (job.apply_options || []).find((option) => option?.is_direct && option.apply_link);
+
   return direct?.apply_link || job.job_apply_link || job.job_google_link;
 }
 
+// Checks whether JSearch can be called
 function jsearchEnabled() {
   return !dev.offline && Boolean(process.env.JSEARCH_API_KEY);
 }
 
+// Decodes a URL-encoded value, keeping it as-is if invalid
 function decoded(value) {
   try {
     return decodeURIComponent(value);
@@ -176,6 +192,7 @@ function decoded(value) {
   }
 }
 
+// Finds job board links in text
 function boardsIn(text) {
   const found = new Map();
 
@@ -192,6 +209,7 @@ function boardsIn(text) {
   return [...found.values()];
 }
 
+// Saves new job boards
 async function addBoards(boards, source) {
   for (const { provider, token } of boards) {
     await db.query(
@@ -203,6 +221,7 @@ async function addBoards(boards, source) {
   }
 }
 
+// Adds job boards found in users' application and job links
 async function harvestUserBoards() {
   const { rows } = await db.query(
     `SELECT job_url AS url FROM applications WHERE job_url IS NOT NULL
@@ -211,6 +230,7 @@ async function harvestUserBoards() {
   await addBoards(boardsIn(rows.map((row) => row.url).join("\n")), "user");
 }
 
+// Fetches JSON, reporting a 404 as gone
 async function fetchJson(url, headers = {}) {
   const response = await fetch(url, {
     headers: { Accept: "application/json", "User-Agent": "ApplicantZero/1.0", ...headers },
@@ -228,24 +248,30 @@ async function fetchJson(url, headers = {}) {
   return { data: await response.json() };
 }
 
+// Waits for the given number of milliseconds
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Fetches from an aggregator, retrying once when rate limited
 async function fetchAggregator(url, headers) {
   try {
     return await fetchJson(url, headers);
   } catch (err) {
     if (err.status !== 429) throw err;
     await sleep(JSEARCH_RETRY_MS);
+
     return fetchJson(url, headers);
   }
 }
 
+// Returns the areas from all users' preferred locations
 async function wantedAreas() {
   const { rows } = await db.query(`SELECT preferences FROM cv_profiles`);
   const locations = rows.flatMap((row) => row.preferences?.locations || []);
+
   return locations.length ? areasFor(locations) : null;
 }
 
+// Removes found jobs whose postings closed
 async function removeClosedJobs(urls) {
   if (urls.length === 0) {
     return 0;
@@ -255,9 +281,11 @@ async function removeClosedJobs(urls) {
     `DELETE FROM jobs WHERE source = 'search' AND state = 'new' AND url = ANY($1::text[])`,
     [urls]
   );
+
   return removed.rowCount;
 }
 
+// Removes postings that are too old or no longer listed
 async function removeOldPostings() {
   await db.query(
     `DELETE FROM job_postings WHERE COALESCE(posted_at, first_seen_at) < NOW() - make_interval(days => $1)`,
@@ -276,14 +304,18 @@ async function removeOldPostings() {
      WHERE source = 'search' AND state = 'new' AND COALESCE(posted_at, created_at) < NOW() - make_interval(days => $1)`,
     [MAX_AGE_DAYS]
   );
+
   return removed.rowCount;
 }
 
+// Returns the URLs already known to be closed
 async function knownClosed(urls) {
   const { rows } = await db.query(`SELECT url FROM closed_postings WHERE url = ANY($1::text[])`, [urls]);
+
   return new Set(rows.map((row) => row.url));
 }
 
+// Records closed posting URLs
 async function markClosed(urls) {
   if (urls.length === 0) {
     return;
@@ -297,10 +329,12 @@ async function markClosed(urls) {
   await removeClosedJobs(urls);
 }
 
+// Checks whether a posting is older than the maximum age
 function isTooOld(postedAt) {
   return Boolean(postedAt) && new Date(postedAt) < new Date(Date.now() - MAX_AGE_DAYS * 86_400_000);
 }
 
+// Fetches a board's postings and stores them
 async function refreshBoard(board, areas = null) {
   const provider = PROVIDERS[board.provider];
   const startedAt = new Date();
@@ -317,6 +351,7 @@ async function refreshBoard(board, areas = null) {
       await db.query(`UPDATE job_boards SET active = FALSE, last_fetched_at = NOW() WHERE id = $1`, [board.id]);
       const closed = await db.query(`DELETE FROM job_postings WHERE board_id = $1 RETURNING url`, [board.id]);
       await removeClosedJobs(closed.rows.map((row) => row.url));
+
       return 0;
     }
 
@@ -324,6 +359,7 @@ async function refreshBoard(board, areas = null) {
       .filter((job) => job.externalId && job.title && /^https?:\/\//.test(job.url || ""))
       .map((job) => {
         const tidy = tidyLocation(job.location);
+
         return { ...job, url: cleanUrl(job.url), location: tidy.location, workplace: job.workplace || tidy.workplace };
       });
     const openIds = open.map((job) => String(job.externalId).slice(0, 200));
@@ -334,6 +370,8 @@ async function refreshBoard(board, areas = null) {
       !(job.expiresAt && new Date(job.expiresAt) < startedAt) &&
       (!areas || areaScore(job.location, areas) > 0 || (job.workplace === "Remote" && !job.location))
     );
+
+    // Returns one field from every posting
     const column = (pick) => postings.map(pick);
 
     if (postings.length) {
@@ -379,10 +417,12 @@ async function refreshBoard(board, areas = null) {
 
       await db.query(`DELETE FROM job_postings WHERE board_id = $1 AND seen_at < $2`, [board.id, startedAt]);
     }
+
     await db.query(
       `UPDATE job_boards SET failures = 0, last_fetched_at = NOW(), company = COALESCE($2, company) WHERE id = $1`,
       [board.id, postings[0]?.company || null]
     );
+
     return postings.length;
   } catch (err) {
     console.error(`Job board ${board.provider}/${board.token} failed:`, err.message);
@@ -394,6 +434,7 @@ async function refreshBoard(board, areas = null) {
          WHERE id = $1`,
         [board.id, JSEARCH_HOURS, JSEARCH_RETRY_HOURS]
       );
+
       return 0;
     }
 
@@ -401,10 +442,12 @@ async function refreshBoard(board, areas = null) {
       `UPDATE job_boards SET failures = failures + 1, active = failures + 1 < $2, last_fetched_at = NOW() WHERE id = $1`,
       [board.id, MAX_FAILURES]
     );
+
     return 0;
   }
 }
 
+// Refreshes boards that weren't fetched recently
 async function refreshStaleBoards() {
   const { rows: boards } = await db.query(
     `SELECT id, provider, token, company FROM job_boards
@@ -413,16 +456,19 @@ async function refreshStaleBoards() {
          hours => CASE WHEN provider = 'jsearch' THEN $2::int ELSE $1::int END))`,
     [REFRESH_HOURS, JSEARCH_HOURS, jsearchEnabled()]
   );
-
   const areas = await wantedAreas();
   const searches = boards.filter((board) => PROVIDERS[board.provider].aggregator);
   const companyBoards = boards.filter((board) => !PROVIDERS[board.provider].aggregator);
   let next = 0;
+
+  // Refreshes company boards until none are left
   const worker = async () => {
     while (next < companyBoards.length) {
       await refreshBoard(companyBoards[next++], areas);
     }
   };
+
+  // Runs the JSearch searches one at a time with a gap between them
   const searchOneByOne = async () => {
     for (const [index, board] of searches.entries()) {
       if (index > 0) await sleep(JSEARCH_GAP_MS);
@@ -434,14 +480,18 @@ async function refreshStaleBoards() {
     searchOneByOne(),
     ...Array.from({ length: Math.min(CONCURRENCY, companyBoards.length) }, worker)
   ]);
+
   return boards.length;
 }
 
+// Checks whether a periodic task is due
 async function isDue(key, hours) {
   const { rows } = await db.query(`SELECT updated_at FROM feed_state WHERE key = $1`, [key]);
+
   return !rows[0] || rows[0].updated_at < new Date(Date.now() - hours * 3600 * 1000);
 }
 
+// Records that a periodic task ran
 function markDone(key) {
   return db.query(
     `INSERT INTO feed_state (key, updated_at) VALUES ($1, NOW())
@@ -450,13 +500,18 @@ function markDone(key) {
   );
 }
 
+// Asks Claude for new company boards that match users' preferences
 async function discover() {
   const { rows } = await db.query(`SELECT preferences FROM cv_profiles`);
+
+  // Sorts the items by how often they appear
   const count = (lists) => {
     const tally = new Map();
     lists.flat().filter(Boolean).forEach((item) => tally.set(item, (tally.get(item) || 0) + 1));
+
     return [...tally.entries()].sort((a, b) => b[1] - a[1]).map(([item]) => item);
   };
+
   const roles = count(rows.map((row) => row.preferences?.roles || [])).slice(0, 3);
   const places = count(rows.map((row) => (row.preferences?.locations || []).map((place) => place.split(",").pop().trim())));
   const place = places[0] || "Israel";
@@ -465,7 +520,6 @@ async function discover() {
     ...sites.map((site) => `site:${site} ${place}`),
     ...roles.flatMap((role) => sites.map((site) => `site:${site} "${role}" ${place}`))
   ].slice(0, 10);
-
   const messages = [{
     role: "user",
     content: `Run each of these web searches once, then reply "done".\n${queries.map((query) => `- ${query}`).join("\n")}`
@@ -498,9 +552,11 @@ async function discover() {
 
   const boards = boardsIn(urls.join("\n"));
   await addBoards(boards, "discovered");
+
   return boards.length;
 }
 
+// Builds the JSearch queries for the user's roles
 function searchRoles(roles, seniority) {
   const seen = new Set();
   const result = [];
@@ -523,6 +579,7 @@ function searchRoles(roles, seniority) {
   return result.slice(0, 3);
 }
 
+// Keeps JSearch boards in sync with users' roles and locations
 async function syncSearchBoards() {
   const { rows } = await db.query(`SELECT preferences FROM cv_profiles`);
   const tally = new Map();
@@ -559,6 +616,7 @@ async function syncSearchBoards() {
   );
 }
 
+// Refreshes the job feeds, unless another server is already doing it
 async function ensureFresh() {
   const client = await db.connect();
 
@@ -584,6 +642,7 @@ async function ensureFresh() {
         } catch (err) {
           console.error("Job board discovery failed:", err.message);
         }
+
         await markDone("discovery");
       }
 

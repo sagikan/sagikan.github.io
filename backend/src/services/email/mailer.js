@@ -1,5 +1,5 @@
 const nodemailer = require("nodemailer");
-const dev = require("./devMode");
+const dev = require("../shared/devMode");
 
 const isProduction = process.env.NODE_ENV === "production";
 let transporter;
@@ -44,6 +44,7 @@ const NOTICES = {
   }
 };
 
+// Returns the SMTP transporter, or null when SMTP isn't configured
 function getTransporter() {
   if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
     return null;
@@ -69,17 +70,21 @@ function getTransporter() {
   return transporter;
 }
 
+// Splits a sender like "Name <email>" into its parts
 function parseSender(value) {
   const match = /^\s*(.*?)\s*<([^>]+)>\s*$/.exec(value || "");
+
   return match
     ? { name: match[1] || "Applicant Zero", email: match[2].trim() }
     : { name: "Applicant Zero", email: String(value || "").trim() };
 }
 
+// Escapes text for use in HTML
 function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
 }
 
+// Sends an email through the Brevo API
 async function sendWithBrevo(message) {
   const sender = parseSender(process.env.MAIL_FROM);
 
@@ -110,9 +115,11 @@ async function sendWithBrevo(message) {
   }
 }
 
+// Sends an email through Brevo or SMTP, or logs it in development
 async function deliver(message, logLine) {
   if (dev.offline) {
     console.log(`[mailer] ${logLine} (not emailed in development)`);
+
     return;
   }
 
@@ -128,6 +135,7 @@ async function deliver(message, logLine) {
     }
 
     console.log(`[mailer] ${logLine}`);
+
     return;
   }
 
@@ -137,6 +145,7 @@ async function deliver(message, logLine) {
   });
 }
 
+// Emails a verification or password reset code
 async function sendCodeEmail(to, code, kind) {
   const template = TEMPLATES[kind];
   const message = {
@@ -157,6 +166,7 @@ async function sendCodeEmail(to, code, kind) {
   await deliver(message, `${kind} code for ${to}: ${code}`);
 }
 
+// Emails a notice about a security change
 async function sendSecurityNotice(to, kind) {
   const notice = NOTICES[kind];
   const when = new Date().toUTCString();

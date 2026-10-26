@@ -1,10 +1,10 @@
 const { PDFDocument } = require("pdf-lib");
-const claude = require("./anthropic");
-const dev = require("./devMode");
+const claude = require("../ai/anthropic");
+const dev = require("../shared/devMode");
 
 const WORKPLACE_MODELS = ["On-site", "Hybrid", "Remote"];
 const SENIORITIES = ["Any", "Student", "Junior", "Mid", "Senior"];
-// What a saved resume may contain. The form in the app shows the same limits.
+// What a saved resume may contain. The form in the app shows the same limits
 const SAVE_LIMITS = {
   links: 3,
   experience: 8,
@@ -141,42 +141,52 @@ const DATE_RANGE = new RegExp(
   "i"
 );
 
+// Builds a strict JSON schema object
 function object(properties) {
   return { type: "object", additionalProperties: false, required: Object.keys(properties), properties };
 }
 
+// Collapses whitespace in a string and cuts it to the given length
 function text(value, max = LIMITS.short) {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, max) : "";
 }
 
+// Cleans multi-line text and cuts it to the given length
 function paragraphs(value, max) {
   return typeof value === "string"
     ? value.split(/\r?\n/).map((line) => line.replace(/\s+/g, " ").trim()).filter(Boolean).join("\n").slice(0, max)
     : "";
 }
 
+// Capitalizes the first letter of each word
 function titleCase(value) {
   return value.toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (match, separator, letter) => separator + letter.toUpperCase());
 }
 
+// Keeps a link only if it uses a safe scheme
 function link(value) {
   const url = text(value, 500);
   const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(url)?.[1]?.toLowerCase();
+
   return !scheme || ["http", "https", "mailto"].includes(scheme) ? url : "";
 }
 
+// Maps the first items of a list and drops empty results
 function list(value, max, map) {
   return Array.isArray(value) ? value.slice(0, max).map(map).filter(Boolean) : [];
 }
 
+// Cleans a list of short texts
 function textList(value, maxItems, maxLength = LIMITS.short) {
   return list(value, maxItems, (item) => text(typeof item === "object" && item ? item.text : item, maxLength) || null);
 }
 
+// Cleans a list of bullets and gives each an ID
 function bulletList(value, prefix) {
   return textList(value, LIMITS.bullets, LIMITS.bullet).map((bullet, index) => ({ id: `${prefix}.b${index + 1}`, text: bullet }));
 }
 
+// Cleans a resume into the stored shape
 function normalizeCv(raw) {
   const cv = raw && typeof raw === "object" ? raw : {};
 
@@ -188,6 +198,7 @@ function normalizeCv(raw) {
     location: text(cv.location),
     links: list(cv.links, LIMITS.links, (entry) => {
       const url = link(entry?.url);
+
       return url ? { label: text(entry?.label), url } : null;
     }),
     summary: paragraphs(cv.summary, LIMITS.summary),
@@ -202,6 +213,7 @@ function normalizeCv(raw) {
         end: text(entry?.end, 40),
         bullets: bulletList(entry?.bullets, id)
       };
+
       return item.title || item.company ? item : null;
     }),
     projects: list(cv.projects, LIMITS.entries, (entry, index) => {
@@ -216,6 +228,7 @@ function normalizeCv(raw) {
         end: text(entry?.end, 40),
         bullets: bulletList(entry?.bullets, id)
       };
+
       return item.name ? item : null;
     }),
     education: list(cv.education, LIMITS.entries, (entry, index) => {
@@ -229,19 +242,23 @@ function normalizeCv(raw) {
         end: text(entry?.end, 40),
         gpa: text(entry?.gpa, 10),
       };
+
       return item.degree || item.school ? item : null;
     }),
     skills: list(cv.skills, LIMITS.skillGroups, (group) => {
       const items = textList(group?.items, LIMITS.skillItems, 80);
+
       return items.length ? { category: text(group?.category), items } : null;
     }),
     extras: list(cv.extras, LIMITS.entries, (group) => {
       const items = textList(group?.items, LIMITS.bullets, LIMITS.bullet);
+
       return items.length ? { title: text(group?.title), items } : null;
     })
   };
 }
 
+// Cleans the job search preferences
 function normalizePreferences(raw) {
   const prefs = raw && typeof raw === "object" ? raw : {};
   const models = Array.isArray(prefs.workplace_models) ? prefs.workplace_models : [];
@@ -254,20 +271,25 @@ function normalizePreferences(raw) {
   };
 }
 
+// Checks whether a resume has any entries
 function hasContent(cv) {
   return Boolean(cv && (cv.experience?.length || cv.education?.length || cv.projects?.length));
 }
 
+// Turns a resume date into a sortable month number
 function monthNumber(value) {
   if (value === "Present") return Infinity;
   const [first, second] = value.split(" ");
+
   return second ? Number(second) * 12 + MONTH_NAMES.indexOf(first) : Number(first) * 12;
 }
 
+// Checks whether an entry ends before it starts
 function endsBeforeStart(entry) {
   return Boolean(entry.start && entry.end) && monthNumber(entry.end) < monthNumber(entry.start);
 }
 
+// Returns the first reason the profile can't be saved, or null
 function saveProblem(cv, prefs) {
   const L = SAVE_LIMITS;
   const checks = [
@@ -301,6 +323,7 @@ function saveProblem(cv, prefs) {
   return checks.find(([failed]) => failed)?.[1] ?? null;
 }
 
+// Checks that a buffer is a readable PDF and returns its page count
 async function inspectPdf(buffer) {
   if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
     return { error: "Upload a PDF file." };
@@ -312,6 +335,7 @@ async function inspectPdf(buffer) {
 
   try {
     const doc = await PDFDocument.load(buffer, { updateMetadata: false });
+
     return { pageCount: doc.getPageCount() };
   } catch (err) {
     if (/encrypt/i.test(err.message)) {
@@ -322,11 +346,14 @@ async function inspectPdf(buffer) {
   }
 }
 
+// Splits a degree like "B.Sc. in Computer Science" into degree and major
 function splitDegree(entry) {
   const match = !entry.major && entry.degree.match(DEGREE_PATTERN);
+
   return match ? { ...entry, degree: match[1].trim(), major: match[2].replace(/\.$/, "").trim() } : entry;
 }
 
+// Turns a date into the "Mon YYYY" format
 function toMonthYear(raw) {
   const value = raw.trim();
 
@@ -340,6 +367,7 @@ function toMonthYear(raw) {
   return month >= 0 && month < 12 ? `${MONTH_NAMES[month]} ${year}` : year;
 }
 
+// Moves a date range from a project's name into its dates
 function splitProject(entry) {
   const match = !entry.start && entry.name.match(DATE_RANGE);
 
@@ -348,9 +376,11 @@ function splitProject(entry) {
   }
 
   const name = entry.name.slice(0, match.index).replace(/[\s|,(–—-]+$/, "").trim();
+
   return name ? { ...entry, name, start: toMonthYear(match[1]), end: toMonthYear(match[2]) } : entry;
 }
 
+// Reads a resume PDF into the stored shape
 async function extractFromPdf(buffer) {
   const result = dev.offline ? dev.sampleResume() : await readResume(buffer);
   const cv = normalizeCv(result.cv);
@@ -361,6 +391,7 @@ async function extractFromPdf(buffer) {
   return { cv, preferences: normalizePreferences(result.preferences) };
 }
 
+// Asks Claude to read a resume PDF
 async function readResume(buffer) {
   const message = await claude.send({
     model: claude.model("ANTHROPIC_TAILOR_MODEL"),
@@ -377,12 +408,18 @@ async function readResume(buffer) {
       }
     ]
   });
+
   return claude.readJson(message);
 }
 
+// Turns a resume into plain text for prompts
 function cvToText(cv) {
   const lines = [];
+
+  // Adds a line if it isn't empty
   const add = (line) => line && lines.push(line);
+
+  // Formats an entry's date range
   const dates = (entry) => [entry.start, entry.end].filter(Boolean).join(" - ");
 
   add([cv.name, cv.headline].filter(Boolean).join(" - "));
@@ -391,6 +428,7 @@ function cvToText(cv) {
 
   if (cv.experience.length) {
     lines.push("", "Experience:");
+
     for (const entry of cv.experience) {
       add(`- ${[entry.title, entry.company].filter(Boolean).join(" at ")}${dates(entry) ? ` (${dates(entry)})` : ""}`);
       entry.bullets.forEach((bullet) => lines.push(`  - ${bullet.text}`));
@@ -399,6 +437,7 @@ function cvToText(cv) {
 
   if (cv.projects.length) {
     lines.push("", "Projects:");
+
     for (const entry of cv.projects) {
       add(`- ${entry.name}${dates(entry) ? ` (${dates(entry)})` : ""}`);
       entry.bullets.forEach((bullet) => lines.push(`  - ${bullet.text}`));
@@ -407,6 +446,7 @@ function cvToText(cv) {
 
   if (cv.education.length) {
     lines.push("", "Education:");
+
     for (const entry of cv.education) {
       const degree = [entry.degree, entry.major].filter(Boolean).join(" in ");
       add(`- ${[degree, entry.school].filter(Boolean).join(", ")}${dates(entry) ? ` (${dates(entry)})` : ""}`);

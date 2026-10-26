@@ -1,6 +1,7 @@
 const db = require("../config/db");
-const { verifyToken, hashSessionId, renewSession, clearSessionCookies } = require("../services/authService");
+const { verifyToken, hashSessionId, renewSession, clearSessionCookies } = require("../services/auth/authService");
 
+// Rejects requests without a valid session and attaches the user
 async function requireAuth(req, res, next) {
   const token = req.cookies?.token;
 
@@ -18,6 +19,7 @@ async function requireAuth(req, res, next) {
     }
   } catch {
     clearSessionCookies(res);
+
     return res.status(401).json({ error: "Invalid or expired token." });
   }
 
@@ -33,11 +35,13 @@ async function requireAuth(req, res, next) {
     session = result.rows[0];
   } catch (err) {
     console.error(err);
+
     return res.status(500).json({ error: "Could not verify session." });
   }
 
   if (!session) {
     clearSessionCookies(res);
+
     return res.status(401).json({ error: "Your session has ended. Please log in again." });
   }
 

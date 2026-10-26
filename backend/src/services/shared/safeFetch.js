@@ -4,6 +4,7 @@ const net = require("net");
 const MAX_REDIRECTS = 5;
 const MAX_BYTES = 2 * 1024 * 1024;
 const blocked = new net.BlockList();
+
 [
   ["0.0.0.0", 8], ["10.0.0.0", 8], ["100.64.0.0", 10], ["127.0.0.0", 8], ["169.254.0.0", 16],
   ["172.16.0.0", 12], ["192.0.0.0", 24], ["192.0.2.0", 24], ["192.168.0.0", 16], ["198.18.0.0", 15],
@@ -14,6 +15,7 @@ const blocked = new net.BlockList();
   ["fc00::", 7], ["fe80::", 10], ["ff00::", 8]
 ].forEach(([address, prefix]) => blocked.addSubnet(address, prefix, "ipv6"));
 
+// Checks whether an IP address is public
 function isPublicAddress(address) {
   const family = net.isIP(address);
 
@@ -23,12 +25,14 @@ function isPublicAddress(address) {
 
   if (family === 6) {
     const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(address);
+
     return mapped ? isPublicAddress(mapped[1]) : !blocked.check(address, "ipv6");
   }
 
   return false;
 }
 
+// Checks that a URL is http(s) and points at a public address
 async function checkUrl(raw) {
   const url = new URL(raw);
 
@@ -50,6 +54,7 @@ async function checkUrl(raw) {
   return url;
 }
 
+// Reads a response body up to the size limit
 async function readLimited(response) {
   const reader = response.body?.getReader();
 
@@ -78,6 +83,7 @@ async function readLimited(response) {
   return Buffer.concat(chunks).toString("utf8");
 }
 
+// Fetches a public URL, checking every redirect
 async function safeFetch(raw, { headers = {}, timeoutMs = 12_000 } = {}) {
   const signal = AbortSignal.timeout(timeoutMs);
   let url = await checkUrl(raw);

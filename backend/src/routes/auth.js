@@ -3,18 +3,23 @@ const bcrypt = require("bcryptjs");
 const db = require("../config/db");
 const requireAuth = require("../middleware/auth");
 const { requireCsrf } = require("../middleware/csrf");
-const mfa = require("../services/mfa");
-const auth = require("../services/authService");
+const mfa = require("../services/auth/mfa");
+const auth = require("../services/auth/authService");
 const { loginLimiter, registerLimiter, passwordResetLimiter, codeLimiter } = require("../middleware/rateLimit");
 
 const router = express.Router();
 const DUMMY_PASSWORD_HASH = bcrypt.hashSync("not-a-real-password", 12);
+const SIGNUPS_CLOSED_MESSAGE = "Sign-ups are paused while the site is being worked on. Please check back soon.";
+const RESET_SENT_MESSAGE = "If an account exists for that email, we've sent a reset code to it.";
 
+// Returns the CSRF token for the current session
 router.get("/csrf", requireAuth, (req, res) => {
   res.set("Cache-Control", "no-store");
+
   res.json({ csrfToken: req.user.csrfToken });
 });
 
+// Returns the signed-in user
 router.get("/me", requireAuth, async (req, res) => {
   try {
     const result = await db.query(
@@ -28,15 +33,16 @@ router.get("/me", requireAuth, async (req, res) => {
     }
 
     res.set("Cache-Control", "no-store");
+
     res.json({ user });
   } catch (err) {
     console.error(err);
+
     res.status(500).json({ error: "Could not load user." });
   }
 });
 
-const SIGNUPS_CLOSED_MESSAGE = "Sign-ups are paused while the site is being worked on. Please check back soon.";
-
+// Creates an account and sends the verification code
 router.post("/register", registerLimiter, async (req, res) => {
   if (process.env.SIGNUPS_OPEN !== "true") {
     return res.status(403).json({ error: SIGNUPS_CLOSED_MESSAGE });
@@ -85,10 +91,12 @@ router.post("/register", registerLimiter, async (req, res) => {
     }
 
     console.error(err);
+
     res.status(500).json({ error: "Could not create account." });
   }
 });
 
+// Checks the password and moves to the next sign-in step
 router.post("/login", loginLimiter, async (req, res) => {
   try {
     const email = auth.normalizeEmail(req.body.email);
@@ -104,7 +112,6 @@ router.post("/login", loginLimiter, async (req, res) => {
       [email]
     );
     const user = result.rows[0];
-
     const locked = user && auth.lockedMessage(user.login_locked_until);
 
     if (locked) {
@@ -143,10 +150,12 @@ router.post("/login", loginLimiter, async (req, res) => {
     res.json({ next, email: user.email, emailSent });
   } catch (err) {
     console.error(err);
+
     res.status(500).json({ error: "Could not log in." });
   }
 });
 
+// Verifies the email code and moves to 2FA setup
 router.post("/verify-email", codeLimiter, auth.requirePending("verify_email"), async (req, res) => {
   try {
     const codeError = await auth.checkEmailCode("verify", req.pending.id, req.body.code);
@@ -167,10 +176,12 @@ router.post("/verify-email", codeLimiter, auth.requirePending("verify_email"), a
     res.json({ next });
   } catch (err) {
     console.error(err);
+
     res.status(500).json({ error: "Could not verify email." });
   }
 });
 
+// Sends a new email verification code
 router.post("/resend-verification", codeLimiter, auth.requirePending("verify_email"), async (req, res) => {
   try {
     const user = await auth.getUser(req.pending.id);
@@ -190,10 +201,12 @@ router.post("/resend-verification", codeLimiter, auth.requirePending("verify_ema
     res.json({ message: "A new code has been sent." });
   } catch (err) {
     console.error(err);
+
     res.status(500).json({ error: "Could not send the verification email." });
   }
 });
 
+// Creates a pending authenticator secret and returns its QR code
 router.post("/mfa/setup", codeLimiter, auth.requirePending("mfa_setup"), async (req, res) => {
   try {
     const user = await auth.getUser(req.pending.id);
@@ -210,13 +223,16 @@ router.post("/mfa/setup", codeLimiter, auth.requirePending("mfa_setup"), async (
     );
 
     res.set("Cache-Control", "no-store");
+
     res.json(await auth.mfaSetupPayload(secret, user.email));
   } catch (err) {
     console.error(err);
+
     res.status(500).json({ error: "Could not start two-factor setup." });
   }
 });
 
+// Confirms the authenticator code and finishes 2FA setup
 router.post("/mfa/setup/confirm", codeLimiter, auth.requirePending("mfa_setup"), async (req, res) => {
   try {
     const user = await auth.getUser(req.pending.id);
@@ -234,6 +250,7 @@ router.post("/mfa/setup/confirm", codeLimiter, auth.requirePending("mfa_setup"),
 
     if (step === null) {
       await auth.recordFailure(user.id, "mfa");
+
       return res.status(400).json({ error: "Incorrect code. Check your authenticator app and try again." });
     }
 
@@ -245,18 +262,22 @@ router.post("/mfa/setup/confirm", codeLimiter, auth.requirePending("mfa_setup"),
          WHERE id = $1`,
         [user.id, step]
       );
+
       return auth.replaceRecoveryCodes(client, user.id);
     });
 
     await auth.issueSession(res, user);
     res.set("Cache-Control", "no-store");
+
     res.json({ user: { id: user.id, email: user.email }, recoveryCodes });
   } catch (err) {
     console.error(err);
+
     res.status(500).json({ error: "Could not complete two-factor setup." });
   }
 });
 
+// Checks the second factor and starts the session
 router.post("/mfa/verify", codeLimiter, auth.requirePending("mfa"), async (req, res) => {
   try {
     const user = await auth.getUser(req.pending.id);
@@ -267,15 +288,16 @@ router.post("/mfa/verify", codeLimiter, auth.requirePending("mfa"), async (req, 
     }
 
     await auth.issueSession(res, user);
+
     res.json({ user: { id: user.id, email: user.email }, recoveryCodesLeft: result.recoveryCodesLeft });
   } catch (err) {
     console.error(err);
+
     res.status(500).json({ error: "Could not verify code." });
   }
 });
 
-const RESET_SENT_MESSAGE = "If an account exists for that email, we've sent a reset code to it.";
-
+// Sends a password reset code if the account exists
 router.post("/password/forgot", passwordResetLimiter, async (req, res) => {
   try {
     const email = auth.normalizeEmail(req.body.email);
@@ -294,15 +316,16 @@ router.post("/password/forgot", passwordResetLimiter, async (req, res) => {
     res.json({ message: RESET_SENT_MESSAGE });
   } catch (err) {
     console.error(err);
+
     res.status(500).json({ error: "Could not start password reset." });
   }
 });
 
+// Resets the password using the emailed code
 router.post("/password/reset", passwordResetLimiter, async (req, res) => {
   try {
     const email = auth.normalizeEmail(req.body.email);
     const password = req.body.password;
-
     const passwordError = auth.validatePassword(password, email);
 
     if (passwordError) {
@@ -340,22 +363,27 @@ router.post("/password/reset", passwordResetLimiter, async (req, res) => {
 
     auth.notifySecurityChange(email, "password_reset");
     auth.clearSessionCookies(res);
+
     res.json({ message: "Your password has been reset. You can now log in." });
   } catch (err) {
     console.error(err);
+
     res.status(500).json({ error: "Could not reset password." });
   }
 });
 
+// Ends the current session
 router.post("/logout", requireAuth, requireCsrf, async (req, res) => {
   try {
     await auth.endSession(req.user.sid);
   } catch (err) {
     console.error(err);
+
     return res.status(500).json({ error: "Could not log out." });
   }
 
   auth.clearSessionCookies(res);
+
   res.json({ message: "Logged out successfully." });
 });
 

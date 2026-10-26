@@ -1,9 +1,9 @@
 const crypto = require("crypto");
-const db = require("../config/db");
-const auth = require("./authService");
+const db = require("../../config/db");
+const auth = require("../auth/authService");
 const { classifyEmail } = require("./emailClassifier");
 const { matchApplication, transition } = require("./emailMatcher");
-const { APPLICATION_FIELDS } = require("./applicationFields");
+const { APPLICATION_FIELDS } = require("../applications/applicationFields");
 
 const STATUS_FOR_EVENT = { interview: "Interview", offer: "Offer", rejection: "Rejected" };
 const MIN_CONFIDENCE = 0.5;
@@ -12,22 +12,27 @@ const AUTO_COMPANY_SCORE = 0.9;
 const DAILY_LIMIT = 300;
 const CLASSIFY_CONCURRENCY = 4;
 
+// Generates a new email sync token
 function generateToken() {
   return `jt_${crypto.randomBytes(32).toString("base64url")}`;
 }
 
+// Hashes a sync token for storage
 function hashToken(token) {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
+// Shortens an email body to a one-line preview
 function snippetOf(body) {
   return body.replace(/\s+/g, " ").trim().slice(0, 200);
 }
 
+// Runs a task over the items with limited concurrency
 async function mapWithConcurrency(items, limit, task) {
   const results = new Array(items.length);
   let next = 0;
 
+  // Processes items until none are left
   async function worker() {
     while (next < items.length) {
       const index = next++;
@@ -36,9 +41,11 @@ async function mapWithConcurrency(items, limit, task) {
   }
 
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+
   return results;
 }
 
+// Stores an email event
 async function insertEvent(client, userId, message, classified, outcome) {
   await client.query(
     `INSERT INTO email_events
@@ -67,11 +74,13 @@ async function insertEvent(client, userId, message, classified, outcome) {
   );
 }
 
+// Matches a classified email to an application and records the outcome
 async function recordOutcome(userId, autoUpdate, applications, message, classified) {
   const status = STATUS_FOR_EVENT[classified.event];
 
   if (!classified.jobRelated || !status || classified.confidence < MIN_CONFIDENCE) {
     await insertEvent(db, userId, message, classified, { state: "ignored" });
+
     return "ignored";
   }
 
@@ -79,11 +88,13 @@ async function recordOutcome(userId, autoUpdate, applications, message, classifi
 
   if (match.kind === "predates") {
     await insertEvent(db, userId, message, classified, { state: "ignored" });
+
     return "ignored";
   }
 
   if (match.kind === "none") {
     await insertEvent(db, userId, message, classified, { state: "pending", status });
+
     return "pending";
   }
 
@@ -92,6 +103,7 @@ async function recordOutcome(userId, autoUpdate, applications, message, classifi
 
     if (candidates.length === 0) {
       await insertEvent(db, userId, message, classified, { state: "ignored" });
+
       return "ignored";
     }
 
@@ -100,6 +112,7 @@ async function recordOutcome(userId, autoUpdate, applications, message, classifi
       status,
       candidateIds: candidates.map(({ id }) => id)
     });
+
     return "pending";
   }
 
@@ -108,6 +121,7 @@ async function recordOutcome(userId, autoUpdate, applications, message, classifi
 
   if (action === "ignore") {
     await insertEvent(db, userId, message, classified, { state: "ignored" });
+
     return "ignored";
   }
 
@@ -124,6 +138,7 @@ async function recordOutcome(userId, autoUpdate, applications, message, classifi
       status,
       applicationId: application.id
     });
+
     return "pending";
   }
 
@@ -144,12 +159,13 @@ async function recordOutcome(userId, autoUpdate, applications, message, classifi
   });
 
   application.status = status;
+
   return "autoApplied";
 }
 
+// Classifies new emails and updates applications
 async function ingest(userId, autoUpdate, messages) {
   const counts = { received: messages.length, known: 0, ignored: 0, pending: 0, autoApplied: 0, failed: 0, deferred: 0 };
-
   const known = await db.query(
     `SELECT message_id FROM email_events WHERE user_id = $1 AND message_id = ANY($2)`,
     [userId, messages.map(({ id }) => id)]
@@ -176,14 +192,13 @@ async function ingest(userId, autoUpdate, messages) {
       return { message, result: await classifyEmail(message) };
     } catch (err) {
       console.error(err.message);
+
       return { message, result: null };
     }
   });
-
   const applications = (
     await db.query(`SELECT ${APPLICATION_FIELDS} FROM applications WHERE user_id = $1`, [userId])
   ).rows;
-
   const done = classified
     .filter(({ result }) => result)
     .sort((a, b) => a.message.date - b.message.date);

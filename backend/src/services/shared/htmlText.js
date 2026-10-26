@@ -3,10 +3,12 @@ const ENTITIES = {
   ndash: "–", mdash: "—", lsquo: "‘", rsquo: "’", ldquo: "“", rdquo: "”", hellip: "…", bull: "•"
 };
 
+// Decodes HTML entities
 function decodeEntities(text) {
   return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (match, code) => {
     if (code[0] === "#") {
       const number = code[1].toLowerCase() === "x" ? parseInt(code.slice(2), 16) : Number(code.slice(1));
+
       return number > 0 && number <= 0x10ffff ? String.fromCodePoint(number) : match;
     }
 
@@ -14,10 +16,11 @@ function decodeEntities(text) {
   });
 }
 
+// Turns HTML into plain text with line breaks
 function htmlToText(html) {
   let text = String(html ?? "");
 
-  // Greenhouse sends its HTML escaped ("&lt;p&gt;"), so unescape it once before reading the tags.
+  // Greenhouse sends its HTML escaped ("&lt;p&gt;"), so unescape it once before reading the tags
   if (/&lt;\/?[a-z]/i.test(text)) {
     text = decodeEntities(text);
   }

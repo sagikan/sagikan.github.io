@@ -1,5 +1,6 @@
 const { rateLimit } = require("express-rate-limit");
 
+// Creates a rate limiter with a JSON error message
 function limiter(limit, minutes, error, options = {}) {
   return rateLimit({
     windowMs: minutes * 60 * 1000,
@@ -20,6 +21,7 @@ function limiter(limit, minutes, error, options = {}) {
   });
 }
 
+// Creates a rate limiter keyed by the signed-in user
 function userLimiter(limit, minutes, error) {
   return limiter(limit, minutes, error, { keyGenerator: (req) => `user:${req.user.id}` });
 }

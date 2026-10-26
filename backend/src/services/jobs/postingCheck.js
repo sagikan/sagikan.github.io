@@ -1,5 +1,5 @@
-const dev = require("./devMode");
-const { safeFetch } = require("./safeFetch");
+const dev = require("../shared/devMode");
+const { safeFetch } = require("../shared/safeFetch");
 
 const TIMEOUT_MS = 12_000;
 const CONCURRENCY = 4;
@@ -12,6 +12,7 @@ const CLOSED_MARKERS = [
   [/./, /no longer accepting applications|this (?:job|position) (?:has been filled|is no longer available|has expired)|job (?:posting )?(?:is )?closed for applications/i]
 ];
 
+// Returns a URL's host name, or an empty string
 function host(url) {
   try {
     return new URL(url).hostname;
@@ -20,11 +21,14 @@ function host(url) {
   }
 }
 
+// Checks whether a posting URL needs a check
 function needsCheck(url) {
   const name = host(url);
+
   return Boolean(name) && !BOARD_HOSTS.test(name);
 }
 
+// Checks whether a posting is open, closed or unknown
 async function status(url) {
   if (dev.offline) {
     return "unknown";
@@ -47,17 +51,20 @@ async function status(url) {
     const page = await response.text();
     const name = host(response.url);
     const closed = CLOSED_MARKERS.some(([site, marker]) => site.test(name) && marker.test(page));
+
     return closed ? "closed" : "open";
   } catch {
     return "unknown";
   }
 }
 
+// Checks several postings at once
 async function statuses(urls) {
   const unique = [...new Set(urls)];
   const result = new Map();
   let next = 0;
 
+  // Checks URLs until none are left
   const worker = async () => {
     while (next < unique.length) {
       const url = unique[next++];
@@ -66,6 +73,7 @@ async function statuses(urls) {
   };
 
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, unique.length) }, worker));
+
   return result;
 }
 

@@ -2,17 +2,19 @@ const express = require("express");
 const db = require("../config/db");
 const requireAuth = require("../middleware/auth");
 const { requireCsrf } = require("../middleware/csrf");
-const auth = require("../services/authService");
-const classifier = require("../services/emailClassifier");
-const { APPLICATION_FIELDS, generateToken, hashToken } = require("../services/emailService");
+const auth = require("../services/auth/authService");
+const classifier = require("../services/email/emailClassifier");
+const { APPLICATION_FIELDS, generateToken, hashToken } = require("../services/email/emailService");
 
 const router = express.Router();
-
-router.use(requireAuth, requireCsrf);
-
 const ID_PATTERN = /^[1-9]\d*$/;
 const RECENT_HOURS = 24;
+const eventFields = `
+  e.id, e.received_at, e.sender, e.subject, e.snippet, e.event_type, e.company, e.position,
+  e.suggested_status, e.application_id, e.candidate_ids, e.previous_status, e.state, e.resolved_at
+`;
 
+// Error that carries an HTTP status
 class HttpError extends Error {
   constructor(status, message) {
     super(message);
@@ -20,20 +22,20 @@ class HttpError extends Error {
   }
 }
 
-const eventFields = `
-  e.id, e.received_at, e.sender, e.subject, e.snippet, e.event_type, e.company, e.position,
-  e.suggested_status, e.application_id, e.candidate_ids, e.previous_status, e.state, e.resolved_at
-`;
+router.use(requireAuth, requireCsrf);
 
+// Sends the error's status, or logs it and sends a generic message
 function fail(res, err, fallback) {
   if (err instanceof HttpError) {
     return res.status(err.status).json({ error: err.message });
   }
 
   console.error(err);
+
   res.status(500).json({ error: fallback });
 }
 
+// Returns whether email sync is connected and its settings
 router.get("/status", async (req, res) => {
   try {
     const result = await db.query(
@@ -43,6 +45,7 @@ router.get("/status", async (req, res) => {
     const sync = result.rows[0];
 
     res.set("Cache-Control", "no-store");
+
     res.json({
       connected: Boolean(sync),
       autoUpdate: sync?.auto_update ?? false,
@@ -54,6 +57,7 @@ router.get("/status", async (req, res) => {
   }
 });
 
+// Creates a new sync token, replacing any previous one
 router.post("/token", async (req, res) => {
   try {
     const token = generateToken();
@@ -65,12 +69,14 @@ router.post("/token", async (req, res) => {
     );
 
     res.set("Cache-Control", "no-store");
+
     res.json({ token });
   } catch (err) {
     fail(res, err, "Could not create the email sync token.");
   }
 });
 
+// Turns automatic status updates on or off
 router.post("/settings", async (req, res) => {
   try {
     if (typeof req.body?.autoUpdate !== "boolean") {
@@ -92,6 +98,7 @@ router.post("/settings", async (req, res) => {
   }
 });
 
+// Disconnects email sync and removes its events
 router.post("/disconnect", async (req, res) => {
   try {
     await auth.withTransaction(async (client) => {
@@ -105,6 +112,7 @@ router.post("/disconnect", async (req, res) => {
   }
 });
 
+// Lists pending and recent email events
 router.get("/events", async (req, res) => {
   try {
     const pending = await db.query(
@@ -116,7 +124,6 @@ router.get("/events", async (req, res) => {
        ORDER BY e.received_at DESC NULLS LAST, e.id DESC`,
       [req.user.id]
     );
-
     const recent = await db.query(
       `SELECT ${eventFields},
               a.company AS application_company, a.position AS application_position,
@@ -131,12 +138,14 @@ router.get("/events", async (req, res) => {
     );
 
     res.set("Cache-Control", "no-store");
+
     res.json({ pending: pending.rows, recent: recent.rows });
   } catch (err) {
     fail(res, err, "Could not load email updates.");
   }
 });
 
+// Reads and validates the event ID from the URL
 function eventId(req) {
   if (!ID_PATTERN.test(req.params.id)) {
     throw new HttpError(400, "Invalid event ID.");
@@ -145,6 +154,7 @@ function eventId(req) {
   return req.params.id;
 }
 
+// Locks an event row and checks that it's in an allowed state
 async function lockEvent(client, id, userId, states) {
   const result = await client.query(
     `SELECT * FROM email_events WHERE id = $1 AND user_id = $2 FOR UPDATE`,
@@ -163,6 +173,7 @@ async function lockEvent(client, id, userId, states) {
   return event;
 }
 
+// Locks an application row and checks that it belongs to the user
 async function lockApplication(client, id, userId) {
   const result = await client.query(
     `SELECT id, status FROM applications WHERE id = $1 AND user_id = $2 FOR UPDATE`,
@@ -176,14 +187,15 @@ async function lockApplication(client, id, userId) {
   return result.rows[0];
 }
 
+// Loads an application's returned fields
 async function loadApplication(client, id) {
   return (await client.query(`SELECT ${APPLICATION_FIELDS} FROM applications WHERE id = $1`, [id])).rows[0];
 }
 
+// Applies a pending event's status to an application
 router.post("/events/:id/accept", async (req, res) => {
   try {
     const id = eventId(req);
-
     const application = await auth.withTransaction(async (client) => {
       const event = await lockEvent(client, id, req.user.id, ["pending"]);
       let applicationId = event.application_id;
@@ -217,6 +229,7 @@ router.post("/events/:id/accept", async (req, res) => {
   }
 });
 
+// Dismisses a pending event
 router.post("/events/:id/dismiss", async (req, res) => {
   try {
     const id = eventId(req);
@@ -232,10 +245,10 @@ router.post("/events/:id/dismiss", async (req, res) => {
   }
 });
 
+// Reverts an applied event to the application's previous status
 router.post("/events/:id/undo", async (req, res) => {
   try {
     const id = eventId(req);
-
     const application = await auth.withTransaction(async (client) => {
       const event = await lockEvent(client, id, req.user.id, ["auto_applied", "accepted"]);
 

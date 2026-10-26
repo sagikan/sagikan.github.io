@@ -1,22 +1,24 @@
 // Usage: npm run db:reset [-- --yes] [-- --allow-remote]
 require("dotenv").config();
-
 const readline = require("readline/promises");
 const db = require("../src/config/db");
 
 const TABLES = ["closed_postings", "feed_state","job_postings", "job_boards", "cv_tailorings", "jobs", "job_searches", "grade_sheets", "cv_profiles", "email_events", "email_sync", "recovery_codes", "password_resets", "email_verifications", "applications", "users"];
 const { isLocalDatabase } = db;
 
+// Describes the target database for the confirmation prompt
 function describeDatabase() {
   try {
     const url = new URL(process.env.DATABASE_URL);
     const host = url.searchParams.get("host") || url.hostname;
+
     return `${host}${url.port ? `:${url.port}` : ""}${url.pathname}`;
   } catch {
     return "(DATABASE_URL not set; using local PG* defaults)";
   }
 }
 
+// Asks the user to confirm the reset, unless --yes was passed
 async function confirm() {
   if (process.argv.includes("--yes")) {
     return true;
@@ -31,10 +33,12 @@ async function confirm() {
   return answer.trim() === "reset";
 }
 
+// Empties all tables after the safety checks and confirmation
 async function main() {
   if (process.env.NODE_ENV === "production") {
     console.error("Refusing to reset the database with NODE_ENV=production.");
     process.exitCode = 1;
+
     return;
   }
 
@@ -44,11 +48,13 @@ async function main() {
       "Point DATABASE_URL at a local database, or pass --allow-remote if you're sure."
     );
     process.exitCode = 1;
+
     return;
   }
 
   if (!(await confirm())) {
     console.log("Aborted.");
+
     return;
   }
 

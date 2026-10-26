@@ -1,3 +1,4 @@
+// Lists the origins allowed to call the API
 function allowedOrigins() {
   return [
     process.env.NODE_ENV === "production" ? null : "http://localhost:5173",
@@ -5,6 +6,7 @@ function allowedOrigins() {
   ].filter(Boolean);
 }
 
+// Rejects requests from origins that aren't allowed
 function requireTrustedOrigin(req, res, next) {
   const origin = req.get("Origin");
 
@@ -15,6 +17,7 @@ function requireTrustedOrigin(req, res, next) {
   next();
 }
 
+// Rejects state-changing requests without a matching CSRF token
 function requireCsrf(req, res, next) {
   if (["GET", "HEAD", "OPTIONS"].includes(req.method)) {
     return next();

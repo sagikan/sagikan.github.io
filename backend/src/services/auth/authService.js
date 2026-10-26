@@ -1,8 +1,8 @@
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const QRCode = require("qrcode");
-const db = require("../config/db");
-const { sendCodeEmail, sendSecurityNotice } = require("./mailer");
+const db = require("../../config/db");
+const { sendCodeEmail, sendSecurityNotice } = require("../email/mailer");
 const mfa = require("./mfa");
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -31,6 +31,7 @@ const EMAIL_CODE_TABLES = {
 };
 const RENEW_AFTER_MINUTES = 5;
 
+// Returns an error message if the password doesn't meet the rules
 function validatePassword(password, email) {
   if (typeof password !== "string") {
     return "Invalid password.";
@@ -58,14 +59,17 @@ function validatePassword(password, email) {
   return null;
 }
 
+// Trims and lowercases an email address
 function normalizeEmail(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+// Checks whether a value looks like an email address
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+// Signs a JWT that expires after the given number of seconds
 function signToken(payload, expiresInSeconds) {
   return jwt.sign(payload, process.env.JWT_SECRET, {
     algorithm: JWT_ALGORITHM,
@@ -73,19 +77,23 @@ function signToken(payload, expiresInSeconds) {
   });
 }
 
+// Verifies a JWT and returns its payload
 function verifyToken(token) {
   return jwt.verify(token, process.env.JWT_SECRET, { algorithms: [JWT_ALGORITHM] });
 }
 
+// Hashes a session ID for storage
 function hashSessionId(sessionId) {
   return crypto.createHash("sha256").update(String(sessionId)).digest("hex");
 }
 
+// Sets the session cookie, capped by the session's end time
 function sessionCookie(res, payload, sessionEndsAt) {
   const seconds = Math.min(SESSION_IDLE_MINUTES * 60, (sessionEndsAt - Date.now()) / 1000);
   res.cookie("token", signToken(payload, seconds), { ...baseCookieOptions, maxAge: seconds * 1000 });
 }
 
+// Creates a session and sets its cookies
 async function issueSession(res, user) {
   const sessionId = crypto.randomBytes(32).toString("hex");
   const result = await db.query(
@@ -105,6 +113,7 @@ async function issueSession(res, user) {
   }, result.rows[0].expires_at.getTime());
 }
 
+// Refreshes the session cookie once it's old enough
 function renewSession(res, payload, sessionEndsAt) {
   const ageSeconds = Math.floor(Date.now() / 1000) - (payload.iat ?? 0);
 
@@ -116,23 +125,28 @@ function renewSession(res, payload, sessionEndsAt) {
   sessionCookie(res, { id, typ, ver, sid, csrfToken }, sessionEndsAt);
 }
 
+// Deletes one session
 function endSession(sessionId) {
   return db.query(`DELETE FROM sessions WHERE id_hash = $1`, [hashSessionId(sessionId)]);
 }
 
+// Deletes all of a user's sessions
 function endAllSessions(client, userId) {
   return client.query(`DELETE FROM sessions WHERE user_id = $1`, [userId]);
 }
 
+// Deletes expired sessions
 function removeExpiredSessions() {
   return db.query(`DELETE FROM sessions WHERE expires_at < NOW()`);
 }
 
+// Clears the session and pending sign-in cookies
 function clearSessionCookies(res) {
   res.clearCookie("token", baseCookieOptions);
   res.clearCookie(PENDING_COOKIE, baseCookieOptions);
 }
 
+// Sets the cookie for a half-finished sign-in step
 function setPending(res, user, stage) {
   const token = signToken({ id: user.id, typ: "pending", ver: user.token_version, stage }, PENDING_MINUTES * 60);
 
@@ -142,6 +156,7 @@ function setPending(res, user, stage) {
   });
 }
 
+// Creates middleware that requires a pending sign-in at the given step
 function requirePending(stage) {
   return async (req, res, next) => {
     let payload;
@@ -160,6 +175,7 @@ function requirePending(stage) {
       }
     } catch {
       res.clearCookie(PENDING_COOKIE, baseCookieOptions);
+
       return res.status(401).json({
         error: "Your sign-in session expired. Please log in again.",
         restart: true,
@@ -171,12 +187,15 @@ function requirePending(stage) {
   };
 }
 
+// Returns the next sign-in step for a user
 function nextStage(user) {
   if (!user.email_verified) return "verify_email";
   if (!user.totp_enabled) return "mfa_setup";
+
   return "mfa";
 }
 
+// Loads a user's account and security fields
 async function getUser(id) {
   const result = await db.query(
     `SELECT id, email, email_verified, totp_secret, totp_pending_secret, totp_enabled,
@@ -184,9 +203,11 @@ async function getUser(id) {
      FROM users WHERE id = $1`,
     [id]
   );
+
   return result.rows[0];
 }
 
+// Runs a callback inside a database transaction
 async function withTransaction(callback) {
   const client = await db.connect();
 
@@ -194,6 +215,7 @@ async function withTransaction(callback) {
     await client.query("BEGIN");
     const result = await callback(client);
     await client.query("COMMIT");
+
     return result;
   } catch (err) {
     await client.query("ROLLBACK");
@@ -203,6 +225,7 @@ async function withTransaction(callback) {
   }
 }
 
+// Sends an email code, respecting the resend wait and daily limit
 async function sendEmailCode(user, kind, { force = false } = {}) {
   const table = EMAIL_CODE_TABLES[kind];
   const existing = await db.query(
@@ -247,6 +270,7 @@ async function sendEmailCode(user, kind, { force = false } = {}) {
   return { sent: true };
 }
 
+// Checks an emailed code and counts failed attempts
 async function checkEmailCode(kind, userId, rawCode) {
   const table = EMAIL_CODE_TABLES[kind];
   const code = String(rawCode || "").replace(/\s/g, "");
@@ -267,21 +291,25 @@ async function checkEmailCode(kind, userId, rawCode) {
 
   if (!/^\d{6}$/.test(code) || !mfa.safeEqual(mfa.hashCode(code), row.code_hash)) {
     await db.query(`UPDATE ${table} SET attempts = attempts + 1 WHERE user_id = $1`, [userId]);
+
     return { status: 400, error: "Incorrect code. Please try again." };
   }
 
   return null;
 }
 
+// Returns a lockout message while the account is locked
 function lockedMessage(until) {
   if (until && new Date(until) > new Date()) {
     const minutes = Math.ceil((new Date(until) - new Date()) / 60000);
+
     return `Too many failed attempts. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`;
   }
 
   return null;
 }
 
+// Counts a failed attempt and locks the account after too many
 async function recordFailure(userId, kind) {
   const [attemptsColumn, lockColumn, max, minutes] = kind === "login"
     ? ["failed_login_attempts", "login_locked_until", LOGIN_MAX_ATTEMPTS, LOGIN_LOCK_MINUTES]
@@ -299,6 +327,7 @@ async function recordFailure(userId, kind) {
   );
 }
 
+// Checks a TOTP or recovery code
 async function verifySecondFactor(user, { code, recoveryCode }) {
   const locked = lockedMessage(user.mfa_locked_until);
 
@@ -336,6 +365,7 @@ async function verifySecondFactor(user, { code, recoveryCode }) {
 
   if (!verified) {
     await recordFailure(user.id, "mfa");
+
     return {
       verified: false,
       status: 400,
@@ -353,15 +383,18 @@ async function verifySecondFactor(user, { code, recoveryCode }) {
   return { verified: true, recoveryCodesLeft };
 }
 
+// Counts the user's unused recovery codes
 async function countRecoveryCodes(userId) {
   const result = await db.query(
     `SELECT COUNT(*)::int AS count FROM recovery_codes
      WHERE user_id = $1 AND used_at IS NULL`,
     [userId]
   );
+
   return result.rows[0].count;
 }
 
+// Replaces the user's recovery codes and returns the new ones
 async function replaceRecoveryCodes(client, userId) {
   const codes = mfa.generateRecoveryCodes();
 
@@ -377,6 +410,7 @@ async function replaceRecoveryCodes(client, userId) {
   return codes;
 }
 
+// Builds the QR code and readable secret for authenticator setup
 async function mfaSetupPayload(secret, email) {
   return {
     qrCode: await QRCode.toDataURL(mfa.totpUri(secret, email), { margin: 1, width: 220 }),
@@ -384,6 +418,7 @@ async function mfaSetupPayload(secret, email) {
   };
 }
 
+// Emails a security notice without waiting for it
 function notifySecurityChange(email, kind) {
   sendSecurityNotice(email, kind).catch((err) => console.error(`Could not send the ${kind} notice:`, err.message));
 }

@@ -2,12 +2,9 @@ const express = require("express");
 const db = require("../config/db");
 const requireAuth = require("../middleware/auth");
 const { requireCsrf } = require("../middleware/csrf");
-const { APPLICATION_FIELDS, MAX_APPLICATIONS, checkApplicationField } = require("../services/applicationFields");
+const { APPLICATION_FIELDS, MAX_APPLICATIONS, checkApplicationField } = require("../services/applications/applicationFields");
 
 const router = express.Router();
-
-router.use(requireAuth, requireCsrf);
-
 const ID_PATTERN = /^[1-9]\d{0,17}$/;
 const applicationFields = {
   company: "company",
@@ -21,10 +18,14 @@ const applicationFields = {
 };
 const returnedFields = APPLICATION_FIELDS;
 
+router.use(requireAuth, requireCsrf);
+
+// Trims a string value and turns empty optional fields into null
 function cleanValue(field, value) {
   return typeof value === "string" ? value.trim() || (["job_url", "notes"].includes(field) ? null : value) : value;
 }
 
+// Lists the user's applications
 router.get("/", async (req, res) => {
   try {
     const result = await db.query(
@@ -38,10 +39,12 @@ router.get("/", async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error(err);
+
     res.status(500).json({ error: "Could not load applications." });
   }
 });
 
+// Creates an application
 router.post("/", async (req, res) => {
   try {
     const body = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {};
@@ -99,10 +102,12 @@ router.post("/", async (req, res) => {
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error(err);
+
     res.status(500).json({ error: "Could not create application." });
   }
 });
 
+// Deletes an application
 router.delete("/:id", async (req, res) => {
   if (!ID_PATTERN.test(req.params.id)) {
     return res.status(400).json({ error: "Invalid application ID." });
@@ -123,10 +128,12 @@ router.delete("/:id", async (req, res) => {
     res.status(204).end();
   } catch (err) {
     console.error(err);
+
     res.status(500).json({ error: "Could not delete application." });
   }
 });
 
+// Updates the given fields of an application
 router.patch("/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -189,6 +196,7 @@ router.patch("/:id", async (req, res) => {
     res.json(result.rows[0]);
   } catch (err) {
     console.error(err);
+
     res.status(500).json({ error: "Could not update application." });
   }
 });
