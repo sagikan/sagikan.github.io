@@ -1,6 +1,14 @@
 import { useMemo, useState } from "react";
 import { STATUSES, WORKPLACE_MODELS, formatDate, jobDay, localISO, toDateInput } from "../../lib/api";
+import { lastLocationFor, suggestionsFor } from "../../utils/forms/suggestions";
 import Alert from "../ui/Alert";
+import AutocompleteInput from "../ui/AutocompleteInput";
+import CharCount from "../ui/CharCount";
+import SelectInput from "../ui/SelectInput";
+
+const WORKPLACE_OPTIONS = [{ value: "", label: "Not specified" }, ...WORKPLACE_MODELS.map((model) => ({ value: model, label: model }))];
+const MAX_LENGTH = { position: 200, company: 200, location: 200, job_url: 500, notes: 5000 };
+const STATUS_OPTIONS = STATUSES.map((status) => ({ value: status, label: status }));
 
 // Returns the form's starting values for a job, or empty ones
 function initialValues(job) {
@@ -24,6 +32,12 @@ function ApplicationForm({ job, applications, onSubmit, onCancel }) {
   const [values, setValues] = useState(() => initialValues(job));
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [autoLocation, setAutoLocation] = useState("");
+  const suggestions = useMemo(() => ({
+    position: suggestionsFor(applications, "position"),
+    company: suggestionsFor(applications, "company"),
+    location: suggestionsFor(applications, "location")
+  }), [applications]);
   const earlierDuplicate = useMemo(() => {
     const position = normalize(values.position);
     const company = normalize(values.company);
@@ -45,7 +59,24 @@ function ApplicationForm({ job, applications, onSubmit, onCancel }) {
 
   // Returns a change handler for a field
   function update(field) {
-    return (event) => setValues((current) => ({ ...current, [field]: event.target.value }));
+    return (event) => setField(field, event.target.value);
+  }
+
+  // Sets a field's value
+  function setField(field, value) {
+    setValues((current) => ({ ...current, [field]: value }));
+  }
+
+  // Sets the company and fills in its last-used location unless the user typed their own
+  function changeCompany(company) {
+    const untouched = !values.location || values.location === autoLocation;
+    const location = lastLocationFor(applications, company);
+
+    setValues((current) => ({ ...current, company, ...(untouched ? { location } : {}) }));
+
+    if (untouched) {
+      setAutoLocation(location);
+    }
   }
 
   // Validates and saves the application
@@ -84,37 +115,54 @@ function ApplicationForm({ job, applications, onSubmit, onCancel }) {
 
       <div className="form-grid">
         <label className="field">
-          <span>Position</span>
-          <input value={values.position} onChange={update("position")} placeholder="Software Engineer" maxLength={200} required autoFocus />
+          <span className="field-head">Position <CharCount value={values.position} max={MAX_LENGTH.position} /></span>
+          <AutocompleteInput
+            value={values.position}
+            onChange={(value) => setField("position", value)}
+            suggestions={suggestions.position}
+            placeholder="Software Engineer"
+            maxLength={MAX_LENGTH.position}
+            required
+            autoFocus
+          />
         </label>
 
         <label className="field">
-          <span>Company</span>
-          <input value={values.company} onChange={update("company")} placeholder="ABC Inc." maxLength={200} required />
+          <span className="field-head">Company <CharCount value={values.company} max={MAX_LENGTH.company} /></span>
+          <AutocompleteInput
+            value={values.company}
+            onChange={changeCompany}
+            suggestions={suggestions.company}
+            placeholder="ABC Inc."
+            maxLength={MAX_LENGTH.company}
+            required
+          />
         </label>
 
         <label className="field">
-          <span>Location</span>
-          <input value={values.location} onChange={update("location")} placeholder="Tel Aviv-Yafo" maxLength={200} required />
+          <span className="field-head">Location <CharCount value={values.location} max={MAX_LENGTH.location} /></span>
+          <AutocompleteInput
+            value={values.location}
+            onChange={(value) => setField("location", value)}
+            suggestions={suggestions.location}
+            placeholder="Tel Aviv-Yafo"
+            maxLength={MAX_LENGTH.location}
+            required
+          />
         </label>
 
         <label className="field">
           <span>Workplace Model <small className="optional">&ensp;optional</small></span>
-          <select value={values.workplace_model} onChange={update("workplace_model")}>
-            <option value="">Not specified</option>
-            {WORKPLACE_MODELS.map((model) => (
-              <option key={model} value={model}>{model}</option>
-            ))}
-          </select>
+          <SelectInput
+            value={values.workplace_model}
+            onChange={(value) => setField("workplace_model", value)}
+            options={WORKPLACE_OPTIONS}
+          />
         </label>
 
         <label className="field">
           <span>Status</span>
-          <select value={values.status} onChange={update("status")}>
-            {STATUSES.map((status) => (
-              <option key={status} value={status}>{status}</option>
-            ))}
-          </select>
+          <SelectInput value={values.status} onChange={(value) => setField("status", value)} options={STATUS_OPTIONS} />
         </label>
 
         <label className="field">
@@ -123,17 +171,17 @@ function ApplicationForm({ job, applications, onSubmit, onCancel }) {
         </label>
 
         <label className="field field-full">
-          <span>Job Posting URL <small className="optional">&ensp;optional</small></span>
-          <input type="url" value={values.job_url} onChange={update("job_url")} placeholder="https://…" maxLength={1000} />
+          <span className="field-head">Job Posting URL <small className="optional">&ensp;optional</small> <CharCount value={values.job_url} max={MAX_LENGTH.job_url} /></span>
+          <input type="url" value={values.job_url} onChange={update("job_url")} placeholder="https://…" maxLength={MAX_LENGTH.job_url} />
         </label>
 
         <label className="field field-full">
-          <span>Notes <small className="optional">&ensp;optional</small></span>
+          <span className="field-head">Notes <small className="optional">&ensp;optional</small> <CharCount value={values.notes} max={MAX_LENGTH.notes} /></span>
           <textarea
             value={values.notes}
             onChange={update("notes")}
             rows={4}
-            maxLength={5000}
+            maxLength={MAX_LENGTH.notes}
             placeholder="Recruiter name, salary range, next steps, etc."
           />
         </label>

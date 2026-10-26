@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CompanyAvatar from "../components/ui/CompanyAvatar";
 import AddJobModal from "../components/jobs/AddJobModal";
 import ProfileModal from "../components/jobs/ProfileModal";
@@ -253,7 +253,7 @@ function JobCard({ job, onTailor, onApply, onDismiss, onDownload }) {
 }
 
 // Jobs page with the profile, search and job list
-function Jobs({ csrfToken, onApplied, onUnauthorized }) {
+function Jobs({ csrfToken, applications, onApplied, onUnauthorized }) {
   const [profile, setProfile] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [search, setSearch] = useState(null);
@@ -411,6 +411,10 @@ function Jobs({ csrfToken, onApplied, onUnauthorized }) {
   }
 
   const hasProfile = Boolean(profile?.cv);
+  const pastEntries = useMemo(
+    () => [...applications, ...jobs.filter((job) => job.source === "manual")],
+    [applications, jobs]
+  );
   const [foundOpen, toggleFound] = useRememberedOpen("jobs.found");
   const [dateRange, setDateRange] = useState("all");
   const [appliedOpen, toggleApplied] = useRememberedOpen("jobs.applied");
@@ -551,6 +555,7 @@ function Jobs({ csrfToken, onApplied, onUnauthorized }) {
       {modal?.type === "add" && (
         <AddJobModal
           csrfToken={csrfToken}
+          pastEntries={pastEntries}
           onClose={() => setModal(null)}
           onUnauthorized={onUnauthorized}
           onAdded={(job) => {

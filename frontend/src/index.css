@@ -1660,9 +1660,31 @@ textarea {
   padding-left: 2px;
 }
 
+/* Label with a character count on its right */
+.field > .field-head {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.char-count {
+  margin-left: auto;
+  padding-right: 2px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.char-count-full {
+  color: var(--danger);
+  font-weight: 700;
+}
+
 .field input,
 .field select,
 .field textarea,
+.field .select-trigger,
 .toolbar select,
 .search input {
   width: 100%;
@@ -1674,12 +1696,13 @@ textarea {
 }
 
 /* Selects ignore line-height, so both get a set height (one line + padding + border) */
-.field :where(input:not([type="checkbox"], [type="radio"], [type="file"]), select) {
+.field :where(input:not([type="checkbox"], [type="radio"], [type="file"]), select, .select-trigger) {
   height: calc(1.55em + 22px);
 }
 
 /* The built-in arrow can't be moved, so it's swapped for an inset chevron */
-.field select {
+.field select,
+.field .select-trigger {
   padding-right: 38px;
   appearance: none;
   background-image: var(--select-chevron);
@@ -1696,11 +1719,67 @@ textarea {
 .field input:focus,
 .field select:focus,
 .field textarea:focus,
+.field .select-trigger:focus,
 .toolbar select:focus,
 .search input:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* Dropdown list under an autocomplete field or a select */
+.dropdown {
+  position: relative;
+}
+
+.dropdown-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  animation: fade-in 0.12s ease-out;
+}
+
+.dropdown-option {
+  padding: 7px 10px;
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.dropdown-option.is-selected {
+  font-weight: 600;
+}
+
+.dropdown-option.is-active {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.select-trigger {
+  display: flex;
+  align-items: center;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.select-value {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .hint {
@@ -3006,7 +3085,13 @@ textarea {
 }
 
 .modal-header h2 {
+  min-width: 0;
   font-size: 1.25rem;
+}
+
+/* The X sits about 10px inside its 30px button, so the button is pulled right to line the X up with the content */
+.modal-header .icon-btn {
+  margin-right: -8px;
 }
 
 .app-form {
@@ -4200,6 +4285,13 @@ textarea {
   gap: 12px;
 }
 
+/* Line between the profile's blocks and between the resume editor's sections */
+.profile-block + .profile-block,
+.cv-section + .cv-section {
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
 .profile-block h3,
 .cv-section h3 {
   font-size: 1rem;
@@ -4229,6 +4321,12 @@ textarea {
 .sticky-actions .btn {
   padding: 7px 15px;
   font-size: 0.9rem;
+}
+
+/* Required-fields note on the left of the action bar */
+.required-note {
+  align-self: center;
+  margin: 0 auto 0 0;
 }
 
 .cv-editor {
@@ -4298,7 +4396,7 @@ textarea {
 }
 
 .cv-fields > .field-gpa {
-  flex: 0 0 104px;
+  flex: 0 0 124px;
 }
 
 .field > span .info {
@@ -4375,7 +4473,20 @@ textarea {
   cursor: not-allowed;
 }
 
+/* Added tags, with the tag count on the right */
+.tag-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.tag-row > .char-count {
+  flex-shrink: 0;
+  padding-top: 3px;
+}
+
 .tag-list {
+  flex: 1;
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
@@ -4419,6 +4530,35 @@ textarea {
 
 .tag-remove:hover {
   background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.tag-added {
+  background: var(--offer-soft);
+  color: var(--offer);
+}
+
+.tag-added .tag-remove:hover {
+  background: color-mix(in srgb, var(--offer) 18%, transparent);
+}
+
+.tag-plus {
+  margin-right: 1px;
+  font-weight: 700;
+}
+
+/* Skills in the tailored editor can be dragged within their group */
+.tag-sortable {
+  cursor: grab;
+  touch-action: none;
+}
+
+.tag-sortable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.tag.is-dragging {
+  box-shadow: var(--shadow-md);
 }
 
 .cv-section-header {
@@ -4507,6 +4647,13 @@ textarea {
   padding-right: 50px;
 }
 
+/* A little more room above an open entry's fields (not education); its buttons stay where they are */
+.cv-entry-experience.cv-entry-open,
+.cv-entry-projects.cv-entry-open,
+.cv-entry-extras.cv-entry-open {
+  padding-top: 15px;
+}
+
 .cv-chevron {
   transition: transform 0.15s;
 }
@@ -4555,22 +4702,13 @@ textarea {
 
 .cv-entry-warning {
   flex-shrink: 0;
+  max-width: 60%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--danger);
-}
-
-.cv-entry-done {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.cv-done {
-  font-size: 0.8rem;
-}
-
-.cv-bullets-footer .cv-done {
-  margin-left: auto;
 }
 
 .cv-bullets-footer {
@@ -4639,7 +4777,7 @@ textarea {
 }
 
 .cv-bullet-restored {
-  color: var(--offer);
+  color: var(--accent-2);
 }
 
 .cv-bullet-body {
@@ -4749,6 +4887,11 @@ textarea {
 }
 
 .cv-entry-restored {
+  color: var(--accent-2);
+}
+
+/* Added in the tailored resume: green, with a plus */
+.cv-skill-mark.cv-skill-mark-added {
   color: var(--offer);
 }
 
@@ -4784,6 +4927,10 @@ textarea {
   border: 1px dashed color-mix(in srgb, var(--rejected) 35%, var(--border));
   background: transparent;
   color: var(--text-muted);
+}
+
+.cv-skill-left-out svg {
+  color: var(--rejected);
 }
 
 .cv-skill-left-out span {
@@ -4873,22 +5020,16 @@ textarea {
 
 .cv-skill-row {
   display: grid;
-  grid-template-columns: 170px minmax(0, 1fr) 40px 24px;
+  grid-template-columns: 170px minmax(0, 1fr) 24px;
   gap: 8px;
   align-items: start;
-}
-
-.cv-skill-row > .cv-count {
-  margin: 0;
-  padding-top: 9px;
-  text-align: right;
 }
 
 .cv-skill-row > .icon-btn {
   margin-top: 6px;
 }
 
-.cv-skill-row > input {
+.cv-skill-category input {
   min-width: 0;
   width: 100%;
   padding: 7px 10px;
@@ -4897,18 +5038,180 @@ textarea {
   border-radius: var(--radius-sm);
 }
 
+.cv-skill-category input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* Character count inside a field without a label row. The wrapper draws the field's box and
+   the text box sits beside the count inside it, so text can't run under the count */
+.inset-count {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.inset-count:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.cv-row > .inset-count {
+  flex: 1;
+}
+
+.inset-count > input,
+.inset-count > textarea {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+}
+
+.inset-count > input:focus,
+.inset-count > textarea:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+/* The wrapper's border adds 2px, so the text box gives them back to keep the editor's 36px fields */
+.cv-editor .inset-count > input,
+.profile-form .inset-count > input {
+  height: 34px;
+}
+
+.inset-count-slot {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 10px 0 4px;
+}
+
+.inset-count-slot > .char-count {
+  margin: 0;
+  padding: 0;
+}
+
+/* In multi-line fields the count sits on the first line, level with the X button beside the field */
+.inset-count-multiline {
+  align-items: flex-start;
+}
+
+.inset-count-multiline > .inset-count-slot {
+  height: 1.55em;
+  margin-top: 7px;
+}
+
+/* A tailored bullet's word changes, and a flagged bullet, keep the wrapper's box */
+.inset-count > .cv-text {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+}
+
+.inset-count > .cv-text.cv-flagged {
+  border: 0;
+  background: transparent;
+}
+
+.inset-count:has(> .cv-flagged) {
+  border-color: var(--interview);
+  background: color-mix(in srgb, var(--interview-soft) 60%, var(--surface));
+}
+
+/* Project cards in the tailored editor are dragged by any spot that isn't a field or button */
+.cv-entry-sortable {
+  cursor: grab;
+  touch-action: pan-y;
+}
+
+.cv-entry-sortable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+body.is-sorting,
+body.is-sorting * {
+  cursor: grabbing;
+  user-select: none;
+}
+
+/* The dragged item follows the pointer above its neighbours */
+.is-dragging {
+  position: relative;
+  z-index: 3;
+}
+
+.cv-bullet.is-dragging .inset-count,
+.cv-entry.is-dragging {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-md);
+}
+
+.cv-skill-row.is-dragging {
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-md);
+}
+
+
+/* A moved skill group shows its arrow inside the start of its name field */
+.cv-skill-category {
+  position: relative;
+}
+
+.cv-skill-mark {
+  position: absolute;
+  top: 50%;
+  left: 9px;
+  display: flex;
+  color: var(--interview);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.cv-skill-marked input {
+  padding-left: 27px;
+}
+
 .tailor {
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
-.tailor-title {
-  font-weight: 500;
+/* Tailor window header: just the job details button */
+.tailor-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
 }
 
-.tailor-title strong {
-  font-weight: 700;
+/* The document's outline starts about 3px into its icon, so the icon is pulled left to line it up with the content */
+.tailor-details-btn {
+  flex-shrink: 0;
+  margin-left: -3px;
+}
+
+/* The header is at the top of the window, so its button's label shows below it */
+.toolbar-btn.tailor-details-btn::after {
+  top: calc(100% + 6px);
+  bottom: auto;
+  left: 0;
+  transform: translateY(-2px);
+}
+
+/* Starts at the button's left edge instead of centering, which would run past the window's edge */
+.toolbar-btn.tailor-details-btn:hover::after,
+.toolbar-btn.tailor-details-btn:focus-visible::after {
+  transform: none;
 }
 
 .tailor-progress {
@@ -4919,69 +5222,82 @@ textarea {
   color: var(--text-muted);
 }
 
-.viewbar-btn {
-  display: inline-flex;
+/* Icon buttons on the left of the tailor window's footer */
+.tailor-tools {
+  display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 7px 14px;
-  border: 1px solid var(--border);
-  border-radius: 11px;
-  background: var(--surface-2);
-  color: var(--text-muted);
-  font: inherit;
-  font-size: 0.87rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+  gap: 14px;
+  margin-right: auto;
 }
 
-.viewbar-btn:hover:not(:disabled) {
-  border-color: var(--border-strong);
+/* Just the icon: the button is exactly the icon's size, so only the icon can be pressed */
+.toolbar-btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.toolbar-btn:hover:not(:disabled) {
   color: var(--text);
 }
 
-.viewbar-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.toolbar-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
-.viewbar-btn svg {
-  flex-shrink: 0;
-}
-
-.changes-toggle[aria-pressed="true"] {
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
-  background: var(--accent-soft);
+.toolbar-btn[aria-pressed="true"],
+.toolbar-btn[aria-pressed="true"]:hover:not(:disabled) {
   color: var(--accent);
 }
 
-.changes-count {
-  min-width: 20px;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--text-muted) 14%, transparent);
-  font-size: 0.74rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  text-align: center;
+.toolbar-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
-.changes-toggle[aria-pressed="true"] .changes-count {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
+/* Name shown above a toolbar button while it's hovered or focused */
+.toolbar-btn::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  z-index: 10;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--text);
+  color: var(--surface);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 2px);
+  transition: opacity 0.12s, transform 0.12s;
 }
 
-.tailor-viewbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+.toolbar-btn:hover::after,
+.toolbar-btn:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
-.viewbar-group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+/* The footer icons' labels start at the button's left edge too */
+.tailor-tools .toolbar-btn::after {
+  left: 0;
+  transform: translateY(2px);
+}
+
+.tailor-tools .toolbar-btn:hover::after,
+.tailor-tools .toolbar-btn:focus-visible::after {
+  transform: none;
 }
 
 /* PDF preview */
@@ -5240,28 +5556,24 @@ textarea {
   }
 
   .cv-skill-row {
-    grid-template-columns: minmax(0, 1fr) 40px 24px;
+    grid-template-columns: minmax(0, 1fr) 24px;
   }
 
   .cv-skill-row > .cv-skill-category {
-    grid-column: 1 / 3;
+    grid-column: 1;
     grid-row: 1;
   }
 
   .cv-skill-row > .icon-btn {
-    grid-column: 3;
+    grid-column: 2;
     grid-row: 1;
   }
 
   .cv-skill-row > .tag-field {
-    grid-column: 1;
+    grid-column: 1 / 3;
     grid-row: 2;
   }
 
-  .cv-skill-row > .cv-count {
-    grid-column: 2 / 4;
-    grid-row: 2;
-  }
 
   .cv-entry {
     padding: 12px 10px 10px;

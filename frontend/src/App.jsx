@@ -323,6 +323,7 @@ function App() {
     page = (
       <Jobs
         csrfToken={csrfToken}
+        applications={applications}
         onApplied={(application) => setApplications((current) => [application, ...current])}
         onUnauthorized={clearSession}
       />
