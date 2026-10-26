@@ -6,7 +6,6 @@ import { apiRequest, apiUpload } from "../../lib/api";
 import { downloadBlob, makeTailoredPdf } from "../../utils/resume/cvPdf";
 import { renderFirstPage } from "../../utils/resume/pdfPreview";
 import Alert from "../ui/Alert";
-import { countChanges } from "../../utils/resume/cvChanges";
 import { MAX_GRADES_MB, checkPdf } from "../../utils/resume/pdfFiles";
 import { useDismiss } from "../../hooks/useDismiss";
 
@@ -399,11 +398,26 @@ function TailorModal({ job, csrfToken, baseCv, gradeSheet, onGradeSheetChange, o
   const applied = job.state === "applied";
   const gaps = tailoring?.gaps || [];
   const flags = tailoring?.flags || [];
-  const changeCount = countChanges(cv, baseCv);
 
   return (
     <Modal
-      title={<span className="tailor-title">Resume for <strong>{job.position}</strong> at {job.company}</span>}
+      title={(
+        <span className="tailor-heading">
+          <button
+            type="button"
+            className="toolbar-btn tailor-details-btn"
+            aria-label="Job details"
+            data-tip="Job details"
+            aria-haspopup="dialog"
+            onClick={() => setShowDetails(true)}
+          >
+            <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
+              <path d="M5.5 2.75h6l3.75 3.75v9.25a1.5 1.5 0 0 1-1.5 1.5h-8.25a1.5 1.5 0 0 1-1.5-1.5v-11.5a1.5 1.5 0 0 1 1.5-1.5zM11.5 2.75v3.75h3.75M7 10.5h6M7 13.5h4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          <span className="visually-hidden">Resume for {job.position} at {job.company}</span>
+        </span>
+      )}
       onClose={onClose}
       wide
     >
@@ -433,49 +447,6 @@ function TailorModal({ job, csrfToken, baseCv, gradeSheet, onGradeSheetChange, o
               </Alert>
             )}
 
-            <div className="tailor-viewbar">
-              <div className="viewbar-group">
-                <button
-                  type="button"
-                  className="viewbar-btn"
-                  aria-haspopup="dialog"
-                  onClick={() => setShowDetails(true)}
-                >
-                  <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true">
-                    <path d="M5.5 2.75h6l3.75 3.75v9.25a1.5 1.5 0 0 1-1.5 1.5h-8.25a1.5 1.5 0 0 1-1.5-1.5v-11.5a1.5 1.5 0 0 1 1.5-1.5zM11.5 2.75v3.75h3.75M7 10.5h6M7 13.5h4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  Job details
-                </button>
-                <button
-                  type="button"
-                  className="viewbar-btn changes-toggle"
-                  aria-pressed={showChanges}
-                  onClick={() => setShowChanges((value) => !value)}
-                >
-                  <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true">
-                    <path d="M6 3.5v13M3.5 6h5M14 3.5v13M11.5 14h5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  Show changes
-                  {changeCount > 0 && <span className="changes-count">{changeCount}</span>}
-                </button>
-              </div>
-              <button
-                type="button"
-                className="viewbar-btn"
-                disabled={Boolean(busy)}
-                onClick={() => {
-                  if (!dirty || window.confirm("Regenerating replaces your edits. Continue?")) {
-                    generate();
-                  }
-                }}
-              >
-                <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true">
-                  <path d="M16 10a6 6 0 1 1-1.76-4.24M16 4v3.5h-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                Regenerate
-              </button>
-            </div>
-
             <CvEditor
               key={editorKey}
               cv={cv}
@@ -491,6 +462,36 @@ function TailorModal({ job, csrfToken, baseCv, gradeSheet, onGradeSheetChange, o
             />
 
             <div className="form-actions sticky-actions tailor-actions">
+              <div className="tailor-tools" role="toolbar" aria-label="Resume view">
+                <button
+                  type="button"
+                  className="toolbar-btn"
+                  aria-label="Show changes"
+                  data-tip="Show changes"
+                  aria-pressed={showChanges}
+                  onClick={() => setShowChanges((value) => !value)}
+                >
+                  <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true">
+                    <path d="M6 3.5v13M3.5 6h5M14 3.5v13M11.5 14h5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  className="toolbar-btn"
+                  aria-label="Regenerate"
+                  data-tip="Regenerate"
+                  disabled={Boolean(busy)}
+                  onClick={() => {
+                    if (!dirty || window.confirm("Regenerating replaces your edits. Continue?")) {
+                      generate();
+                    }
+                  }}
+                >
+                  <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true">
+                    <path d="M16 10a6 6 0 1 1-1.76-4.24M16 4v3.5h-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              </div>
               <GradeSheetButton
                 gradeSheet={gradeSheet}
                 attached={includeGrades}

@@ -1,9 +1,10 @@
-// Limits and formatting for the resume form. The server checks the same limits
+/* Limits and formatting for the resume form. The server checks the same counts, but its text limits
+   are looser so a resume read from a PDF isn't cut: the form asks to shorten anything longer */
 export const LIMITS = {
   links: 3,
-  experience: 8,
+  experience: 10,
   experienceBullets: 3,
-  projects: 4,
+  projects: 5,
   projectBullets: 5,
   education: 3,
   skillGroups: 6,
@@ -14,9 +15,24 @@ export const LIMITS = {
   summary: 600,
   bullet: 250,
   roles: 5,
-  locations: 3
+  locations: 3,
+  name: 50,
+  text: 100,
+  groupName: 50,
+  link: 500,
+  phone: 15,
+  projectName: 150,
+  gpa: 10,
+  skill: 50,
+  preference: 60
 };
 export const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const ENTRY_LABELS = { experience: "Experience", projects: "Project", education: "Education" };
+const ENTRY_NAMES = {
+  experience: (entry) => entry.title || entry.company,
+  projects: (entry) => entry.name,
+  education: (entry) => entry.degree || entry.school
+};
 
 // Capitalizes the first letter of each word
 export function titleCase(value) {
@@ -27,7 +43,7 @@ export function titleCase(value) {
 
 // Keeps only digits, up to 15
 export function digitsOnly(value) {
-  return String(value ?? "").replace(/\D/g, "").slice(0, 15);
+  return String(value ?? "").replace(/\D/g, "").slice(0, LIMITS.phone);
 }
 
 // Splits a resume date into month and year
@@ -73,6 +89,13 @@ function monthNumber(value) {
   return parsed.present ? Infinity : Number(parsed.year) * 12 + parsed.month;
 }
 
+// Turns a date into its year, with Present as the latest
+function yearNumber(value) {
+  const parsed = parseMonth(value);
+
+  return parsed.present ? Infinity : Number(parsed.year);
+}
+
 // Checks whether a value isn't empty
 const filled = (value) => String(value ?? "").trim() !== "";
 
@@ -96,86 +119,129 @@ export function resumeProblems(cv) {
   over(cv.skills.length, LIMITS.skillGroups, "Skill groups");
   over(cv.extras.length, LIMITS.extras, "Other sections");
 
+  // Adds a problem when a text is longer than its limit
+  const tooLong = (value, max, what) => {
+    const length = String(value ?? "").length;
+    if (length > max) problems.push(`${what} is ${length} characters long. Keep it to ${max}.`);
+  };
+
+  tooLong(cv.name, LIMITS.name, "Your name");
+  tooLong(cv.email, LIMITS.text, "Your email");
+  tooLong(cv.location, LIMITS.text, "Your location");
+  tooLong(cv.headline, LIMITS.headline, "The headline");
+  cv.links.forEach((link, index) => tooLong(link.url, LIMITS.link, `Link ${index + 1}`));
+
   if (cv.summary.length > LIMITS.summary) {
     problems.push(`The summary is ${cv.summary.length} characters long. Keep it to ${LIMITS.summary}.`);
   }
 
-  cv.experience.forEach((entry, index) => {
-    const name = entry.title || entry.company || `Experience ${index + 1}`;
+  for (const section of ["experience", "projects", "education"]) {
+    cv[section].forEach((entry, index) => {
+      const name = ENTRY_NAMES[section](entry) || `${ENTRY_LABELS[section]} ${index + 1}`;
 
-    if (!filled(entry.title) || !filled(entry.company)) problems.push(`${name}: add a title and a company.`);
-    if (!isFullMonth(entry.start, false)) problems.push(`${name}: choose a start month and year.`);
-    if (!isFullMonth(entry.end, true)) problems.push(`${name}: choose an end month and year, or Present.`);
-
-    if (isFullMonth(entry.start, false) && isFullMonth(entry.end, true) && monthNumber(entry.end) < monthNumber(entry.start)) {
-      problems.push(`${name}: the end date is before the start date.`);
-    }
-
-    over(entry.bullets.filter((item) => filled(bulletText(item))).length, LIMITS.experienceBullets, `${name} bullets`);
-  });
-
-  cv.projects.forEach((entry, index) => {
-    const name = entry.name || `Project ${index + 1}`;
-    const hasStart = filled(entry.start);
-    const hasEnd = filled(entry.end);
-
-    if (!filled(entry.name)) problems.push(`Project ${index + 1}: add a name.`);
-
-    if ((hasStart && !isFullMonth(entry.start, false)) || (hasEnd && !isFullMonth(entry.end, true))) {
-      problems.push(`${name}: choose both a month and a year for its dates.`);
-    } else if (hasEnd && !hasStart) {
-      problems.push(`${name}: add a start date too, or clear the end date.`);
-    } else if (hasStart && hasEnd && monthNumber(entry.end) < monthNumber(entry.start)) {
-      problems.push(`${name}: the end date is before the start date.`);
-    }
-
-    over(entry.bullets.filter((item) => filled(bulletText(item))).length, LIMITS.projectBullets, `${entry.name || `Project ${index + 1}`} bullets`);
-  });
-
-  cv.education.forEach((entry, index) => {
-    const name = entry.degree || entry.school || `Education ${index + 1}`;
-    if (!filled(entry.degree) || !filled(entry.school)) problems.push(`${name}: add a degree and a school.`);
-    if (!isFullMonth(entry.start, false, true)) problems.push(`${name}: choose a start year.`);
-    if (!isFullMonth(entry.end, true, true)) problems.push(`${name}: choose an end year, or Present.`);
-  });
+      entryIssues(section, entry).forEach((issue) => problems.push(`${name}: ${issue.text}.`));
+    });
+  }
 
   cv.skills.forEach((group, index) => {
-    over(group.items.filter(filled).length, LIMITS.skillsPerGroup, `Skill group ${group.category || index + 1}`);
+    const name = `Skill group ${group.category || index + 1}`;
+
+    over(group.items.filter(filled).length, LIMITS.skillsPerGroup, name);
+    tooLong(group.category, LIMITS.groupName, `${name}'s name`);
+    group.items.forEach((skill) => tooLong(skill, LIMITS.skill, `The skill "${skill.slice(0, 30)}…"`));
   });
 
   cv.extras.forEach((group, index) => {
-    over(group.items.filter(filled).length, LIMITS.extraItems, `${group.title || `Section ${index + 1}`} items`);
+    const name = group.title || `Section ${index + 1}`;
+
+    over(group.items.filter(filled).length, LIMITS.extraItems, `${name} items`);
+    tooLong(group.title, LIMITS.groupName, `${name}'s title`);
+    group.items.forEach((item, itemIndex) => tooLong(item, LIMITS.bullet, `${name} item ${itemIndex + 1}`));
   });
 
   return problems;
 }
 
-// Checks whether an entry has all required fields
-export function isEntryComplete(section, entry) {
+// Lists what's wrong with an entry: the parts it affects and a short lowercase phrase
+export function entryIssues(section, entry) {
+  const issues = [];
   const hasStart = filled(entry.start);
   const hasEnd = filled(entry.end);
   const bulletCount = (entry.bullets || []).filter((item) => filled(bulletText(item))).length;
 
+  // Asks for whichever of the two required fields are empty
+  const requireFields = (first, second) => {
+    const missing = [first, second].filter(([field]) => !filled(entry[field]));
+    if (missing.length) issues.push({ parts: missing.map(([field]) => field), text: `add ${missing.map(([, label]) => label).join(" and ")}` });
+  };
+
+  // Asks to remove the bullets over the limit and to shorten long ones
+  const limitBullets = (max) => {
+    const extra = bulletCount - max;
+    if (extra > 0) issues.push({ parts: ["bullets"], text: `remove ${extra} bullet${extra === 1 ? "" : "s"} (${max} max)` });
+
+    (entry.bullets || []).forEach((item, index) => {
+      if (bulletText(item).length > LIMITS.bullet) issues.push({ parts: ["bullets"], text: `shorten bullet ${index + 1} to ${LIMITS.bullet} characters` });
+    });
+  };
+
+  // Asks to shorten each field that's longer than its limit
+  const limitText = (fields) => {
+    for (const [field, part, max = LIMITS.text] of fields) {
+      if (String(entry[field] ?? "").length > max) issues.push({ parts: [part], text: `shorten the ${part} to ${max} characters` });
+    }
+  };
+
   if (section === "experience") {
-    return filled(entry.title) && filled(entry.company) &&
-      isFullMonth(entry.start, false) && isFullMonth(entry.end, true) &&
-      monthNumber(entry.end) >= monthNumber(entry.start) &&
-      bulletCount <= LIMITS.experienceBullets;
+    requireFields(["title", "a title"], ["company", "a company"]);
+    limitText([["title", "title"], ["company", "company"], ["location", "location"]]);
+
+    if (!isFullMonth(entry.start, false)) issues.push({ parts: ["dates"], text: "choose a start month and year" });
+
+    if (!isFullMonth(entry.end, true)) {
+      issues.push({ parts: ["dates"], text: "choose an end month and year, or Present" });
+    } else if (isFullMonth(entry.start, false) && monthNumber(entry.end) < monthNumber(entry.start)) {
+      issues.push({ parts: ["dates"], text: "the end date is before the start date" });
+    }
+
+    limitBullets(LIMITS.experienceBullets);
+  } else if (section === "projects") {
+    if (!filled(entry.name)) issues.push({ parts: ["name"], text: "add a name" });
+    limitText([["name", "name", LIMITS.projectName], ["link", "link", LIMITS.link]]);
+
+    if ((hasStart && !isFullMonth(entry.start, false)) || (hasEnd && !isFullMonth(entry.end, true))) {
+      issues.push({ parts: ["dates"], text: "choose both a month and a year for its dates" });
+    } else if (hasEnd && !hasStart) {
+      issues.push({ parts: ["dates"], text: "add a start date too, or clear the end date" });
+    } else if (hasStart && hasEnd && monthNumber(entry.end) < monthNumber(entry.start)) {
+      issues.push({ parts: ["dates"], text: "the end date is before the start date" });
+    }
+
+    limitBullets(LIMITS.projectBullets);
+  } else if (section === "education") {
+    requireFields(["degree", "a degree"], ["school", "a school"]);
+    limitText([["degree", "degree"], ["major", "major"], ["school", "school"], ["location", "location"], ["gpa", "GPA", LIMITS.gpa]]);
+
+    if (!isFullMonth(entry.start, false, true)) issues.push({ parts: ["dates"], text: "choose a start year" });
+
+    if (!isFullMonth(entry.end, true, true)) {
+      issues.push({ parts: ["dates"], text: "choose an end year, or Present" });
+    } else if (isFullMonth(entry.start, false, true) && yearNumber(entry.end) < yearNumber(entry.start)) {
+      issues.push({ parts: ["dates"], text: "the end year is before the start year" });
+    }
+  } else if (section === "extras") {
+    const items = entry.items || [];
+    const extra = items.filter(filled).length - LIMITS.extraItems;
+
+    limitText([["title", "title", LIMITS.groupName]]);
+    if (extra > 0) issues.push({ parts: ["items"], text: `remove ${extra} item${extra === 1 ? "" : "s"} (${LIMITS.extraItems} max)` });
+
+    items.forEach((item, index) => {
+      if (item.length > LIMITS.bullet) issues.push({ parts: ["items"], text: `shorten item ${index + 1} to ${LIMITS.bullet} characters` });
+    });
   }
 
-  if (section === "projects") {
-    return filled(entry.name) &&
-      (!hasStart || isFullMonth(entry.start, false)) &&
-      (!hasEnd || (hasStart && isFullMonth(entry.end, true) && monthNumber(entry.end) >= monthNumber(entry.start))) &&
-      bulletCount <= LIMITS.projectBullets;
-  }
-
-  if (section === "education") {
-    return filled(entry.degree) && filled(entry.school) &&
-      isFullMonth(entry.start, false, true) && isFullMonth(entry.end, true, true);
-  }
-
-  return true;
+  return issues;
 }
 
 // Cleans a resume's fields for the editor
@@ -189,6 +255,7 @@ export function formatResume(cv) {
       ...entry,
       name: filled(stack) && !entry.name.includes(stack) ? `${entry.name} | ${stack}` : entry.name
     })),
-    education: cv.education.map((entry) => ({ ...entry, school: titleCase(entry.school).trim() }))
+    education: cv.education.map((entry) => ({ ...entry, school: titleCase(entry.school).trim() })),
+    extras: cv.extras.map((group, index) => ({ ...group, id: group.id || `s${index + 1}` }))
   };
 }

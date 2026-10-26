@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import Modal from "../ui/Modal";
-import CvEditor, { Count, Required } from "./CvEditor";
+import CvEditor, { Required } from "./CvEditor";
 import TagInput from "./TagInput";
 import { WORKPLACE_MODELS, apiRequest, apiUpload } from "../../lib/api";
 import { LIMITS, formatResume, resumeProblems } from "../../utils/resume/resumeRules";
@@ -167,6 +167,9 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
       ...(preferences.locations.length === 0 ? ["Add at least one location."] : []),
       ...(preferences.locations.length > LIMITS.locations ? [`Locations: ${preferences.locations.length} of ${LIMITS.locations} allowed.`] : []),
       ...(preferences.workplace_models.length === 0 ? ["Choose at least one workplace type."] : []),
+      ...[...preferences.roles, ...preferences.locations]
+        .filter((item) => item.length > LIMITS.preference)
+        .map((item) => `"${item.slice(0, 30)}…" is ${item.length} characters long. Keep it to ${LIMITS.preference}.`),
       ...resumeProblems(cv)
     ];
 
@@ -216,7 +219,6 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
             </ul>
           </Alert>
         )}
-        {cv && !reading && <p className="hint">Fields marked <span className="req">*</span> are required.</p>}
 
         <section className="profile-block">
           <div className="profile-block-header">
@@ -239,23 +241,27 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
         {cv && !reading && (
           <>
             <section className="profile-block">
-              <h3>Work details</h3>
+              <h3>Work Details</h3>
               <div className="cv-fields">
                 <div className="field">
-                  <span>Roles<Required /> <Count count={prefs.roles.length} max={LIMITS.roles} /></span>
+                  <span>Roles<Required /></span>
                   <TagInput
                     values={prefs.roles}
                     max={LIMITS.roles}
+                    maxLength={LIMITS.preference}
+                    showCount
                     label="Roles"
                     placeholder="Type a role and press Enter"
                     onChange={(roles) => setPrefs((current) => ({ ...current, roles }))}
                   />
                 </div>
                 <div className="field">
-                  <span>Locations<Required /> <Count count={prefs.locations.length} max={LIMITS.locations} /></span>
+                  <span>Locations<Required /></span>
                   <TagInput
                     values={prefs.locations}
                     max={LIMITS.locations}
+                    maxLength={LIMITS.preference}
+                    showCount
                     label="Locations"
                     placeholder="Type a location and press Enter"
                     onChange={(locations) => setPrefs((current) => ({ ...current, locations }))}
@@ -264,7 +270,7 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
               </div>
               <div className="cv-fields">
                 <div className="field">
-                  <span id="seniority-label">Seniority<Required /> <span className="cv-count">choose one</span></span>
+                  <span id="seniority-label">Seniority<Required /></span>
                   <div className="choice-group" role="radiogroup" aria-labelledby="seniority-label">
                     {SENIORITIES.map((level) => (
                       <button
@@ -280,7 +286,7 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
                   </div>
                 </div>
                 <div className="field">
-                  <span id="workplace-label">Workplace<Required /> <span className="cv-count">choose one or more</span></span>
+                  <span id="workplace-label">Workplace<Required /></span>
                   <div className="choice-group" role="group" aria-labelledby="workplace-label">
                     {WORKPLACE_MODELS.map((model) => {
                       const on = prefs.workplace_models.includes(model);
@@ -307,6 +313,11 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
             </section>
 
             <section className="profile-block">
+              <h3>Personal Details</h3>
+              <CvEditor key={readCount} cv={cv} onChange={setCv} mode="base" />
+            </section>
+
+            <section className="profile-block">
               <div className="profile-block-header">
                 <div>
                   <h3>Gradesheet / Transcript</h3>
@@ -326,15 +337,11 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
                 </div>
               </div>
             </section>
-
-            <section className="profile-block">
-              <h3>Resume details</h3>
-              <CvEditor key={readCount} cv={cv} onChange={setCv} mode="base" />
-            </section>
           </>
         )}
 
         <div className="form-actions sticky-actions">
+          {cv && !reading && <p className="hint required-note">Fields marked <span className="req">*</span> are required</p>}
           <button type="button" className="btn btn-ghost" onClick={onClose}>
             Cancel
           </button>

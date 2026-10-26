@@ -1,9 +1,12 @@
 import { useCallback, useRef, useState } from "react";
 import TagInput from "./TagInput";
+import CharCount from "../ui/CharCount";
+import InsetCount from "../ui/InsetCount";
+import { useSortable } from "../../hooks/useSortable";
 import { wordDiff } from "../../utils/resume/wordDiff";
 import { basePositions } from "../../utils/resume/cvChanges";
 import { useDismiss } from "../../hooks/useDismiss";
-import { LIMITS, MONTHS, digitsOnly, formatMonth, isEntryComplete, parseMonth, titleCase } from "../../utils/resume/resumeRules";
+import { LIMITS, MONTHS, digitsOnly, entryIssues, formatMonth, parseMonth, titleCase } from "../../utils/resume/resumeRules";
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: 46 }, (_, i) => String(CURRENT_YEAR + 1 - i));
@@ -28,6 +31,11 @@ const RESTORE_MARK = (
     <path d="M4.5 9.5a5.75 5.75 0 1 1 1.7 4.1M4.5 4.75V9.5h4.75" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
+const MINUS_ICON = (
+  <svg viewBox="0 0 20 20" width="11" height="11" aria-hidden="true">
+    <path d="M4.5 10h11" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+  </svg>
+);
 const PLUS_ICON = (
   <svg viewBox="0 0 20 20" width="11" height="11" aria-hidden="true">
     <path d="M10 4.5v11M4.5 10h11" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
@@ -42,6 +50,15 @@ const filled = (value) => String(value ?? "").trim() !== "";
 
 // Returns an item's text, whether it's a string or a bullet
 const textOf = (item) => (typeof item === "string" ? item : item.text);
+
+// Identifies a skill group by its name, ignoring case and spaces
+const groupKey = (group) => group.category.trim().toLowerCase();
+
+// Capitalizes the first letter of a phrase
+const sentenceCase = (text) => text.charAt(0).toUpperCase() + text.slice(1);
+
+// Joins words as "a", "a and b" or "a, b and c"
+const joinWords = (words) => (words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`);
 
 // Icon button that removes an item
 function RemoveButton({ label, onClick, className = "" }) {
@@ -59,12 +76,22 @@ export function Required() {
   return <span className="req" aria-hidden="true"> *</span>;
 }
 
-// Labeled form field
-function Field({ label, required = false, className = "", children }) {
+// Labeled form field, with a live character count inside it, or on the label row for long text
+function Field({ label, required = false, className = "", value, max, countAbove = false, children }) {
+  const above = max !== undefined && countAbove;
+  const inside = max !== undefined && !countAbove;
+
   return (
     <label className={`field ${className}`}>
-      {label !== null && <span>{label}{required && <Required />}</span>}
-      {children}
+      {label !== null && (above
+        ? (
+          <span className="field-head">
+            <span>{label}{required && <Required />}</span>
+            <CharCount value={value ?? ""} max={max} />
+          </span>
+        )
+        : <span>{label}{required && <Required />}</span>)}
+      {inside ? <InsetCount value={value ?? ""} max={max}>{children}</InsetCount> : children}
     </label>
   );
 }
@@ -75,12 +102,12 @@ export function Count({ count, max }) {
 }
 
 // Section title with its count and add button
-function SectionHeader({ title, count, max, addLabel, onAdd }) {
+function SectionHeader({ title, count, max, showCount = false, addLabel, onAdd }) {
   const full = count >= max;
 
   return (
     <div className="cv-section-header">
-      <h3>{title} {max !== undefined && <Count count={count} max={max} />}</h3>
+      <h3>{title} {max !== undefined ? <Count count={count} max={max} /> : showCount && <span className="cv-count">{count}</span>}</h3>
       {onAdd && (
         <button
           type="button"
@@ -217,59 +244,67 @@ function AddSkillTag({ skill, groups, onAdd }) {
 function Bullets({
   items, max, onChange, editable, label = "bullet", showChanges = false, removed = [], onRestore = null, onRemoveItem = null,
   baseOrder = null,
-  flagged = new Set(), onDone
+  flagged = new Set(),
+  sortable = false
 }) {
+  const sort = useSortable(items, onChange);
   const filledCount = items.filter((item) => filled(textOf(item))).length;
   const hasEmpty = items.some((item) => !filled(textOf(item)));
   const full = items.length >= max;
   const positions = showChanges && baseOrder ? basePositions(items, baseOrder) : new Map();
 
+  // Renders a bullet's text box, or its word changes until clicked
+  function bulletField(item, i, text) {
+    return (
+      <DiffField
+        show={showChanges && typeof item === "object" && item.original !== undefined && item.original !== item.text}
+        before={item.original}
+        after={text}
+        className={`cv-text${item.id && flagged.has(item.id) ? " cv-flagged" : ""}`}
+        label={`${label} ${i + 1}`}
+      >
+        {(fieldProps) => (
+          <textarea
+            className={`cv-text${item.id && flagged.has(item.id) ? " cv-flagged" : ""}`}
+            rows={1}
+            value={text}
+            maxLength={LIMITS.bullet}
+            aria-label={`${label} ${i + 1}`}
+            onChange={(event) => onChange(items.map((other, j) => (
+              j !== i ? other : typeof other === "string" ? event.target.value : { ...other, text: event.target.value }
+            )))}
+            {...fieldProps}
+          />
+        )}
+      </DiffField>
+    );
+  }
+
   return (
     <div className="cv-bullets">
       {items.map((item, i) => {
         const text = textOf(item);
-        const changed = showChanges && typeof item === "object" && item.original !== undefined && item.original !== item.text;
         const was = positions.get(item.id);
         const moved = was !== undefined && was !== i ? (was > i ? "up" : "down") : null;
         const restored = showChanges && typeof item === "object" && item.restored;
+        const markClass = moved ? " cv-bullet-moved" : restored ? " cv-bullet-restored" : "";
+        const markTitle = moved ? `Moved ${moved}` : restored ? "Restored" : undefined;
+        const markIcon = moved ? (moved === "up" ? ARROW_UP : ARROW_DOWN) : restored ? RESTORE_MARK : "•";
 
         return (
-          <div key={item.id || i} className="cv-bullet">
-            {moved ? (
-              <span className="cv-bullet-mark cv-bullet-moved" title={`Moved ${moved}`}>
-                {moved === "up" ? ARROW_UP : ARROW_DOWN}
-                <span className="visually-hidden">Moved {moved}</span>
-              </span>
-            ) : restored ? (
-              <span className="cv-bullet-mark cv-bullet-restored" title="Restored">
-                {RESTORE_MARK}
-                <span className="visually-hidden">Restored</span>
-              </span>
-            ) : (
-              <span className="cv-bullet-mark" aria-hidden="true">•</span>
-            )}
-            <div className="cv-bullet-body">
-              <DiffField
-                show={changed}
-                before={item.original}
-                after={text}
-                className={`cv-text${item.id && flagged.has(item.id) ? " cv-flagged" : ""}`}
-                label={`${label} ${i + 1}`}
-              >
-                {(fieldProps) => (
-                  <textarea
-                    className={`cv-text${item.id && flagged.has(item.id) ? " cv-flagged" : ""}`}
-                    rows={1}
-                    value={text}
-                    maxLength={editable ? LIMITS.bullet : undefined}
-                    aria-label={`${label} ${i + 1}`}
-                    onChange={(event) => onChange(items.map((other, j) => (
-                      j !== i ? other : typeof other === "string" ? event.target.value : { ...other, text: event.target.value }
-                    )))}
-                    {...fieldProps}
-                  />
-                )}
-              </DiffField>
+          <div
+            key={item.id || i}
+            ref={sortable ? sort.itemRef(i) : undefined}
+            className={`cv-bullet${sort.dragging === i ? " is-dragging" : ""}`}
+          >
+            <span className={`cv-bullet-mark${markClass}`} title={markTitle}>
+              {markIcon}
+              {markTitle && <span className="visually-hidden">{markTitle}</span>}
+            </span>
+            <div className="cv-bullet-body" {...(sortable ? sort.dragProps(i, { textField: true, altKeys: true }) : {})}>
+              <InsetCount value={text} max={LIMITS.bullet} multiline>
+                {bulletField(item, i, text)}
+              </InsetCount>
             </div>
             <RemoveButton
               label={`Remove ${label}`}
@@ -314,7 +349,6 @@ function Bullets({
           </button>
           <Count count={filledCount} max={max} />
           {hasEmpty && !full && <span className="hint">Fill in the empty {label} first.</span>}
-          {onDone && <button type="button" className="link-btn cv-done" onClick={onDone}>Done</button>}
         </div>
       )}
     </div>
@@ -339,6 +373,13 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
   const base = mode === "base";
   const flagged = new Set(flags);
   const compare = showChanges && !base && original;
+  const projectSort = useSortable(cv.projects, (projects) => set("projects", projects));
+  const skillSort = useSortable(cv.skills, (skills) => set("skills", skills));
+  const skillOrder = compare
+    ? basePositions(cv.skills.map((group) => ({ id: groupKey(group) })), original.skills.map(groupKey))
+    : new Map();
+  const originalGroups = new Set(compare ? original.skills.map(groupKey) : []);
+  const originalSkills = new Set(compare ? original.skills.flatMap((group) => group.items).map((skill) => skill.toLowerCase()) : []);
 
   // Checks whether a top-level field differs from the original
   const fieldChanged = (field) => Boolean(compare && original[field] && original[field] !== cv[field]);
@@ -415,7 +456,7 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
     skill.length <= 40 && skill.trim().split(/\s+/).length <= 4 && !keptSkills.has(skill.toLowerCase())
   ));
   const [collapsed, setCollapsed] = useState(() => new Set(
-    [...cv.experience, ...cv.projects, ...cv.education].map((entry) => entry.id)
+    [...cv.experience, ...cv.projects, ...cv.education, ...cv.extras].map((entry) => entry.id)
   ));
 
   // Collapses or expands an entry
@@ -431,13 +472,13 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
   }
 
   // Renders an entry as a collapsible card
-  function entryCard(section, entry, index, { label, title, sub, bullets, fields }) {
+  function entryCard(section, entry, index, { label, title, sub, bullets, items, fields }) {
     const isCollapsed = collapsed.has(entry.id);
-    const complete = isEntryComplete(section, entry);
+    const issues = entryIssues(section, entry);
     const period = [entry.start, entry.end].filter(Boolean).join(" – ");
 
     return (
-      <div className={`cv-entry ${isCollapsed ? "cv-entry-collapsed" : "cv-entry-open"}`} key={entry.id}>
+      <div className={`cv-entry cv-entry-${section} ${isCollapsed ? "cv-entry-collapsed" : "cv-entry-open"}`} key={entry.id}>
         <div className="cv-entry-actions">
           <RemoveButton label={`Remove ${label}`} onClick={() => removeEntry(section, index)} />
           <button
@@ -460,20 +501,19 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
               <strong>{title || `New ${label}`}</strong>
               {sub && <span className="muted"> · {sub}</span>}
             </span>
-            {complete
+            {issues.length === 0
               ? period && <span className="cv-entry-period">{period}</span>
-              : <span className="cv-entry-warning">Missing details</span>}
+              : (
+                <span className="cv-entry-warning" title={issues.map((issue) => sentenceCase(issue.text)).join("\n")}>
+                  Invalid {joinWords([...new Set(issues.flatMap((issue) => issue.parts))])}
+                </span>
+              )}
           </button>
         ) : (
           <>
             {fields}
-            {bullets ? (
-              <Bullets {...bulletProps(section, index, bullets)} onDone={() => toggle(entry.id)} />
-            ) : (
-              <div className="cv-entry-done">
-                <button type="button" className="link-btn cv-done" onClick={() => toggle(entry.id)}>Done</button>
-              </div>
-            )}
+            {bullets && <Bullets {...bulletProps(section, index, bullets)} />}
+            {items && <Bullets {...items} />}
           </>
         )}
       </div>
@@ -563,14 +603,15 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
   }
 
   // Renders an input for an entry field
-  function entryInput(section, index, field, { label, required = false, format, className = "", ...props } = {}) {
+  function entryInput(section, index, field, { label, required = false, format, className = "", max = LIMITS.text, ...props } = {}) {
     const entry = cv[section][index];
 
     return (
-      <Field label={label} required={required} className={className}>
+      <Field label={label} required={required} className={className} value={entry[field]} max={max}>
         <input
           value={entry[field] ?? ""}
           required={required}
+          maxLength={max}
           onChange={(event) => setEntry(section, index, { [field]: format ? format(event.target.value) : event.target.value })}
           {...props}
         />
@@ -614,6 +655,7 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
     onRemoveItem: base ? null : (bullet, position) => removeBullet(section, index, bullet, position),
     baseOrder: baseEntryOf(section, cv[section][index])?.bullets.map((bullet) => bullet.id) ?? null,
     flagged,
+    sortable: !base,
     onChange: (bullets) => setEntry(section, index, { bullets })
   });
 
@@ -654,11 +696,11 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
         {base && (
           <>
             <div className="cv-fields">
-              <Field label="Name" required>
-                <input value={cv.name} required autoComplete="name" onChange={(event) => set("name", titleCase(event.target.value))} />
+              <Field label="Name" required value={cv.name} max={LIMITS.name}>
+                <input value={cv.name} required maxLength={LIMITS.name} autoComplete="name" onChange={(event) => set("name", titleCase(event.target.value))} />
               </Field>
-              <Field label="Email" required>
-                <input type="email" value={cv.email} required autoComplete="email" onChange={(event) => set("email", event.target.value.trim())} />
+              <Field label="Email" required value={cv.email} max={LIMITS.text}>
+                <input type="email" value={cv.email} required maxLength={LIMITS.text} autoComplete="email" onChange={(event) => set("email", event.target.value.trim())} />
               </Field>
               <Field label="Phone">
                 <input
@@ -671,10 +713,10 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
               </Field>
             </div>
             <div className="cv-fields">
-              <Field label="Location">
-                <input value={cv.location} onChange={(event) => set("location", event.target.value)} placeholder="Tel Aviv, Israel" />
+              <Field label="Location" value={cv.location} max={LIMITS.text}>
+                <input value={cv.location} maxLength={LIMITS.text} onChange={(event) => set("location", event.target.value)} placeholder="Tel Aviv, Israel" />
               </Field>
-              <Field label="Headline" className="field-wide">
+              <Field label="Headline" className="field-wide" value={cv.headline} max={LIMITS.headline}>
                 <input value={cv.headline} maxLength={LIMITS.headline} onChange={(event) => set("headline", event.target.value)} />
               </Field>
             </div>
@@ -683,12 +725,15 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
               <span>Links <Count count={links.filter((link) => filled(link.url)).length} max={LIMITS.links} /></span>
               {links.map((link, index) => (
                 <div className="cv-row" key={index}>
-                  <input
-                    value={link.url}
-                    aria-label={`Link ${index + 1}`}
-                    placeholder="linkedin.com/in/your-name"
-                    onChange={(event) => set("links", links.map((other, i) => (i === index ? { ...other, url: event.target.value.trim() } : other)))}
-                  />
+                  <InsetCount value={link.url} max={LIMITS.link}>
+                    <input
+                      value={link.url}
+                      maxLength={LIMITS.link}
+                      aria-label={`Link ${index + 1}`}
+                      placeholder="linkedin.com/in/your-name"
+                      onChange={(event) => set("links", links.map((other, i) => (i === index ? { ...other, url: event.target.value.trim() } : other)))}
+                    />
+                  </InsetCount>
                   <RemoveButton label="Remove link" onClick={() => set("links", links.filter((_, i) => i !== index))} />
                 </div>
               ))}
@@ -707,8 +752,13 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
           </>
         )}
 
-        {!base && <SectionHeader title="Summary" count={cv.summary.length} max={LIMITS.summary} />}
-        <Field label={base ? <>Summary <Count count={cv.summary.length} max={LIMITS.summary} /></> : null}>
+        {!base && (
+          <div className="cv-section-header">
+            <h3>Summary</h3>
+            <CharCount value={cv.summary} max={LIMITS.summary} />
+          </div>
+        )}
+        <Field label={base ? "Summary" : null} value={cv.summary} max={base ? LIMITS.summary : undefined} countAbove>
           <DiffField
             show={fieldChanged("summary")}
             before={original?.summary}
@@ -775,6 +825,7 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
             title="Projects"
             count={cv.projects.length}
             max={base ? LIMITS.projects : undefined}
+            showCount
             addLabel="Add project"
             onAdd={base && (() => set("projects", [
               ...cv.projects,
@@ -791,18 +842,25 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
                   {entryInput("projects", index, "name", {
                     label: "Name",
                     required: true,
-                    maxLength: 150,
+                    max: LIMITS.projectName,
                     placeholder: "Job Tracker | React, Node.js"
                   })}
                   {dates("projects", index, { required: false })}
                 </div>
                 <div className="cv-fields">
-                  {entryInput("projects", index, "link", { label: "Link", placeholder: "github.com/you/project" })}
+                  {entryInput("projects", index, "link", { label: "Link", max: LIMITS.link, placeholder: "github.com/you/project" })}
                 </div>
               </>
             )
           }) : (
-            <div className="cv-entry" key={entry.id}>
+            <div
+              className={`cv-entry cv-entry-sortable${projectSort.dragging === index ? " is-dragging" : ""}`}
+              key={entry.id}
+              ref={projectSort.itemRef(index)}
+              tabIndex={0}
+              aria-label={`${entry.name || "Project"}. Drag to reorder, or use the arrow keys`}
+              {...projectSort.dragProps(index, { skipInteractive: true })}
+            >
               {tailoredTitle("projects", entry, index)}
               <Bullets {...bulletProps("projects", index, LIMITS.projectBullets)} />
             </div>
@@ -856,13 +914,15 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
                       <span id={`gpa-help-${index}`} role="tooltip" className="info-tip">Grade Point Average</span>
                     </span>
                   </span>
-                  <input
-                    value={entry.gpa ?? ""}
-                    maxLength={10}
-                    placeholder="88"
-                    aria-label="GPA"
-                    onChange={(event) => setEntry("education", index, { gpa: event.target.value })}
-                  />
+                  <InsetCount value={entry.gpa ?? ""} max={LIMITS.gpa}>
+                    <input
+                      value={entry.gpa ?? ""}
+                      maxLength={LIMITS.gpa}
+                      placeholder="88"
+                      aria-label="GPA"
+                      onChange={(event) => setEntry("education", index, { gpa: event.target.value })}
+                    />
+                  </InsetCount>
                 </div>
               </div>
               <div className="cv-fields">
@@ -881,29 +941,53 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
           count={cv.skills.length}
           max={LIMITS.skillGroups}
           addLabel="Add skill group"
-          onAdd={base && (() => set("skills", [...cv.skills, { category: "", items: [] }]))}
+          onAdd={() => set("skills", [...cv.skills, { category: "", items: [] }])}
         />
-        {cv.skills.map((group, index) => (
-          <div className="cv-skill-row" key={index}>
-            <input
-              className="cv-skill-category"
-              value={group.category}
-              placeholder="Group, e.g. Languages"
-              aria-label="Skill group name"
-              onChange={(event) => set("skills", cv.skills.map((g, i) => (i === index ? { ...g, category: event.target.value } : g)))}
-            />
-            <TagInput
-              values={group.items}
-              max={LIMITS.skillsPerGroup}
-              splitOnComma
-              label={`Skills in ${group.category || "this group"}`}
-              placeholder="Type a skill and press Enter"
-              onChange={(items) => set("skills", cv.skills.map((g, i) => (i === index ? { ...g, items } : g)))}
-            />
-            <Count count={group.items.length} max={LIMITS.skillsPerGroup} />
-            <RemoveButton label="Remove skill group" onClick={() => set("skills", cv.skills.filter((_, i) => i !== index))} />
-          </div>
-        ))}
+        {cv.skills.map((group, index) => {
+          const was = skillOrder.get(groupKey(group));
+          const moved = was !== undefined && was !== index ? (was > index ? "up" : "down") : null;
+          const added = compare && !originalGroups.has(groupKey(group));
+          const markTitle = moved ? `Moved ${moved}` : added ? "Added" : null;
+
+          return (
+            <div
+              className={`cv-skill-row${skillSort.dragging === index ? " is-dragging" : ""}`}
+              key={index}
+              ref={base ? undefined : skillSort.itemRef(index)}
+            >
+              <div className={`cv-skill-category${markTitle ? " cv-skill-marked" : ""}`}>
+                {markTitle && (
+                  <span className={`cv-skill-mark${moved ? "" : " cv-skill-mark-added"}`} title={markTitle}>
+                    {moved ? (moved === "up" ? ARROW_UP : ARROW_DOWN) : PLUS_ICON}
+                    <span className="visually-hidden">{markTitle}</span>
+                  </span>
+                )}
+                <input
+                  value={group.category}
+                  maxLength={LIMITS.groupName}
+                  placeholder="Group, e.g. Languages"
+                  aria-label={base ? "Skill group name" : "Skill group name. Drag up or down, or press Alt with the arrow keys, to reorder"}
+                  title={base ? undefined : "Drag up or down to reorder"}
+                  {...(base ? {} : skillSort.dragProps(index, { textField: true, altKeys: true }))}
+                  onChange={(event) => set("skills", cv.skills.map((g, i) => (i === index ? { ...g, category: event.target.value } : g)))}
+                />
+              </div>
+              <TagInput
+                values={group.items}
+                max={LIMITS.skillsPerGroup}
+                maxLength={LIMITS.skill}
+                showCount
+                splitOnComma
+                label={`Skills in ${group.category || "this group"}`}
+                placeholder="Type a skill and press Enter"
+                isAdded={compare ? (skill) => !originalSkills.has(skill.toLowerCase()) : undefined}
+                sortable={!base}
+                onChange={(items) => set("skills", cv.skills.map((g, i) => (i === index ? { ...g, items } : g)))}
+              />
+              <RemoveButton label="Remove skill group" onClick={() => set("skills", cv.skills.filter((_, i) => i !== index))} />
+            </div>
+          );
+        })}
         {leftOutSkills.length > 0 && (
           <div className="cv-skills-left-out">
             {leftOutSkills.map((skill) => (
@@ -914,7 +998,7 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
                 title={`Add "${skill}" back`}
                 onClick={() => restoreSkill(skill)}
               >
-                {PLUS_ICON}
+                {MINUS_ICON}
                 <span>{skill}</span>
               </button>
             ))}
@@ -941,29 +1025,40 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
             count={cv.extras.length}
             max={LIMITS.extras}
             addLabel="Add section"
-            onAdd={() => set("extras", [...cv.extras, { title: "", items: [] }])}
+            onAdd={() => set("extras", [...cv.extras, { id: newId("s"), title: "", items: [] }])}
           />
-          {cv.extras.map((group, index) => (
-            <div className="cv-entry" key={index}>
-              <RemoveButton className="cv-entry-remove" label="Remove section" onClick={() => removeEntry("extras", index)} />
-              <div className="cv-fields">
-                <Field label="Title">
-                  <input
-                    value={group.title}
-                    placeholder="Languages, Certifications…"
-                    onChange={(event) => set("extras", cv.extras.map((g, i) => (i === index ? { ...g, title: event.target.value } : g)))}
-                  />
-                </Field>
-              </div>
-              <Bullets
-                items={group.items}
-                max={LIMITS.extraItems}
-                label="item"
-                editable
-                onChange={(items) => set("extras", cv.extras.map((g, i) => (i === index ? { ...g, items } : g)))}
-              />
-            </div>
-          ))}
+          {cv.extras.map((group, index) => {
+            const itemCount = group.items.filter(filled).length;
+
+            return entryCard("extras", group, index, {
+              label: "section",
+              title: group.title,
+              sub: itemCount ? `${itemCount} item${itemCount === 1 ? "" : "s"}` : "",
+              fields: (
+                <>
+                  <div className="cv-fields">
+                    <Field label="Title">
+                      <InsetCount value={group.title} max={LIMITS.groupName}>
+                        <input
+                          value={group.title}
+                          maxLength={LIMITS.groupName}
+                          placeholder="Languages, Certifications…"
+                          onChange={(event) => setEntry("extras", index, { title: event.target.value })}
+                        />
+                      </InsetCount>
+                    </Field>
+                  </div>
+                </>
+              ),
+              items: {
+                items: group.items,
+                max: LIMITS.extraItems,
+                label: "item",
+                editable: true,
+                onChange: (items) => setEntry("extras", index, { items })
+              }
+            });
+          })}
         </section>
       )}
     </div>
