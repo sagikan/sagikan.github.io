@@ -253,7 +253,7 @@ router.post("/", addJobLimiter, async (req, res) => {
     const company = text(req.body?.company, 200);
     const position = text(req.body?.position, 200);
     const description = text(req.body?.description, 20000);
-    const url = text(req.body?.url, 1000) || null;
+    const url = text(req.body?.url, 500) || null;
     const workplace = profiles.WORKPLACE_MODELS.includes(req.body?.workplace_model) ? req.body.workplace_model : null;
 
     if (!company || !position) {

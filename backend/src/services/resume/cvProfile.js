@@ -7,9 +7,9 @@ const SENIORITIES = ["Any", "Student", "Junior", "Mid", "Senior"];
 // What a saved resume may contain. The form in the app shows the same limits
 const SAVE_LIMITS = {
   links: 3,
-  experience: 8,
+  experience: 10,
   experienceBullets: 3,
-  projects: 4,
+  projects: 5,
   projectBullets: 5,
   education: 3,
   skillGroups: 6,
@@ -289,6 +289,11 @@ function endsBeforeStart(entry) {
   return Boolean(entry.start && entry.end) && monthNumber(entry.end) < monthNumber(entry.start);
 }
 
+// Checks whether an entry's end year is before its start year
+function endsBeforeStartYear(entry) {
+  return Boolean(entry.start && entry.end) && Math.floor(monthNumber(entry.end) / 12) < Math.floor(monthNumber(entry.start) / 12);
+}
+
 // Returns the first reason the profile can't be saved, or null
 function saveProblem(cv, prefs) {
   const L = SAVE_LIMITS;
@@ -313,6 +318,7 @@ function saveProblem(cv, prefs) {
       (entry.end && !(YEAR_OR_DATE.test(entry.end) || entry.end === "Present")) || (entry.end && !entry.start)),
       "Project dates need a month and a year, and an end date needs a start date."],
     [[...cv.experience, ...cv.projects].some(endsBeforeStart), "An end date can't be before its start date."],
+    [cv.education.some(endsBeforeStartYear), "An education end year can't be before its start year."],
     [cv.skills.some((group) => group.items.length > L.skillsPerGroup), `Each skill group can have up to ${L.skillsPerGroup} skills.`],
     [cv.extras.some((group) => group.items.length > L.extraItems), `Each other section can have up to ${L.extraItems} items.`],
     [prefs.roles.length === 0 || prefs.roles.length > L.roles, `Add 1 to ${L.roles} roles.`],

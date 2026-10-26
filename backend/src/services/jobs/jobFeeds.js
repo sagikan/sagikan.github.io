@@ -7,6 +7,7 @@ const { areasFor, areaScore, tidyLocation } = require("./locations");
 const REFRESH_HOURS = 6;
 const DISCOVERY_HOURS = 24;
 const MAX_AGE_DAYS = 90;
+const MAX_LINK = 500;
 const AGGREGATOR_UNSEEN_DAYS = 14;
 const JSEARCH_HOURS = 24;
 const JSEARCH_MAX_QUERIES = Math.max(1, Number(process.env.JSEARCH_MAX_QUERIES) || 6);
@@ -361,7 +362,8 @@ async function refreshBoard(board, areas = null) {
         const tidy = tidyLocation(job.location);
 
         return { ...job, url: cleanUrl(job.url), location: tidy.location, workplace: job.workplace || tidy.workplace };
-      });
+      })
+      .filter((job) => job.url.length <= MAX_LINK);
     const openIds = open.map((job) => String(job.externalId).slice(0, 200));
     const closedUrls = provider.aggregator ? await knownClosed(open.map((job) => job.url)) : new Set();
     const postings = open.filter((job) =>
@@ -389,10 +391,10 @@ async function refreshBoard(board, areas = null) {
           board.id,
           column((job) => String(job.externalId).slice(0, 200)),
           column((job) => String(job.company || board.company || board.token).slice(0, 200)),
-          column((job) => String(job.title).trim().slice(0, 300)),
-          column((job) => String(job.location || "").slice(0, 300)),
+          column((job) => String(job.title).trim().slice(0, 200)),
+          column((job) => String(job.location || "").slice(0, 200)),
           column((job) => job.workplace),
-          column((job) => String(job.url).slice(0, 1000)),
+          column((job) => String(job.url).slice(0, MAX_LINK)),
           column((job) => String(job.description || "").slice(0, DESCRIPTION_LIMIT)),
           column((job) => job.postedAt),
           startedAt

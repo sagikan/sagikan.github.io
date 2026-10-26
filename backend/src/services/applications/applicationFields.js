@@ -11,7 +11,7 @@ const APPLICATION_FIELDS = `
 const STATUSES = ["Applied", "Interview", "Offer", "Rejected", "Withdrawn"];
 const WORKPLACE_MODELS = ["On-site", "Hybrid", "Remote"];
 const MAX_APPLICATIONS = 5000;
-const MAX_LENGTH = { company: 200, position: 200, location: 200, job_url: 1000, notes: 5000 };
+const MAX_LENGTH = { company: 200, position: 200, location: 200, job_url: 500, notes: 5000 };
 
 // Checks whether a value is an http(s) URL
 function isWebUrl(value) {
