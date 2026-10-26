@@ -1,6 +1,8 @@
 import CodeInput from "./CodeInput";
 
+// Input for an authenticator code, or a recovery code instead
 function SecondFactorInput({ value, onChange, codeLabel = "Authentication code" }) {
+  // Switches between the authenticator and recovery code
   function toggle() {
     onChange({ useRecovery: !value.useRecovery, code: "", recoveryCode: "" });
   }

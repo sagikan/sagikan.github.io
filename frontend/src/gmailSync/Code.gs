@@ -1,7 +1,7 @@
-// Applicant Zero email sync.
-// Looks for job-related emails in your Gmail and sends them to your Applicant Zero account, which suggests
-// status updates for your applications. This script can only READ your mail (see appsscript.json);
-// it never changes it.
+/* Applicant Zero email sync.
+   Looks for job-related emails in your Gmail and sends them to your Applicant Zero account, which suggests
+   status updates for your applications. This script can only READ your mail (see appsscript.json);
+   it never changes it */
 
 const API_URL = "__API_URL__";
 const TOKEN = "__TOKEN__";
@@ -11,11 +11,11 @@ const BATCH_SIZE = 20;
 const PAUSE_MS = 250;
 const RETRY_WAITS_S = [5, 15, 45];
 const QUERY =
-  '(application OR applied OR candidacy OR candidate OR interview OR recruiter OR recruiting ' +
-  'OR hiring OR position OR "next steps" OR assessment OR offer OR unfortunately OR regret) ' +
-  '-category:promotions -category:social -in:spam -in:trash -in:drafts -from:me';
+  "(application OR applied OR candidacy OR candidate OR interview OR recruiter OR recruiting " +
+  "OR hiring OR position OR \"next steps\" OR assessment OR offer OR unfortunately OR regret) " +
+  "-category:promotions -category:social -in:spam -in:trash -in:drafts -from:me";
 
-// Run this once. It checks the connection, then schedules a sync every 12 hours.
+// Run this once. It checks the connection, then schedules a sync every 12 hours
 function setup() {
   post_({ messages: [] });
 
@@ -27,6 +27,7 @@ function setup() {
   sync();
 }
 
+// Runs the sync twice a day, at 10:00 and 22:00
 function schedule() {
   ScriptApp.getProjectTriggers().forEach(function (trigger) {
     ScriptApp.deleteTrigger(trigger);
@@ -43,12 +44,12 @@ function schedule() {
   });
 }
 
+// Sends new job emails to Applicant Zero
 function sync() {
   const properties = PropertiesService.getScriptProperties();
   const lastRun = Number(properties.getProperty("lastRun"));
   const startedAt = Math.floor(Date.now() / 1000);
   const after = lastRun ? lastRun - 3600 : startedAt - FIRST_RUN_DAYS * 86400;
-
   const listed = listIds_(QUERY + " after:" + after);
   const ids = unknownIds_(listed);
   let complete = listed.length < MAX_PER_RUN;
@@ -80,6 +81,7 @@ function sync() {
   }
 }
 
+// Lists the IDs of messages that match a search
 function listIds_(query) {
   const ids = [];
   let pageToken;
@@ -95,6 +97,7 @@ function listIds_(query) {
   return ids.slice(0, MAX_PER_RUN);
 }
 
+// Keeps the IDs the server hasn't seen yet
 function unknownIds_(ids) {
   let unknown = [];
 
@@ -105,6 +108,7 @@ function unknownIds_(ids) {
   return unknown;
 }
 
+// Fetches a message, retrying when Gmail is busy
 function getMessage_(id) {
   for (let attempt = 0; ; attempt++) {
     try {
@@ -123,6 +127,7 @@ function getMessage_(id) {
   }
 }
 
+// Reads a message's date, sender, subject and body
 function readMessage_(id) {
   const message = getMessage_(id);
 
@@ -148,6 +153,7 @@ function readMessage_(id) {
   };
 }
 
+// Finds the data of the first part with the given type
 function findPart_(messageId, part, mimeType) {
   if (part.mimeType === mimeType && part.body) {
     if (part.body.data) {
@@ -172,6 +178,7 @@ function findPart_(messageId, part, mimeType) {
   return null;
 }
 
+// Decodes a message part's data into text
 function decode_(data) {
   if (typeof data !== "string") {
     return Utilities.newBlob(data).getDataAsString("UTF-8");
@@ -190,6 +197,7 @@ function decode_(data) {
   }
 }
 
+// Turns HTML into plain text
 function stripHtml_(html) {
   return html
     .replace(/<(style|script)[\s\S]*?<\/\1>/gi, " ")
@@ -198,6 +206,7 @@ function stripHtml_(html) {
     .replace(/&amp;/g, "&");
 }
 
+// Sends a request to the Applicant Zero API
 function post_(payload) {
   const response = UrlFetchApp.fetch(API_URL + "/api/email/ingest", {
     method: "post",

@@ -1,19 +1,14 @@
 import { Fragment, useMemo, useRef, useState } from "react";
-import { downloadApplicationsCsv } from "../utils/exportCsv";
-import { STATUSES, formatDate, jobDay, localISO, toDateInput } from "../api";
-import ApplicationForm from "../components/ApplicationForm";
-import CompanyAvatar from "../components/CompanyAvatar";
-import Modal from "../components/Modal";
-import ApplicationStats from "../components/ApplicationStats";
+import { downloadApplicationsCsv } from "../utils/applications/exportCsv";
+import { STATUSES, formatDate, jobDay, localISO, toDateInput } from "../lib/api";
+import ApplicationForm from "../components/applications/ApplicationForm";
+import CompanyAvatar from "../components/ui/CompanyAvatar";
+import Modal from "../components/ui/Modal";
+import ApplicationStats from "../components/applications/ApplicationStats";
 import { downloadSavedCv } from "../utils/resume/cvPdf";
-import Alert from "../components/Alert";
+import Alert from "../components/ui/Alert";
 
 const STATUS_ORDER = ["Offer", "Interview", "Applied", "Rejected", "Withdrawn"];
-
-const byNewest = (a, b) => sortDate(b).localeCompare(sortDate(a));
-
-const byStatus = (a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status);
-
 const SORTS = {
   newestStatus: {
     label: "Newest First + Status",
@@ -33,26 +28,43 @@ const DATE_RANGES = [
   { key: "month", label: "Last Month", days: 30 }
 ];
 
+// Sorts applications newest first
+function byNewest(a, b) {
+  return sortDate(b).localeCompare(sortDate(a));
+}
+
+// Sorts applications by status
+function byStatus(a, b) {
+  return STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status);
+}
+
+// Returns the date an application is sorted by
 function sortDate(job) {
   return toDateInput(job.applied_at) || String(job.created_at || "");
 }
 
+// Returns the date a number of days ago
 function daysAgoISO(days) {
   const date = new Date();
   date.setDate(date.getDate() - days);
+
   return localISO(date);
 }
 
+// Describes how many hours ago something happened
 function hoursAgo(timestamp) {
   const hours = Math.floor((Date.now() - new Date(timestamp).getTime()) / 3600000);
+
   return hours < 1 ? "<1h" : `${hours}h`;
 }
 
+// Labels a day as Today, Yesterday or a date
 function dayLabel(day) {
   if (day === daysAgoISO(0)) return "Today";
   if (day === daysAgoISO(1)) return "Yesterday";
 
   const date = new Date(`${day}T00:00:00`);
+
   return date.toLocaleDateString(undefined, {
     weekday: "short",
     month: "short",
@@ -61,6 +73,7 @@ function dayLabel(day) {
   });
 }
 
+// Mail icon
 function MailIcon() {
   return (
     <svg className="mail-icon" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
@@ -70,6 +83,7 @@ function MailIcon() {
   );
 }
 
+// Mail icon with a popover about an email update
 function MailHint({ update }) {
   return (
     <span className="mail-hint" tabIndex={0}>
@@ -83,6 +97,7 @@ function MailHint({ update }) {
   );
 }
 
+// Chevron icon for collapsible days
 function Chevron() {
   return (
     <svg className="day-chevron" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
@@ -91,10 +106,12 @@ function Chevron() {
   );
 }
 
+// Shows an application status
 function StatusPill({ status }) {
   return <span className={`status-pill status-${status.toLowerCase()}`}>{status}</span>;
 }
 
+// Applications page with filters, email updates and the list by day
 function Applications({
   applications, emailUpdates, onResolveEmailUpdate, error, onDismissError, onSave, onDelete, onQuickStatus
 }) {
@@ -115,6 +132,7 @@ function Applications({
   const [cvError, setCvError] = useState("");
   const dateInput = useRef(null);
 
+  // Downloads the resume sent with an application
   async function downloadCv(job) {
     setCvBusyId(job.id);
     setCvError("");
@@ -128,6 +146,7 @@ function Applications({
     }
   }
 
+  // Collapses or expands a day
   function toggleDay(day) {
     setCollapsedDays((current) =>
       current.includes(day) ? current.filter((other) => other !== day) : [...current, day]
@@ -145,40 +164,39 @@ function Applications({
 
     return result;
   }, [emailUpdates.pending]);
-
   const unmatched = useMemo(
     () => emailUpdates.pending.filter((update) => !update.application_id),
     [emailUpdates.pending]
   );
-
   const flagged = useMemo(() => {
     const byId = new Map(applications.map((job) => [job.id, job]));
+
     return [...pendingByApp.keys()].map((id) => byId.get(id)).filter(Boolean);
   }, [applications, pendingByApp]);
-
   const listed = useMemo(
     () => applications.filter((job) => !pendingByApp.has(job.id)),
     [applications, pendingByApp]
   );
-
   const dateScoped = useMemo(() => {
     if (dateRange === "date") {
       return listed.filter((job) => jobDay(job) === pickedDate);
     }
 
     const range = DATE_RANGES.find((option) => option.key === dateRange);
+
     if (!range.days) {
       return listed;
     }
 
     const from = daysAgoISO(range.days - 1);
     const to = daysAgoISO(0);
+
     return listed.filter((job) => {
       const day = jobDay(job);
+
       return day >= from && day <= to;
     });
   }, [listed, dateRange, pickedDate]);
-
   const searched = useMemo(() => {
     const search = query.trim().toLowerCase();
 
@@ -190,22 +208,20 @@ function Applications({
       (job.notes || "").toLowerCase().includes(search)
     );
   }, [dateScoped, query]);
-
   const counts = useMemo(() => {
     const result = Object.fromEntries(STATUSES.map((status) => [status, 0]));
     searched.forEach((job) => {
       result[job.status] = (result[job.status] || 0) + 1;
     });
+
     return result;
   }, [searched]);
-
   const visible = useMemo(
     () => searched
       .filter((job) => statusFilter === "All" || job.status === statusFilter)
       .sort(SORTS[sort].compare),
     [searched, statusFilter, sort]
   );
-
   const showDayHeaders = GROUPED_SORTS.includes(sort) && (dateRange === "week" || dateRange === "month" || dateRange === "all");
   const hideCardDate = GROUPED_SORTS.includes(sort) || dateRange === "today";
   const dayCounts = useMemo(() => {
@@ -213,11 +229,14 @@ function Applications({
     visible.forEach((job) => {
       result[jobDay(job)] = (result[jobDay(job)] || 0) + 1;
     });
+
     return result;
   }, [visible]);
 
+  // Opens the date picker
   function openDatePicker() {
     const input = dateInput.current;
+
     try {
       input.showPicker();
     } catch {
@@ -227,6 +246,7 @@ function Applications({
 
   const total = applications.length;
 
+  // Resolves an email update and shows any error
   async function resolveUpdate(id, action, body) {
     setResolvingId(id);
     setReviewError("");
@@ -237,6 +257,7 @@ function Applications({
     setReviewError(message);
   }
 
+  // Opens the form to add an application from an email update
   function addFromUpdate(update) {
     setEditing({
       eventId: update.id,
@@ -246,6 +267,7 @@ function Applications({
     });
   }
 
+  // Saves the form and resolves its email update, if any
   async function handleSubmit(fields) {
     const message = await onSave(editing === "new" ? null : editing.id, fields);
 
@@ -260,6 +282,7 @@ function Applications({
     return message;
   }
 
+  // Renders the accept and dismiss buttons for an update
   function renderDecision(update, { primary = "accept" } = {}) {
     const busy = resolvingId === update.id;
 
@@ -309,12 +332,14 @@ function Applications({
     );
   }
 
+  // Renders the application choices for an unclear update
   function renderChoices(update) {
     const options = update.candidate_ids
       .map((id) => applications.find((job) => job.id === id))
       .filter(Boolean);
     const busy = resolvingId === update.id;
 
+    // Applies the update to the chosen application
     function choose(job) {
       setMoreOpenId(null);
       resolveUpdate(update.id, "accept", { applicationId: job.id });
@@ -369,6 +394,7 @@ function Applications({
     );
   }
 
+  // Renders an application card
   function renderCard(job, hidden = false) {
     const update = pendingByApp.get(job.id);
 
@@ -730,6 +756,7 @@ function Applications({
             aria-label="Choose a single date"
             onChange={(event) => {
               const value = event.target.value;
+
               if (value) {
                 const isToday = value === daysAgoISO(0);
                 setPickedDate(isToday ? "" : value);

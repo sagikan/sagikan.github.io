@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import CodeInput from "./CodeInput";
-import Alert from "../Alert";
+import Alert from "../ui/Alert";
 
+// Shows the authenticator QR code and confirms the first code
 function MfaSetupStep({
   request,
   onConfirmed,
@@ -32,6 +33,7 @@ function MfaSetupStep({
     });
   }, [request]);
 
+  // Copies the authenticator secret
   async function handleCopy() {
     try {
       await navigator.clipboard.writeText(setup.secret.replace(/\s/g, ""));
@@ -42,6 +44,7 @@ function MfaSetupStep({
     }
   }
 
+  // Confirms the authenticator code
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");

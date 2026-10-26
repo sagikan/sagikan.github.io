@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Modal from "../Modal";
+import Modal from "../ui/Modal";
 import CvEditor from "./CvEditor";
 import JobDetails from "./JobDetails";
-import { apiRequest, apiUpload } from "../../api";
+import { apiRequest, apiUpload } from "../../lib/api";
 import { downloadBlob, makeTailoredPdf } from "../../utils/resume/cvPdf";
 import { renderFirstPage } from "../../utils/resume/pdfPreview";
-import Alert from "../Alert";
+import Alert from "../ui/Alert";
 import { countChanges } from "../../utils/resume/cvChanges";
 import { MAX_GRADES_MB, checkPdf } from "../../utils/resume/pdfFiles";
 import { useDismiss } from "../../hooks/useDismiss";
@@ -13,7 +13,13 @@ import { useDismiss } from "../../hooks/useDismiss";
 const PREVIEW_WIDTH = 220;
 const PREVIEW_DELAY_MS = 300;
 const previews = new WeakMap();
+const CHECK = (
+  <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
+    <path d="M5 10.5l3.2 3.2L15 7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
 
+// Returns the cached first-page preview of a PDF
 function previewOf(pdf) {
   if (!previews.has(pdf)) {
     previews.set(pdf, renderFirstPage(pdf.blob, PREVIEW_WIDTH));
@@ -22,6 +28,7 @@ function previewOf(pdf) {
   return previews.get(pdf);
 }
 
+// Download button that previews the PDF on hover
 function DownloadButton({ primary, busy, disabled, pdfKey, getPdf, onClick }) {
   const [preview, setPreview] = useState(null);
   const [shown, setShown] = useState(false);
@@ -30,6 +37,7 @@ function DownloadButton({ primary, busy, disabled, pdfKey, getPdf, onClick }) {
 
   useEffect(() => () => clearTimeout(timer.current), []);
 
+  // Shows the preview after a short hover
   function show(event) {
     if (event.pointerType !== "mouse") return;
 
@@ -42,6 +50,7 @@ function DownloadButton({ primary, busy, disabled, pdfKey, getPdf, onClick }) {
       try {
         const pdf = await getPdf();
         const page = await previewOf(pdf);
+
         if (current === ticket.current) {
           setPreview({ key: pdfKey, status: "ready", ...page, fileName: pdf.fileName });
         }
@@ -51,6 +60,7 @@ function DownloadButton({ primary, busy, disabled, pdfKey, getPdf, onClick }) {
     }, PREVIEW_DELAY_MS);
   }
 
+  // Hides the preview
   function hide() {
     clearTimeout(timer.current);
     ticket.current++;
@@ -93,19 +103,25 @@ function DownloadButton({ primary, busy, disabled, pdfKey, getPdf, onClick }) {
   );
 }
 
+// Button and menu for attaching or uploading the grade sheet
 function GradeSheetButton({ gradeSheet, attached, disabled, csrfToken, onAttach, onUploaded, onError, onUnauthorized }) {
   const [open, setOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const ref = useRef(null);
   const inputRef = useRef(null);
+
+  // Closes the menu
   const close = useCallback(() => setOpen(false), []);
+
   useDismiss(open, close, ref);
 
+  // Uploads a new grade sheet
   async function upload(file) {
     const problem = checkPdf(file, MAX_GRADES_MB);
 
     if (problem) {
       onError(problem);
+
       return;
     }
 
@@ -117,11 +133,13 @@ function GradeSheetButton({ gradeSheet, attached, disabled, csrfToken, onAttach,
 
       if (response.status === 401) {
         onUnauthorized();
+
         return;
       }
 
       if (!response.ok) {
         onError(data.error || "Could not upload your grade sheet.");
+
         return;
       }
 
@@ -228,15 +246,11 @@ function GradeSheetButton({ gradeSheet, attached, disabled, csrfToken, onAttach,
   );
 }
 
-const CHECK = (
-  <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
-    <path d="M5 10.5l3.2 3.2L15 7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
+// Modal for tailoring, editing and downloading a resume for a job
 function TailorModal({ job, csrfToken, baseCv, gradeSheet, onGradeSheetChange, onClose, onTailored, onApply, onUnauthorized }) {
   const hasGradeSheet = Boolean(gradeSheet);
 
+  // Sends a request, handling an expired session
   const request = useCallback(async (path, options) => {
     const result = await apiRequest(path, options);
 
@@ -246,6 +260,7 @@ function TailorModal({ job, csrfToken, baseCv, gradeSheet, onGradeSheetChange, o
 
     return result;
   }, [onUnauthorized]);
+
   const [tailoring, setTailoring] = useState(null);
   const [cv, setCv] = useState(null);
   const [includeGrades, setIncludeGrades] = useState(false);
@@ -256,9 +271,9 @@ function TailorModal({ job, csrfToken, baseCv, gradeSheet, onGradeSheetChange, o
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState("");
   const started = useRef(false);
-
   const [editorKey, setEditorKey] = useState(0);
 
+  // Loads a saved tailoring into the editor
   const accept = useCallback((saved) => {
     setEditorKey((key) => key + 1);
     setTailoring(saved);
@@ -268,6 +283,7 @@ function TailorModal({ job, csrfToken, baseCv, gradeSheet, onGradeSheetChange, o
     setStatus("ready");
   }, [hasGradeSheet]);
 
+  // Asks the server to tailor the resume
   const generate = useCallback(async () => {
     setStatus("tailoring");
     setError("");
@@ -278,6 +294,7 @@ function TailorModal({ job, csrfToken, baseCv, gradeSheet, onGradeSheetChange, o
       if (!response.ok) {
         setError(data.error || "Could not tailor your resume.");
         setStatus(tailoring ? "ready" : "failed");
+
         return;
       }
 
@@ -315,6 +332,7 @@ function TailorModal({ job, csrfToken, baseCv, gradeSheet, onGradeSheetChange, o
     })();
   }, [job.id, accept, generate, request]);
 
+  // Saves the edited tailoring
   async function save() {
     const { response, data } = await request(`/api/jobs/${job.id}/tailoring`, {
       method: "PUT",
@@ -329,9 +347,11 @@ function TailorModal({ job, csrfToken, baseCv, gradeSheet, onGradeSheetChange, o
     setTailoring(data.tailoring);
     setCv(data.tailoring.cv);
     setDirty(false);
+
     return data.tailoring;
   }
 
+  // Runs an action while showing its busy state and errors
   async function run(label, action) {
     setBusy(label);
     setError("");
@@ -346,11 +366,15 @@ function TailorModal({ job, csrfToken, baseCv, gradeSheet, onGradeSheetChange, o
   }
 
   const pdfCache = useRef({ key: null, promise: null });
+
+  // Builds the cache key for a resume's PDF
   const pdfKeyOf = useCallback((source) => JSON.stringify([
     source, includeGrades, gradeSheet?.filename, gradeSheet?.uploaded_at
   ]), [includeGrades, gradeSheet]);
+
   const pdfKey = useMemo(() => pdfKeyOf(cv), [pdfKeyOf, cv]);
 
+  // Builds the resume PDF, reusing the last one if nothing changed
   const getPdf = useCallback((source = cv) => {
     const key = pdfKeyOf(source);
 
@@ -365,6 +389,7 @@ function TailorModal({ job, csrfToken, baseCv, gradeSheet, onGradeSheetChange, o
     return pdfCache.current.promise;
   }, [cv, includeGrades, pdfKeyOf]);
 
+  // Saves any changes and downloads the PDF
   const download = () => run("download", async () => {
     const saved = dirty || includeGrades !== tailoring.include_grade_sheet ? await save() : tailoring;
     const { blob, fileName } = await getPdf(saved.cv);
@@ -505,6 +530,7 @@ function TailorModal({ job, csrfToken, baseCv, gradeSheet, onGradeSheetChange, o
                     if (dirty || includeGrades !== tailoring.include_grade_sheet) {
                       await save();
                     }
+
                     await onApply(job);
                   })}
                 >

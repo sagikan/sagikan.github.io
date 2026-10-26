@@ -2,6 +2,7 @@ import { useState } from "react";
 
 const ROLES = { error: "alert", warning: "status", success: "status" };
 
+// Message box that can be dismissed
 function Alert({ type = "error", children, onDismiss, className = "" }) {
   const text = typeof children === "string" ? children : null;
   const [dismissed, setDismissed] = useState(undefined);

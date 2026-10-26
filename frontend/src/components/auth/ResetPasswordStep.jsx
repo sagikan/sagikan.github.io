@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import CodeInput from "./CodeInput";
 import NewPasswordFields from "./NewPasswordFields";
 import { newPasswordError } from "../../utils/auth/authForms";
-import Alert from "../Alert";
+import Alert from "../ui/Alert";
 
 const RESEND_SECONDS = 60;
 
+// Asks for the emailed code and a new password
 function ResetPasswordStep({ email, sentMessage, request, onReset }) {
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
@@ -22,9 +23,11 @@ function ResetPasswordStep({ email, sentMessage, request, onReset }) {
     }
 
     const timer = setTimeout(() => setCooldown((current) => current - 1), 1000);
+
     return () => clearTimeout(timer);
   }, [cooldown]);
 
+  // Resets the password
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
@@ -35,6 +38,7 @@ function ResetPasswordStep({ email, sentMessage, request, onReset }) {
 
     if (passwordError) {
       setError(passwordError);
+
       return;
     }
 
@@ -51,6 +55,7 @@ function ResetPasswordStep({ email, sentMessage, request, onReset }) {
     }
   }
 
+  // Sends a new reset code
   async function handleResend() {
     setError("");
 

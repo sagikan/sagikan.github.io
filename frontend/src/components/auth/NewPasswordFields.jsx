@@ -2,6 +2,7 @@ import { useState } from "react";
 import PasswordInput from "./PasswordInput";
 import { passwordRules } from "../../utils/auth/passwordRules";
 
+// Password and confirmation fields with the password rules
 function NewPasswordFields({ email, password, onPasswordChange, confirmPassword, onConfirmChange, submitted, label = "Password" }) {
   const [showRules, setShowRules] = useState(false);
   const rules = passwordRules(password, email);

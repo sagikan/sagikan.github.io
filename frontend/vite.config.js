@@ -1,14 +1,14 @@
-import react from '@vitejs/plugin-react'
-import { defineConfig, loadEnv } from 'vite'
+import react from "@vitejs/plugin-react";
+import { defineConfig, loadEnv } from "vite";
 
-// GitHub Pages can't send headers, so the CSP is a <meta> tag. Build-only: dev needs inline scripts.
+/* Builds the Content Security Policy for the built page
+   GitHub Pages can't send headers, so the CSP is a <meta> tag. Build-only: dev needs inline scripts */
 function contentSecurityPolicy(apiUrl) {
   if (apiUrl && !URL.canParse(apiUrl)) {
     throw new Error(`VITE_API_URL is not a valid URL: ${apiUrl}`);
   }
 
   const apiOrigin = apiUrl ? new URL(apiUrl).origin : "";
-
   const policy = [
     "default-src 'self'",
     "script-src 'self'",

@@ -1,22 +1,21 @@
 import { useMemo } from "react";
-import { STATUSES } from "../api";
+import { STATUSES } from "../../lib/api";
 import { PulseChart, WorkMix } from "./StatCharts";
 
+// Shows the stat cards, charts and status breakdown
 function ApplicationStats({ applications }) {
   const total = applications.length;
-
   const overall = useMemo(() => {
     const result = Object.fromEntries(STATUSES.map((status) => [status, 0]));
     applications.forEach((job) => {
       result[job.status] = (result[job.status] || 0) + 1;
     });
+
     return result;
   }, [applications]);
-
   const active = overall.Applied + overall.Interview;
   const responded = overall.Interview + overall.Offer + overall.Rejected;
   const responseRate = total ? Math.round((responded / total) * 100) : 0;
-
   const stats = [
     { label: "Total", value: total },
     { label: "In Progress", value: active },

@@ -1,11 +1,13 @@
 import { useEffect, useRef } from "react";
 
+// Dialog that closes on Escape or a backdrop click
 function Modal({ title, onClose, children, wide = false }) {
   const dialogRef = useRef(null);
 
   useEffect(() => {
     const dialog = dialogRef.current;
     dialog.showModal();
+
     return () => dialog.close();
   }, []);
 

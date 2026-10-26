@@ -1,5 +1,6 @@
 import Logo from "./Logo";
 
+// Top navigation bar
 function Navbar({ route, authenticated, email, onLogout }) {
   return (
     <header className="navbar">

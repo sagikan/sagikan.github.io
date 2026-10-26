@@ -1,3 +1,4 @@
+// Input for a 6-digit code
 function CodeInput({ value, onChange, label = "6-digit code" }) {
   return (
     <label className="field">

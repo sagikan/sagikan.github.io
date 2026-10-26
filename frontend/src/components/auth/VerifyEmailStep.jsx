@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import CodeInput from "./CodeInput";
-import Alert from "../Alert";
+import Alert from "../ui/Alert";
 
 const RESEND_SECONDS = 60;
 
+// Asks for the email verification code
 function VerifyEmailStep({ request, onNext, emailSent }) {
   const [code, setCode] = useState("");
   const [error, setError] = useState(emailSent ? "" : "We couldn't send the verification email. Try resending it.");
@@ -17,9 +18,11 @@ function VerifyEmailStep({ request, onNext, emailSent }) {
     }
 
     const timer = setTimeout(() => setCooldown((current) => current - 1), 1000);
+
     return () => clearTimeout(timer);
   }, [cooldown]);
 
+  // Verifies the email code
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
@@ -38,6 +41,7 @@ function VerifyEmailStep({ request, onNext, emailSent }) {
     }
   }
 
+  // Sends a new verification code
   async function handleResend() {
     setError("");
     setInfo("");

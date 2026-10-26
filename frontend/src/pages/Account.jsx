@@ -3,23 +3,25 @@ import MfaSetupStep from "../components/auth/MfaSetupStep";
 import PasswordInput from "../components/auth/PasswordInput";
 import RecoveryCodesStep from "../components/auth/RecoveryCodesStep";
 import SecondFactorInput from "../components/auth/SecondFactorInput";
-import { API_URL, apiRequest } from "../api";
-import appsScript from "../emailSync/Code.gs?raw";
-import appsScriptManifest from "../emailSync/appsscript.json?raw";
+import { API_URL, apiRequest } from "../lib/api";
+import appsScript from "../gmailSync/Code.gs?raw";
+import appsScriptManifest from "../gmailSync/appsscript.json?raw";
 import { emptySecondFactor, isSecondFactorComplete, secondFactorBody } from "../utils/auth/authForms";
-import Alert from "../components/Alert";
+import Alert from "../components/ui/Alert";
 
 const LOW_RECOVERY_CODES = 3;
 const COPIED_LABEL_MS = 2000;
-const NO_EMAIL_SYNC = { connected: false, autoUpdate: false, lastIngestAt: null, classifierConfigured: true };
+const NO_GMAIL_SYNC = { connected: false, autoUpdate: false, lastIngestAt: null, classifierConfigured: true };
 
+// Account page with email sync and security settings
 function Account({ csrfToken, onSessionChanged, onUnauthorized, onDeleted }) {
   const [recoveryCodesLeft, setRecoveryCodesLeft] = useState(null);
-  const [emailSync, setEmailSync] = useState(NO_EMAIL_SYNC);
+  const [gmailSync, setGmailSync] = useState(NO_GMAIL_SYNC);
   const [loadError, setLoadError] = useState("");
   const [panel, setPanel] = useState(null);
   const [success, setSuccess] = useState("");
 
+  // Sends a request, handling an expired session
   const request = useCallback(async (path, body) => {
     try {
       const { response, data } = await apiRequest(path, {
@@ -62,7 +64,7 @@ function Account({ csrfToken, onSessionChanged, onUnauthorized, onDeleted }) {
 
     request("/api/email/status").then((result) => {
       if (!ignore && result.ok) {
-        setEmailSync(result.data);
+        setGmailSync(result.data);
       }
     });
 
@@ -71,11 +73,13 @@ function Account({ csrfToken, onSessionChanged, onUnauthorized, onDeleted }) {
     };
   }, [request, refreshKey]);
 
+  // Opens a settings panel
   function openPanel(next) {
     setSuccess("");
     setPanel(next);
   }
 
+  // Closes the panel, shows a message and reloads the settings
   function closePanel(message = "") {
     setPanel(null);
     setSuccess(message);
@@ -152,8 +156,8 @@ function Account({ csrfToken, onSessionChanged, onUnauthorized, onDeleted }) {
           )}
         </section>
 
-        <EmailSyncCard
-          status={emailSync}
+        <GmailSyncCard
+          status={gmailSync}
           panel={panel}
           request={request}
           openPanel={openPanel}
@@ -196,6 +200,7 @@ function Account({ csrfToken, onSessionChanged, onUnauthorized, onDeleted }) {
   );
 }
 
+// Describes when email last synced
 function lastSyncLabel(lastIngestAt) {
   if (!lastIngestAt) {
     return "Waiting for the first sync";
@@ -209,10 +214,12 @@ function lastSyncLabel(lastIngestAt) {
   })}`;
 }
 
-function EmailSyncCard({ status, panel, request, openPanel, setPanel, closePanel }) {
+// Card for connecting and managing Gmail sync
+function GmailSyncCard({ status, panel, request, openPanel, setPanel, closePanel }) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // Turns automatic status updates on or off
   async function toggleAutoUpdate(event) {
     setError("");
     setSaving(true);
@@ -228,6 +235,7 @@ function EmailSyncCard({ status, panel, request, openPanel, setPanel, closePanel
     }
   }
 
+  // Disconnects Gmail sync
   async function disconnect() {
     setError("");
 
@@ -302,7 +310,7 @@ function EmailSyncCard({ status, panel, request, openPanel, setPanel, closePanel
       )}
 
       {panel === "email" && (
-        <EmailSyncSetupPanel
+        <GmailSyncSetupPanel
           request={request}
           replacing={status.connected}
           onCancel={() => setPanel(null)}
@@ -313,12 +321,14 @@ function EmailSyncCard({ status, panel, request, openPanel, setPanel, closePanel
   );
 }
 
+// Text block with a copy button
 function CopyBlock({ label, text }) {
   const [copied, setCopied] = useState(false);
   const resetTimer = useRef(null);
 
   useEffect(() => () => clearTimeout(resetTimer.current), []);
 
+  // Copies the text
   async function copy() {
     clearTimeout(resetTimer.current);
 
@@ -344,7 +354,8 @@ function CopyBlock({ label, text }) {
   );
 }
 
-function EmailSyncSetupPanel({ request, replacing, onCancel, onDone }) {
+// Steps for setting up the Gmail sync script
+function GmailSyncSetupPanel({ request, replacing, onCancel, onDone }) {
   const [confirmed, setConfirmed] = useState(!replacing);
   const [error, setError] = useState("");
   const [token, setToken] = useState("");
@@ -437,12 +448,14 @@ function EmailSyncSetupPanel({ request, replacing, onCancel, onDone }) {
   );
 }
 
+// Panel for creating new recovery codes
 function RegenerateCodesPanel({ request, onCancel, onDone }) {
   const [factor, setFactor] = useState(emptySecondFactor);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [codes, setCodes] = useState(null);
 
+  // Creates new recovery codes
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
@@ -485,6 +498,7 @@ function RegenerateCodesPanel({ request, onCancel, onDone }) {
   );
 }
 
+// Panel for moving 2FA to a new authenticator
 function ResetAuthenticatorPanel({ request, onSessionChanged, onCancel, onDone }) {
   const [stage, setStage] = useState("verify");
   const [password, setPassword] = useState("");
@@ -494,6 +508,7 @@ function ResetAuthenticatorPanel({ request, onSessionChanged, onCancel, onDone }
   const [setup, setSetup] = useState(null);
   const [codes, setCodes] = useState([]);
 
+  // Checks the password and second factor
   async function handleVerify(event) {
     event.preventDefault();
     setError("");
@@ -513,6 +528,7 @@ function ResetAuthenticatorPanel({ request, onSessionChanged, onCancel, onDone }
     }
   }
 
+  // Shows the new recovery codes after the reset
   async function handleConfirmed(data) {
     await onSessionChanged();
     setCodes(data.recoveryCodes);
@@ -576,15 +592,16 @@ function ResetAuthenticatorPanel({ request, onSessionChanged, onCancel, onDone }
   );
 }
 
+// Panel for deleting the account
 function DeleteAccountPanel({ request, onCancel, onDeleted }) {
   const [password, setPassword] = useState("");
   const [factor, setFactor] = useState(emptySecondFactor);
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
   const confirmed = confirm === "DELETE";
 
+  // Deletes the account
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");

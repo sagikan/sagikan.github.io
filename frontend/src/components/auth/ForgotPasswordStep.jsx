@@ -1,11 +1,13 @@
 import { useState } from "react";
-import Alert from "../Alert";
+import Alert from "../ui/Alert";
 
+// Asks for the email to send a password reset code to
 function ForgotPasswordStep({ initialEmail, request, onSent }) {
   const [email, setEmail] = useState(initialEmail);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Requests the password reset code
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");

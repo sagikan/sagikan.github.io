@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import CompanyAvatar from "../components/CompanyAvatar";
+import CompanyAvatar from "../components/ui/CompanyAvatar";
 import AddJobModal from "../components/jobs/AddJobModal";
 import ProfileModal from "../components/jobs/ProfileModal";
 import TailorModal from "../components/jobs/TailorModal";
 import JobDetails, { MatchSkills, PostedDate, ScoreRing } from "../components/jobs/JobDetails";
 import { CALENDAR_ICON, EXTERNAL_ICON, PIN_ICON, postingAge } from "../components/jobs/jobInfo";
-import { apiRequest, localISO, toDateInput } from "../api";
+import { apiRequest, localISO, toDateInput } from "../lib/api";
 import { downloadSavedCv } from "../utils/resume/cvPdf";
-import Alert from "../components/Alert";
+import Alert from "../components/ui/Alert";
 
 const POLL_MS = 5000;
 const DATE_RANGES = [
@@ -17,6 +17,7 @@ const DATE_RANGES = [
   { key: "month", label: "Last Month", days: 30 }
 ];
 
+// Describes how long ago a time was
 function timeAgo(value, now) {
   const minutes = Math.floor((now - new Date(value).getTime()) / 60000);
 
@@ -27,14 +28,17 @@ function timeAgo(value, now) {
   if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
 
   const days = Math.floor(hours / 24);
+
   return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
+// Button that starts a search and shows when the last one ran
 function SyncButton({ search, onSearch }) {
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 30_000);
+
     return () => clearInterval(timer);
   }, []);
 
@@ -62,6 +66,7 @@ function SyncButton({ search, onSearch }) {
   );
 }
 
+// Section heading that collapses its content
 function SectionToggle({ title, count, open, onToggle, children }) {
   return (
     <div className="jobs-section-head">
@@ -80,6 +85,7 @@ function SectionToggle({ title, count, open, onToggle, children }) {
   );
 }
 
+// Runs a localStorage action, ignoring storage errors
 function storage(action) {
   try {
     return action(localStorage);
@@ -88,27 +94,34 @@ function storage(action) {
   }
 }
 
+// Remembers whether a section is open
 function useRememberedOpen(key) {
   const [open, setOpen] = useState(() => storage((store) => store.getItem(key)) !== "closed");
 
+  // Toggles the section and saves its state
   const toggle = () => setOpen((value) => {
     storage((store) => store.setItem(key, value ? "closed" : "open"));
+
     return !value;
   });
 
   return [open, toggle];
 }
 
+// Returns the day a job was posted
 function jobPostedDay(job) {
   return toDateInput(job.posted_at) || (job.created_at ? localISO(new Date(job.created_at)) : "");
 }
 
+// Returns the date a number of days ago
 function daysAgoISO(days) {
   const date = new Date();
   date.setDate(date.getDate() - days);
+
   return localISO(date);
 }
 
+// Checks whether a job was posted within a date range
 function inDateRange(job, rangeKey) {
   const range = DATE_RANGES.find((option) => option.key === rangeKey);
 
@@ -117,9 +130,11 @@ function inDateRange(job, rangeKey) {
   }
 
   const day = jobPostedDay(job);
+
   return day >= daysAgoISO(range.days - 1) && day <= daysAgoISO(0);
 }
 
+// Card for a job with its actions
 function JobCard({ job, onTailor, onApply, onDismiss, onDownload }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -237,6 +252,7 @@ function JobCard({ job, onTailor, onApply, onDismiss, onDownload }) {
   );
 }
 
+// Jobs page with the profile, search and job list
 function Jobs({ csrfToken, onApplied, onUnauthorized }) {
   const [profile, setProfile] = useState(null);
   const [jobs, setJobs] = useState([]);
@@ -246,6 +262,7 @@ function Jobs({ csrfToken, onApplied, onUnauthorized }) {
   const [modal, setModal] = useState(null);
   const autoSearched = useRef(false);
 
+  // Sends a request, handling an expired session
   const request = useCallback(async (path, options = {}) => {
     const result = await apiRequest(path, { ...options, csrfToken });
 
@@ -256,6 +273,7 @@ function Jobs({ csrfToken, onApplied, onUnauthorized }) {
     return result;
   }, [csrfToken, onUnauthorized]);
 
+  // Loads the jobs and search status
   const loadJobs = useCallback(async () => {
     const { response, data } = await request("/api/jobs");
 
@@ -267,6 +285,7 @@ function Jobs({ csrfToken, onApplied, onUnauthorized }) {
     return response.ok;
   }, [request]);
 
+  // Starts a search
   const startSearch = useCallback(async (auto) => {
     setError("");
 
@@ -275,6 +294,7 @@ function Jobs({ csrfToken, onApplied, onUnauthorized }) {
 
       if (!response.ok) {
         setError(data.error || "Could not start a search.");
+
         return;
       }
 
@@ -291,6 +311,7 @@ function Jobs({ csrfToken, onApplied, onUnauthorized }) {
 
         if (!profileResult.response.ok) {
           setError(profileResult.data.error || "Could not load your profile.");
+
           return;
         }
 
@@ -322,11 +343,13 @@ function Jobs({ csrfToken, onApplied, onUnauthorized }) {
     return () => clearInterval(timer);
   }, [search?.running, loadJobs]);
 
+  // Updates a job in the list and the open modal
   function updateJob(id, patch) {
     setJobs((current) => current.map((job) => (job.id === id ? { ...job, ...patch } : job)));
     setModal((current) => (current?.job?.id === id ? { ...current, job: { ...current.job, ...patch } } : current));
   }
 
+  // Dismisses a job
   async function dismiss(job) {
     setJobs((current) => current.filter((other) => other.id !== job.id));
 
@@ -342,6 +365,7 @@ function Jobs({ csrfToken, onApplied, onUnauthorized }) {
     }
   }
 
+  // Marks a job as applied
   async function apply(job) {
     setError("");
 
@@ -363,6 +387,7 @@ function Jobs({ csrfToken, onApplied, onUnauthorized }) {
     }
   }
 
+  // Downloads the saved resume for a job
   async function downloadCv(job) {
     try {
       await downloadSavedCv(job.id);
@@ -371,6 +396,7 @@ function Jobs({ csrfToken, onApplied, onUnauthorized }) {
     }
   }
 
+  // Saves the profile, closes its modal and starts the first search
   function profileSaved(next, { keepOpen = false } = {}) {
     const firstProfile = !profile?.cv && next.cv;
     setProfile(next);

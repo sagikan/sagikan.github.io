@@ -100,7 +100,7 @@ html {
   }
 }
 
-/* No background: it would cover the side margin pattern (:root paints the page color). */
+/* No background: it would cover the side margin pattern (:root paints the page color) */
 body {
   margin: 0;
   min-height: calc(100vh / var(--zoom));
@@ -537,7 +537,7 @@ textarea {
 
 /* Landing */
 
-/* clip, not hidden: it still stops sideways overflow, but lets the feature tabs stay pinned. */
+/* clip, not hidden: it still stops sideways overflow, but lets the feature tabs stay pinned */
 .landing {
   flex: 1;
   overflow-x: clip;
@@ -574,7 +574,7 @@ textarea {
   pointer-events: none;
 }
 
-/* Stays in Inter: the pixel zeros are sized to Inter's capitals. */
+/* Stays in Inter: the pixel zeros are sized to Inter's capitals */
 .hero h1 {
   font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
   font-size: clamp(3.2rem, 5.4vw, 3.6rem);
@@ -593,7 +593,7 @@ textarea {
   padding-right: 0.04em;
 }
 
-/* As tall as Inter's capitals (0.73em), on the baseline. */
+/* As tall as Inter's capitals (0.73em), on the baseline */
 .pixel-o {
   display: inline-block;
   position: relative;
@@ -800,7 +800,7 @@ textarea {
   color: #fff;
 }
 
-/* On the baseline and as tall as Sora's capitals (0.73em): centering would drift a pixel at some zooms. */
+/* On the baseline and as tall as Sora's capitals (0.73em): centering would drift a pixel at some zooms */
 .feature-tab-num {
   display: inline-flex;
   flex-shrink: 0;
@@ -1673,12 +1673,12 @@ textarea {
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-/* Selects ignore line-height, so both get a set height (one line + padding + border). */
+/* Selects ignore line-height, so both get a set height (one line + padding + border) */
 .field :where(input:not([type="checkbox"], [type="radio"], [type="file"]), select) {
   height: calc(1.55em + 22px);
 }
 
-/* The built-in arrow can't be moved, so it's swapped for an inset chevron. */
+/* The built-in arrow can't be moved, so it's swapped for an inset chevron */
 .field select {
   padding-right: 38px;
   appearance: none;
@@ -2937,7 +2937,7 @@ textarea {
   box-shadow: var(--shadow-lg);
 }
 
-/* Slim scrollbars for windows and panels. Firefox only supports a thin, colored one. */
+/* Slim scrollbars for windows and panels. Firefox only supports a thin, colored one */
 .modal,
 .drawer-body {
   --scroll-thumb: color-mix(in srgb, var(--text-muted) 32%, transparent);
@@ -3407,7 +3407,7 @@ textarea {
     white-space: normal;
   }
 
-  /* Feature tabs aren't shrunk here, or their names would fit again and flip back from numbers. */
+  /* Feature tabs aren't shrunk here, or their names would fit again and flip back from numbers */
 }
 
 @media (max-width: 380px) {

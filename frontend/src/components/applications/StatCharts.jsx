@@ -1,5 +1,5 @@
 import { Fragment, useMemo, useState } from "react";
-import { WORKPLACE_MODELS, jobDay, localISO } from "../api";
+import { WORKPLACE_MODELS, jobDay, localISO } from "../../lib/api";
 
 const PULSE_RANGES = [
   { key: "week", label: "Week", days: 7, bucket: 1, greenAt: 12 },
@@ -22,6 +22,7 @@ const TIP_EDGE = 0.15;
 const MIX_MIN_SHARE = 5;
 const MIX_GAP = 1.6;
 
+// Picks the pulse chart color for a point along the gradient
 function pulseColor(fraction, alpha = 1) {
   const position = Math.min(Math.max(fraction, 0), 1) * (PULSE_COLORS.length - 1);
   const from = Math.min(Math.floor(position), PULSE_COLORS.length - 2);
@@ -30,6 +31,7 @@ function pulseColor(fraction, alpha = 1) {
   return `rgb(${PULSE_COLORS[from].map((channel, i) => Math.round(channel + (PULSE_COLORS[from + 1][i] - channel) * mix)).join(" ")} / ${alpha})`;
 }
 
+// Builds the fading fill under the leading point
 function leadFill(fraction, y) {
   const strength = PULSE_FILL_OPACITY * (1 - y / PULSE_BASELINE);
   const stops = FILL_STOPS.map((stop) => `${pulseColor(fraction * (1 - stop), strength * (1 - stop))} ${stop * 100}%`);
@@ -37,8 +39,10 @@ function leadFill(fraction, y) {
   return `linear-gradient(to bottom, ${stops.join(", ")})`;
 }
 
+// Formats a date as a short month and day
 const shortDate = (date) => date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 
+// Groups applications into chart points by day or week
 function pulsePoints(applications, { days, bucket }) {
   const perDay = new Map();
 
@@ -51,6 +55,7 @@ function pulsePoints(applications, { days, bucket }) {
   const dates = Array.from({ length: days }, (_, index) => {
     const date = new Date(today);
     date.setDate(today.getDate() - (days - 1 - index));
+
     return date;
   });
 
@@ -69,23 +74,21 @@ function pulsePoints(applications, { days, bucket }) {
   });
 }
 
-// `bare`: picture only (no title, range buttons or hover points), always the month view.
+/* Chart of applications over time
+   `bare`: picture only (no title, range buttons or hover points), always the month view */
 export function PulseChart({ applications, bare = false }) {
   const [rangeKey, setRangeKey] = useState("month");
   const range = PULSE_RANGES.find(({ key }) => key === rangeKey);
-
   const { points, line, total, greenY } = useMemo(() => {
     const perPoint = pulsePoints(applications, range);
     const most = Math.max(...perPoint.map(({ count }) => count), 1);
     const step = PULSE_WIDTH / perPoint.length;
-
     const points = perPoint.map(({ count, label }, index) => ({
       count,
       label,
       x: step * index + step / 2,
       y: PULSE_BASELINE - (count / most) * (PULSE_BASELINE - PULSE_TOP)
     }));
-
     const first = points[0];
     const last = points[points.length - 1];
     const line = [[0, first.y], ...points.map(({ x, y }) => [x, y]), [PULSE_WIDTH, last.y]];
@@ -196,6 +199,7 @@ export function PulseChart({ applications, bare = false }) {
   );
 }
 
+// Shows how applications split between workplace models
 export function WorkMix({ applications }) {
   const { models, slices } = useMemo(() => {
     const models = WORKPLACE_MODELS.map((model) => ({
@@ -208,7 +212,6 @@ export function WorkMix({ applications }) {
     const wantedSum = wanted.reduce((acc, { share }) => acc + share, 0);
     const gap = used.length > 1 ? MIX_GAP : 0;
     const arcs = wanted.map(({ share }) => (share / wantedSum) * 100);
-
     const slices = wanted.map(({ model }, index) => ({
       model,
       length: arcs[index] - gap,

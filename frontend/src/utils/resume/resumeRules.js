@@ -1,4 +1,4 @@
-// Limits and formatting for the resume form. The server checks the same limits.
+// Limits and formatting for the resume form. The server checks the same limits
 export const LIMITS = {
   links: 3,
   experience: 8,
@@ -18,16 +18,19 @@ export const LIMITS = {
 };
 export const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+// Capitalizes the first letter of each word
 export function titleCase(value) {
   return String(value ?? "")
     .toLowerCase()
     .replace(/(^|[\s-])(\p{L})/gu, (match, separator, letter) => separator + letter.toUpperCase());
 }
 
+// Keeps only digits, up to 15
 export function digitsOnly(value) {
   return String(value ?? "").replace(/\D/g, "").slice(0, 15);
 }
 
+// Splits a resume date into month and year
 export function parseMonth(value) {
   const text = String(value ?? "").trim();
 
@@ -47,6 +50,7 @@ export function parseMonth(value) {
   return { present: false, month, year };
 }
 
+// Turns a month and year into a resume date
 export function formatMonth({ present, month, year }) {
   if (present) {
     return "Present";
@@ -55,22 +59,31 @@ export function formatMonth({ present, month, year }) {
   return [month >= 0 ? MONTHS[month] : "", year].filter(Boolean).join(" ");
 }
 
+// Checks whether a date is complete
 function isFullMonth(value, allowPresent, monthOptional = false) {
   const parsed = parseMonth(value);
+
   return (allowPresent && parsed.present) || ((monthOptional || parsed.month >= 0) && Boolean(parsed.year));
 }
 
+// Turns a date into a sortable month number
 function monthNumber(value) {
   const parsed = parseMonth(value);
+
   return parsed.present ? Infinity : Number(parsed.year) * 12 + parsed.month;
 }
 
+// Checks whether a value isn't empty
 const filled = (value) => String(value ?? "").trim() !== "";
 
+// Returns a bullet's text
 const bulletText = (item) => (typeof item === "string" ? item : item.text);
 
+// Lists the problems that stop a resume from being saved
 export function resumeProblems(cv) {
   const problems = [];
+
+  // Adds a problem when a count is over its limit
   const over = (count, max, what) => count > max && problems.push(`${what}: ${count} of ${max} allowed. Remove ${count - max}.`);
 
   if (!filled(cv.name)) problems.push("Add your name.");
@@ -93,6 +106,7 @@ export function resumeProblems(cv) {
     if (!filled(entry.title) || !filled(entry.company)) problems.push(`${name}: add a title and a company.`);
     if (!isFullMonth(entry.start, false)) problems.push(`${name}: choose a start month and year.`);
     if (!isFullMonth(entry.end, true)) problems.push(`${name}: choose an end month and year, or Present.`);
+
     if (isFullMonth(entry.start, false) && isFullMonth(entry.end, true) && monthNumber(entry.end) < monthNumber(entry.start)) {
       problems.push(`${name}: the end date is before the start date.`);
     }
@@ -106,6 +120,7 @@ export function resumeProblems(cv) {
     const hasEnd = filled(entry.end);
 
     if (!filled(entry.name)) problems.push(`Project ${index + 1}: add a name.`);
+
     if ((hasStart && !isFullMonth(entry.start, false)) || (hasEnd && !isFullMonth(entry.end, true))) {
       problems.push(`${name}: choose both a month and a year for its dates.`);
     } else if (hasEnd && !hasStart) {
@@ -135,6 +150,7 @@ export function resumeProblems(cv) {
   return problems;
 }
 
+// Checks whether an entry has all required fields
 export function isEntryComplete(section, entry) {
   const hasStart = filled(entry.start);
   const hasEnd = filled(entry.end);
@@ -162,6 +178,7 @@ export function isEntryComplete(section, entry) {
   return true;
 }
 
+// Cleans a resume's fields for the editor
 export function formatResume(cv) {
   return {
     ...cv,

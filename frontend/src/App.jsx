@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { apiRequest, checkHealth } from "./api";
-import { navigate, redirect, useHashRoute } from "./router";
-import Navbar from "./components/Navbar";
-import Alert from "./components/Alert";
+import { apiRequest, checkHealth } from "./lib/api";
+import { navigate, redirect, useHashRoute } from "./lib/router";
+import Navbar from "./components/layout/Navbar";
+import Alert from "./components/ui/Alert";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Applications from "./pages/Applications";
@@ -18,6 +18,7 @@ const API_LABELS = {
   offline: "API offline"
 };
 
+// Root component: checks the session and routes between pages
 function App() {
   const route = useHashRoute();
   const [apiStatus, setApiStatus] = useState("checking");
@@ -30,6 +31,7 @@ function App() {
   const [error, setError] = useState("");
   const [flash, setFlash] = useState(null);
 
+  // Clears all signed-in state
   const clearSession = useCallback(() => {
     setAuthenticated(false);
     setApplications([]);
@@ -37,6 +39,7 @@ function App() {
     setCsrfToken("");
   }, []);
 
+  // Loads pending and recent email updates
   const loadEmailUpdates = useCallback(async () => {
     const result = await apiRequest("/api/email/events").catch(() => null);
 
@@ -45,18 +48,22 @@ function App() {
     }
   }, []);
 
+  // Fetches the CSRF token for the current session
   const refreshCsrfToken = useCallback(async () => {
     const { response, data } = await apiRequest("/api/auth/csrf");
 
     if (!response.ok) {
       setCsrfToken("");
+
       return false;
     }
 
     setCsrfToken(data.csrfToken);
+
     return true;
   }, []);
 
+  // Loads the signed-in user's email
   const loadUser = useCallback(async () => {
     const { response, data } = await apiRequest("/api/auth/me");
 
@@ -65,12 +72,14 @@ function App() {
     }
   }, []);
 
+  // Loads the user's applications
   const loadApps = useCallback(async () => {
     try {
       const { response, data } = await apiRequest("/api/applications");
 
       if (response.status === 401) {
         clearSession();
+
         return;
       }
 
@@ -88,6 +97,7 @@ function App() {
   }, [clearSession, loadEmailUpdates]);
 
   useEffect(() => {
+    // Checks the API and restores the session on first load
     async function initialize() {
       try {
         const result = await checkHealth();
@@ -95,6 +105,7 @@ function App() {
       } catch {
         setApiStatus("offline");
         setBooting(false);
+
         return;
       }
 
@@ -132,6 +143,7 @@ function App() {
       return;
     }
 
+    // Reloads email updates while the tab is visible
     const refresh = () => {
       if (!document.hidden) {
         loadEmailUpdates();
@@ -147,6 +159,7 @@ function App() {
     };
   }, [authenticated, route, loadEmailUpdates]);
 
+  // Loads the user's applications after sign-in and opens them
   async function completeLogin(userEmail) {
     setFlash(null);
     setEmail(userEmail);
@@ -164,6 +177,7 @@ function App() {
     navigate("/applications");
   }
 
+  // Logs out and returns to the home page
   async function handleLogout() {
     setError("");
 
@@ -185,6 +199,7 @@ function App() {
     }
   }
 
+  // Clears the session and shows a goodbye message after account deletion
   function handleAccountDeleted(message) {
     clearSession();
     setEmail("");
@@ -192,6 +207,7 @@ function App() {
     navigate("/");
   }
 
+  // Creates or updates an application and returns an error message, if any
   async function saveApp(id, fields) {
     try {
       const { response, data } = await apiRequest(
@@ -210,12 +226,14 @@ function App() {
       setApplications((current) =>
         id ? current.map((job) => (job.id === data.id ? data : job)) : [data, ...current]
       );
+
       return "";
     } catch {
       return "Could not reach the server. Please try again.";
     }
   }
 
+  // Deletes an application
   async function handleDeleteApp(id) {
     setError("");
 
@@ -239,6 +257,7 @@ function App() {
     }
   }
 
+  // Accepts, dismisses or undoes an email update
   async function resolveEmailUpdate(id, action, body = {}) {
     try {
       const { response, data } = await apiRequest(`/api/email/events/${id}/${action}`, {
@@ -260,12 +279,14 @@ function App() {
       }
 
       await loadEmailUpdates();
+
       return "";
     } catch {
       return "Could not reach the server. Please try again.";
     }
   }
 
+  // Changes an application's status from its card
   async function handleQuickStatus(id, status) {
     const message = await saveApp(id, { status });
     setError(message);

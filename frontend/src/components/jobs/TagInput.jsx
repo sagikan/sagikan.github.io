@@ -1,9 +1,11 @@
 import { useState } from "react";
 
+// Input that turns entries into removable tags
 function TagInput({ values, onChange, max, placeholder, label, splitOnComma = false }) {
   const [draft, setDraft] = useState("");
   const full = values.length >= max;
 
+  // Adds the typed values as tags, up to the limit
   function add(raw) {
     const parts = (splitOnComma ? raw.split(",") : [raw]).map((part) => part.trim()).filter(Boolean);
     const next = [...values];
@@ -27,6 +29,7 @@ function TagInput({ values, onChange, max, placeholder, label, splitOnComma = fa
         placeholder={full ? `Limit reached` : placeholder}
         onChange={(event) => {
           const value = event.target.value;
+
           if (splitOnComma && value.includes(",")) add(value);
           else setDraft(value);
         }}

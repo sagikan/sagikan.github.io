@@ -1,12 +1,13 @@
 import { useState } from "react";
-import Alert from "../Alert";
+import Alert from "../ui/Alert";
 
+// Shows new recovery codes and asks the user to save them
 function RecoveryCodesStep({ codes, onContinue, continueLabel = "Continue to my applications" }) {
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
-
   const text = codes.join("\n");
 
+  // Copies the recovery codes
   async function handleCopy() {
     try {
       await navigator.clipboard.writeText(text);
@@ -17,6 +18,7 @@ function RecoveryCodesStep({ codes, onContinue, continueLabel = "Continue to my 
     }
   }
 
+  // Downloads the recovery codes as a text file
   function handleDownload() {
     const url = URL.createObjectURL(new Blob([`Applicant Zero recovery codes\n\n${text}\n`], { type: "text/plain" }));
     const link = document.createElement("a");

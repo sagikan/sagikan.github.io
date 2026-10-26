@@ -1,13 +1,15 @@
 import { useState } from "react";
 import SecondFactorInput from "./SecondFactorInput";
 import { emptySecondFactor, isSecondFactorComplete, secondFactorBody } from "../../utils/auth/authForms";
-import Alert from "../Alert";
+import Alert from "../ui/Alert";
 
+// Asks for the authenticator or recovery code at sign-in
 function MfaVerifyStep({ request, onVerified, onModeChange }) {
   const [factor, setFactor] = useState(emptySecondFactor);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Checks the second factor
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");

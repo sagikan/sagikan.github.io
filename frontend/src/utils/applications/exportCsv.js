@@ -10,6 +10,7 @@ const COLUMNS = [
   ["created_at", "Added at"]
 ];
 
+// Escapes a value for a CSV cell
 function cell(value) {
   let text = value == null ? "" : String(value);
 
@@ -20,12 +21,12 @@ function cell(value) {
   return `"${text.replace(/"/g, '""')}"`;
 }
 
+// Downloads the applications as a CSV file
 export function downloadApplicationsCsv(applications) {
   const lines = [
     COLUMNS.map(([, label]) => cell(label)).join(","),
     ...applications.map((application) => COLUMNS.map(([key]) => cell(application[key])).join(","))
   ];
-
   const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");

@@ -65,6 +65,7 @@ const ICONS = {
 
 ICONS.recovery_codes = ICONS.recovery;
 
+// Shows the icon for a sign-in step
 function StepIcon({ name, size = 40 }) {
   return (
     <svg

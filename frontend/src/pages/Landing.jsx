@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import CompanyAvatar from "../components/CompanyAvatar";
-import { PixelDigit, PixelZero } from "../components/Logo";
-import { PulseChart } from "../components/StatCharts";
-import StatusBadge from "../components/StatusBadge";
+import CompanyAvatar from "../components/ui/CompanyAvatar";
+import { PixelDigit, PixelZero } from "../components/layout/Logo";
+import { PulseChart } from "../components/applications/StatCharts";
+import StatusBadge from "../components/applications/StatusBadge";
 
 const REDUCED_MOTION = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 const CHECK = (
@@ -51,6 +51,7 @@ const PULSE_SAMPLE = Array.from({ length: 364 }, (_, daysAgo) => {
   const count = Math.max(0, Math.round(3 + daily + waves + recent * 2.5));
   const day = new Date();
   day.setDate(day.getDate() - daysAgo);
+
   return Array.from({ length: count }, () => ({ created_at: day.toISOString() }));
 }).flat();
 const JOBS = [
@@ -112,6 +113,7 @@ const FEATURE_TABS = [
   { id: "story-tailor", label: "Tailored Resumes" }
 ];
 
+// Reports once the element scrolls into view
 function useInView(ref, threshold = 0.2) {
   const [inView, setInView] = useState(() => typeof IntersectionObserver === "undefined");
 
@@ -126,12 +128,14 @@ function useInView(ref, threshold = 0.2) {
     }, { threshold, rootMargin: "0px 0px -8% 0px" });
 
     observer.observe(ref.current);
+
     return () => observer.disconnect();
   }, [inView, ref, threshold]);
 
   return inView;
 }
 
+// Counts up to a number when shown
 function CountUp({ value, run }) {
   const [shown, setShown] = useState(REDUCED_MOTION ? value : 0);
 
@@ -140,18 +144,23 @@ function CountUp({ value, run }) {
 
     const start = performance.now();
     let frame;
+
+    // Moves the count forward each frame
     const tick = (now) => {
       const progress = Math.min(1, (now - start) / 900);
       setShown(Math.round(value * (1 - (1 - progress) ** 3)));
       if (progress < 1) frame = requestAnimationFrame(tick);
     };
+
     frame = requestAnimationFrame(tick);
+
     return () => cancelAnimationFrame(frame);
   }, [run, value]);
 
   return shown;
 }
 
+// Preview window title bar
 function WindowBar({ step, children }) {
   return (
     <div className="preview-bar">
@@ -161,6 +170,7 @@ function WindowBar({ step, children }) {
   );
 }
 
+// Renders an application row in the preview
 function applicationRow(item) {
   return (
     <li key={item.company} className="preview-pop">
@@ -175,6 +185,7 @@ function applicationRow(item) {
   );
 }
 
+// Stacks a faded copy behind the preview
 function Stack({ ghost, children }) {
   return (
     <div className="preview-stack">
@@ -184,9 +195,12 @@ function Stack({ ghost, children }) {
   );
 }
 
+// Applications page preview
 function ApplicationsPreview({ active }) {
   const [filter, setFilter] = useState("All");
   const shown = APPLICATIONS.filter((item) => filter === "All" || item.status === filter);
+
+  // Counts preview applications with a status
   const count = (status) => APPLICATIONS.filter((item) => item.status === status).length;
 
   return (
@@ -221,10 +235,12 @@ function ApplicationsPreview({ active }) {
   );
 }
 
+// Picks the class for a posting's age
 function ageClass(days) {
   return days <= 7 ? "posted-fresh" : days <= 30 ? "posted-aging" : "posted-stale";
 }
 
+// Renders a job row in the preview
 function jobRow(job, active) {
   return (
     <li key={job.company} className={`preview-pop${job.fresh ? " is-new" : ""}`}>
@@ -258,6 +274,7 @@ function jobRow(job, active) {
   );
 }
 
+// Jobs page preview
 function JobsPreview({ active }) {
   const [jobs, setJobs] = useState(JOBS);
   const [range, setRange] = useState("all");
@@ -267,6 +284,7 @@ function JobsPreview({ active }) {
 
   useEffect(() => () => clearTimeout(timer.current), []);
 
+  // Plays the sync animation
   function sync() {
     if (syncing) return;
     setSyncing(true);
@@ -315,6 +333,7 @@ function JobsPreview({ active }) {
   );
 }
 
+// Animates rows sliding to their new places when the order changes
 function useGlide(order, delay) {
   const nodes = useRef({});
   const tops = useRef({});
@@ -346,6 +365,7 @@ function useGlide(order, delay) {
         node.style.transform = "";
       });
     });
+
     return () => cancelAnimationFrame(frame);
   }, [orderKey, delay]);
 
@@ -354,6 +374,7 @@ function useGlide(order, delay) {
   };
 }
 
+// Preview resume body
 function DocBody({ tailored, order = tailored ? ORDER_AFTER : ORDER_BEFORE, delay = 0 }) {
   const glide = useGlide(order, delay);
 
@@ -381,6 +402,7 @@ function DocBody({ tailored, order = tailored ? ORDER_AFTER : ORDER_BEFORE, dela
   );
 }
 
+// Tailored resume preview
 function TailorPreview() {
   const [tailored, setTailored] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
@@ -425,6 +447,7 @@ function TailorPreview() {
   );
 }
 
+// Checklist point
 function Point({ children }) {
   return (
     <li>
@@ -434,6 +457,7 @@ function Point({ children }) {
   );
 }
 
+// Feature section with its points and preview
 function Story({ id, flip = false, title, points, link, preview }) {
   const ref = useRef(null);
   const inView = useInView(ref);
@@ -463,17 +487,21 @@ function Story({ id, flip = false, title, points, link, preview }) {
   );
 }
 
+// Fades content in when it scrolls into view
 function Reveal({ className = "", children }) {
   const ref = useRef(null);
   const inView = useInView(ref, 0.15);
+
   return <div ref={ref} className={`${className} reveal${inView ? " is-visible" : ""}`}>{children}</div>;
 }
 
+// Scrolls to a feature section
 function scrollToStory(id) {
   document.getElementById(id)?.scrollIntoView({ behavior: REDUCED_MOTION ? "auto" : "smooth", block: "center" });
 }
 
-// Tabs share the bar equally, so their width (and this check) doesn't change when labels hide.
+/* Checks whether any tab label is too wide for its tab
+   Tabs share the bar equally, so their width (and this check) doesn't change when labels hide */
 function labelsOverflow(tabs, labels) {
   return FEATURE_TABS.some(({ id }) => {
     const tab = tabs[id];
@@ -483,10 +511,12 @@ function labelsOverflow(tabs, labels) {
     const style = getComputedStyle(tab);
     const number = tab.querySelector(".feature-tab-num")?.offsetWidth || 0;
     const room = tab.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) - number - parseFloat(style.columnGap);
+
     return label.scrollWidth > room;
   });
 }
 
+// Sticky tabs that follow and jump between feature sections
 function FeatureTabs() {
   const [active, setActive] = useState(null);
   const [pill, setPill] = useState(null);
@@ -497,6 +527,7 @@ function FeatureTabs() {
   const heading = useRef(null);
   const release = useRef(null);
 
+  // Stops following a tab click's scroll
   const stopHeading = useCallback(() => {
     heading.current = null;
     clearTimeout(release.current);
@@ -509,15 +540,17 @@ function FeatureTabs() {
       entries.forEach((entry) => {
         if (heading.current) {
           if (entry.isIntersecting && entry.target.id === heading.current) stopHeading();
+
           return;
         }
 
         if (entry.isIntersecting) setActive(entry.target.id);
       });
     }, { rootMargin: "-45% 0px -50% 0px" });
-
     const first = document.getElementById(FEATURE_TABS[0].id);
     let frame = 0;
+
+    // Clears the active tab when scrolled above the features
     const checkAbove = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
@@ -526,6 +559,7 @@ function FeatureTabs() {
         }
       });
     };
+
     window.addEventListener("scroll", checkAbove, { passive: true });
 
     FEATURE_TABS.forEach(({ id }) => {
@@ -533,7 +567,9 @@ function FeatureTabs() {
       if (section) observer.observe(section);
     });
 
+    // Hands control back to the user's scrolling
     const takeOver = () => stopHeading();
+
     const events = ["wheel", "touchstart", "keydown"];
     events.forEach((name) => window.addEventListener(name, takeOver, { passive: true }));
 
@@ -546,6 +582,7 @@ function FeatureTabs() {
     };
   }, [stopHeading]);
 
+  // Moves the highlight under the active tab
   const place = useCallback(() => {
     const tab = active && tabs.current[active];
     setPill(tab ? { left: tab.offsetLeft, width: tab.offsetWidth } : null);
@@ -554,18 +591,22 @@ function FeatureTabs() {
   useLayoutEffect(place, [place]);
 
   useLayoutEffect(() => {
+    // Hides the tab labels when they don't fit
     const fit = () => setCompact(labelsOverflow(tabs.current, labels.current));
+
     fit();
     document.fonts?.ready.then(fit);
 
     if (typeof ResizeObserver === "undefined") return undefined;
     const observer = new ResizeObserver(fit);
     observer.observe(bar.current);
+
     return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
     window.addEventListener("resize", place);
+
     return () => window.removeEventListener("resize", place);
   }, [place]);
 
@@ -596,7 +637,7 @@ function FeatureTabs() {
             <span className="feature-tab-num" aria-hidden="true">
               <PixelDigit digit={index} crisp height="0.73em" />
             </span>
-            {/* Visually hidden, not removed, so it can still be measured and read by screen readers. */}
+            {/* Visually hidden, not removed, so it can still be measured and read by screen readers */}
             <span ref={(node) => { labels.current[tab.id] = node; }} className={compact ? "visually-hidden" : undefined}>
               {tab.label}
             </span>
@@ -607,12 +648,14 @@ function FeatureTabs() {
   );
 }
 
-// Gradient text has no color of its own, so `accent` gives the gradient's mix (% of --accent) at
-// that spot. The hidden "o" keeps the word whole for screen readers and copy-paste.
+/* Pixel zero that stands in for the letter "o"
+   Gradient text has no color of its own, so `accent` gives the gradient's mix (% of --accent) at
+   that spot. The hidden "o" keeps the word whole for screen readers and copy-paste */
 function O({ accent }) {
   const color = accent === undefined
     ? undefined
     : `color-mix(in srgb, var(--accent) ${accent}%, var(--accent-2))`;
+
   return (
     <span className="pixel-o">
       <PixelZero color={color} />
@@ -621,16 +664,17 @@ function O({ accent }) {
   );
 }
 
+// Landing page
 function Landing({ authenticated }) {
   const ctaHref = authenticated ? "#/applications" : "#/signup";
 
   return (
     <main className="landing">
-      {/* The hero is inside the zone so the sticky tabs can also rest at the screen's bottom. */}
+      {/* The hero is inside the zone so the sticky tabs can also rest at the screen's bottom */}
       <div className="feature-zone">
         <section className="hero">
           <h1 className="hero-rise">
-            {/* Words with a pixel zero are kept whole, or the line could break inside them. */}
+            {/* Words with a pixel zero are kept whole, or the line could break inside them */}
             Keep track <span className="nowrap"><O />f</span> <i>every</i> <span className="nowrap">applicati<O />n</span>{" "}
             <span className="gradient-text">
               until <span className="nowrap">y<O accent={75} />u</span> get the <span className="nowrap"><O accent={30} />ffer.</span>

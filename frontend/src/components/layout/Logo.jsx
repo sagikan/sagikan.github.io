@@ -19,10 +19,12 @@ const DIGITS = {
 };
 const MIN_SNAP_ROW = 1.2;
 
+// Lists the filled pixels of a grid
 function pixelsOf(grid) {
   return grid.flatMap((row, y) => [...row].map((cell, x) => (cell === "#" ? [x, y] : null)).filter(Boolean));
 }
 
+// Turns on crisp pixels when each row is big enough on screen
 function useSnapToPixels(enabled, rows) {
   const ref = useRef(null);
   const [snap, setSnap] = useState(enabled);
@@ -30,18 +32,22 @@ function useSnapToPixels(enabled, rows) {
   useLayoutEffect(() => {
     if (!enabled) return undefined;
 
+    // Checks the rendered row size
     const check = () => {
       const height = ref.current?.getBoundingClientRect().height || 0;
       setSnap((height * window.devicePixelRatio) / rows >= MIN_SNAP_ROW);
     };
+
     check();
     window.addEventListener("resize", check);
+
     return () => window.removeEventListener("resize", check);
   }, [enabled, rows]);
 
   return [ref, enabled && snap];
 }
 
+// Draws a grid of pixels as SVG
 function PixelGrid({ grid, color = "currentColor", gap = 0, crisp = false, height, className, style }) {
   const width = grid[0].length;
   const rows = grid.length;
@@ -70,14 +76,17 @@ function PixelGrid({ grid, color = "currentColor", gap = 0, crisp = false, heigh
   );
 }
 
+// Draws the pixel zero
 export function PixelZero(props) {
   return <PixelGrid grid={ZERO} {...props} />;
 }
 
+// Draws a pixel digit
 export function PixelDigit({ digit, ...props }) {
   return <PixelGrid grid={DIGITS[digit]} {...props} />;
 }
 
+// Site logo
 function Logo({ size = 28 }) {
   return <PixelZero className="logo" gap={0.15} height={`${size}px`} />;
 }

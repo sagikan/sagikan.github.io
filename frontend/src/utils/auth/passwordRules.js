@@ -1,3 +1,4 @@
+// Lists the password rules and whether each is met
 export function passwordRules(password, email) {
   const emailName = email.trim().toLowerCase().split("@")[0];
 

@@ -1,6 +1,7 @@
 export const MAX_CV_MB = 5;
 export const MAX_GRADES_MB = 2;
 
+// Returns an error message if the file isn't a PDF within the size limit
 export function checkPdf(file, maxMb) {
   if (!file) {
     return "Choose a file.";

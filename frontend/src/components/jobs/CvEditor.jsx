@@ -8,130 +8,6 @@ import { LIMITS, MONTHS, digitsOnly, formatMonth, isEntryComplete, parseMonth, t
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: 46 }, (_, i) => String(CURRENT_YEAR + 1 - i));
 let nextId = 0;
-
-const newId = (prefix) => `${prefix}-new-${++nextId}`;
-
-const filled = (value) => String(value ?? "").trim() !== "";
-
-const textOf = (item) => (typeof item === "string" ? item : item.text);
-
-function RemoveButton({ label, onClick, className = "" }) {
-  return (
-    <button type="button" className={`icon-btn icon-btn-danger ${className}`} onClick={onClick} aria-label={label} title={label}>
-      <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
-        <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      </svg>
-    </button>
-  );
-}
-
-export function Required() {
-  return <span className="req" aria-hidden="true"> *</span>;
-}
-
-function Field({ label, required = false, className = "", children }) {
-  return (
-    <label className={`field ${className}`}>
-      {label !== null && <span>{label}{required && <Required />}</span>}
-      {children}
-    </label>
-  );
-}
-
-export function Count({ count, max }) {
-  return <span className={`cv-count${count > max ? " cv-count-over" : ""}`}>{count}/{max}</span>;
-}
-
-function SectionHeader({ title, count, max, addLabel, onAdd }) {
-  const full = count >= max;
-
-  return (
-    <div className="cv-section-header">
-      <h3>{title} {max !== undefined && <Count count={count} max={max} />}</h3>
-      {onAdd && (
-        <button
-          type="button"
-          className="btn btn-ghost btn-sm"
-          disabled={full}
-          title={full ? `You can add up to ${max}.` : ""}
-          onClick={onAdd}
-        >
-          + {addLabel}
-        </button>
-      )}
-    </div>
-  );
-}
-
-function MonthField({ label, value, onChange, allowPresent = false, monthOptional = false, required = true }) {
-  const parsed = parseMonth(value);
-  let monthValue = "";
-
-  if (parsed.present) monthValue = "present";
-  else if (parsed.month >= 0) monthValue = String(parsed.month);
-  else if (monthOptional && parsed.year) monthValue = "none";
-
-  return (
-    <div className="field field-compact">
-      <span>{label}{required && <Required />}</span>
-      <div className="month-field">
-        <select
-          required={required && !monthOptional}
-          aria-label={`${label} month`}
-          value={monthValue}
-          onChange={(event) => {
-            const next = event.target.value;
-            if (next === "present") onChange("Present");
-            else if (next === "") onChange(formatMonth({ ...parsed, present: false, month: -1 }));
-            else onChange(formatMonth({ ...parsed, present: false, month: next === "none" ? -1 : Number(next) }));
-          }}
-        >
-          <option value="" disabled={required}>Month</option>
-          {allowPresent && <option value="present">Present</option>}
-          {monthOptional && <option value="none">No month</option>}
-          {MONTHS.map((month, index) => <option key={month} value={index}>{month}</option>)}
-        </select>
-        {!parsed.present && (
-          <select
-            required={required}
-            aria-label={`${label} year`}
-            value={YEARS.includes(parsed.year) ? parsed.year : ""}
-            onChange={(event) => onChange(formatMonth({ ...parsed, year: event.target.value }))}
-          >
-            <option value="" disabled={required}>Year</option>
-            {YEARS.map((year) => <option key={year} value={year}>{year}</option>)}
-          </select>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function DiffField({ before, after, show, className, label, children }) {
-  const [editing, setEditing] = useState(false);
-
-  if (!show || editing || before === after) {
-    return children({ autoFocus: editing, onBlur: () => setEditing(false) });
-  }
-
-  return (
-    <div
-      className={`${className} cv-diff-field`}
-      role="textbox"
-      tabIndex={0}
-      aria-label={label}
-      title="Click to edit"
-      onFocus={() => setEditing(true)}
-    >
-      {wordDiff(before, after).map((part, i) => (
-        part.type === "add" ? <ins key={i}>{part.text}</ins>
-          : part.type === "del" ? <del key={i}>{part.text}</del>
-            : <span key={i}>{part.text}</span>
-      ))}
-    </div>
-  );
-}
-
 const ARROW_UP = (
   <svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true">
     <path d="M10 15V5M5.5 9.5L10 5l4.5 4.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
@@ -158,12 +34,149 @@ const PLUS_ICON = (
   </svg>
 );
 
+// Creates a unique ID for a new item
+const newId = (prefix) => `${prefix}-new-${++nextId}`;
+
+// Checks whether a value isn't empty
+const filled = (value) => String(value ?? "").trim() !== "";
+
+// Returns an item's text, whether it's a string or a bullet
+const textOf = (item) => (typeof item === "string" ? item : item.text);
+
+// Icon button that removes an item
+function RemoveButton({ label, onClick, className = "" }) {
+  return (
+    <button type="button" className={`icon-btn icon-btn-danger ${className}`} onClick={onClick} aria-label={label} title={label}>
+      <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
+        <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    </button>
+  );
+}
+
+// Marks a field as required
+export function Required() {
+  return <span className="req" aria-hidden="true"> *</span>;
+}
+
+// Labeled form field
+function Field({ label, required = false, className = "", children }) {
+  return (
+    <label className={`field ${className}`}>
+      {label !== null && <span>{label}{required && <Required />}</span>}
+      {children}
+    </label>
+  );
+}
+
+// Shows a character or item count against its limit
+export function Count({ count, max }) {
+  return <span className={`cv-count${count > max ? " cv-count-over" : ""}`}>{count}/{max}</span>;
+}
+
+// Section title with its count and add button
+function SectionHeader({ title, count, max, addLabel, onAdd }) {
+  const full = count >= max;
+
+  return (
+    <div className="cv-section-header">
+      <h3>{title} {max !== undefined && <Count count={count} max={max} />}</h3>
+      {onAdd && (
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          disabled={full}
+          title={full ? `You can add up to ${max}.` : ""}
+          onClick={onAdd}
+        >
+          + {addLabel}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Month and year picker, optionally allowing "Present"
+function MonthField({ label, value, onChange, allowPresent = false, monthOptional = false, required = true }) {
+  const parsed = parseMonth(value);
+  let monthValue = "";
+
+  if (parsed.present) monthValue = "present";
+  else if (parsed.month >= 0) monthValue = String(parsed.month);
+  else if (monthOptional && parsed.year) monthValue = "none";
+
+  return (
+    <div className="field field-compact">
+      <span>{label}{required && <Required />}</span>
+      <div className="month-field">
+        <select
+          required={required && !monthOptional}
+          aria-label={`${label} month`}
+          value={monthValue}
+          onChange={(event) => {
+            const next = event.target.value;
+
+            if (next === "present") onChange("Present");
+            else if (next === "") onChange(formatMonth({ ...parsed, present: false, month: -1 }));
+            else onChange(formatMonth({ ...parsed, present: false, month: next === "none" ? -1 : Number(next) }));
+          }}
+        >
+          <option value="" disabled={required}>Month</option>
+          {allowPresent && <option value="present">Present</option>}
+          {monthOptional && <option value="none">No month</option>}
+          {MONTHS.map((month, index) => <option key={month} value={index}>{month}</option>)}
+        </select>
+        {!parsed.present && (
+          <select
+            required={required}
+            aria-label={`${label} year`}
+            value={YEARS.includes(parsed.year) ? parsed.year : ""}
+            onChange={(event) => onChange(formatMonth({ ...parsed, year: event.target.value }))}
+          >
+            <option value="" disabled={required}>Year</option>
+            {YEARS.map((year) => <option key={year} value={year}>{year}</option>)}
+          </select>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Shows a field's word changes until it's clicked for editing
+function DiffField({ before, after, show, className, label, children }) {
+  const [editing, setEditing] = useState(false);
+
+  if (!show || editing || before === after) {
+    return children({ autoFocus: editing, onBlur: () => setEditing(false) });
+  }
+
+  return (
+    <div
+      className={`${className} cv-diff-field`}
+      role="textbox"
+      tabIndex={0}
+      aria-label={label}
+      title="Click to edit"
+      onFocus={() => setEditing(true)}
+    >
+      {wordDiff(before, after).map((part, i) => (
+        part.type === "add" ? <ins key={i}>{part.text}</ins>
+          : part.type === "del" ? <del key={i}>{part.text}</del>
+            : <span key={i}>{part.text}</span>
+      ))}
+    </div>
+  );
+}
+
+// Button that adds a suggested skill, asking for the group if needed
 function AddSkillTag({ skill, groups, onAdd }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const asks = groups.length > 1;
 
+  // Closes the group menu
   const close = useCallback(() => setOpen(false), []);
+
   useDismiss(open, close, ref);
 
   return (
@@ -200,6 +213,7 @@ function AddSkillTag({ skill, groups, onAdd }) {
   );
 }
 
+// Editable list of bullets, with changes and removed bullets
 function Bullets({
   items, max, onChange, editable, label = "bullet", showChanges = false, removed = [], onRestore = null, onRemoveItem = null,
   baseOrder = null,
@@ -208,7 +222,6 @@ function Bullets({
   const filledCount = items.filter((item) => filled(textOf(item))).length;
   const hasEmpty = items.some((item) => !filled(textOf(item)));
   const full = items.length >= max;
-
   const positions = showChanges && baseOrder ? basePositions(items, baseOrder) : new Map();
 
   return (
@@ -308,6 +321,7 @@ function Bullets({
   );
 }
 
+// Finds where to put an item so it follows the base order
 function placeAfter(current, order, item) {
   const target = order.indexOf(item);
   let at = 0;
@@ -320,36 +334,48 @@ function placeAfter(current, order, item) {
   return at;
 }
 
+// Resume editor for the base resume or a tailored one
 function CvEditor({ cv, onChange, mode = "base", showChanges = false, original = null, flags = [], suggestions = [] }) {
   const base = mode === "base";
   const flagged = new Set(flags);
   const compare = showChanges && !base && original;
 
+  // Checks whether a top-level field differs from the original
   const fieldChanged = (field) => Boolean(compare && original[field] && original[field] !== cv[field]);
 
   const [removedHere, setRemovedHere] = useState({});
+
+  // Remembers a removed item so it can be restored in place
   const remember = (key, value) => setRemovedHere((current) => ({ ...current, [key]: value }));
+
+  // Forgets a removed item
   const forget = (key) => setRemovedHere((current) => {
     const next = { ...current };
     delete next[key];
+
     return next;
   });
 
+  // Finds an entry's original version
   const baseEntryOf = (section, entry) => (compare ? original[section].find((other) => other.id === entry.id) : null);
 
+  // Lists the original bullets missing from an entry
   function removedBullets(section, entry) {
     const baseEntry = baseEntryOf(section, entry);
+
     return baseEntry
       ? baseEntry.bullets.filter((bullet) => !entry.bullets.some((kept) => kept.id === bullet.id))
       : [];
   }
 
+  // Removes a bullet and remembers its position
   function removeBullet(section, index, bullet, position) {
     const entry = cv[section][index];
     remember(`${section}:${entry.id}:${bullet.id}`, { bullet, position });
     setEntry(section, index, { bullets: entry.bullets.filter((_, i) => i !== position) });
   }
 
+  // Puts a removed bullet back
   function restoreBullet(section, index, bullet) {
     const entry = cv[section][index];
     const key = `${section}:${entry.id}:${bullet.id}`;
@@ -359,6 +385,7 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
       bullets.splice(Math.min(removedHere[key].position, bullets.length), 0, removedHere[key].bullet);
       forget(key);
       setEntry(section, index, { bullets });
+
       return;
     }
 
@@ -383,24 +410,27 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
   const leftOutSkills = compare
     ? original.skills.flatMap((group) => group.items).filter((skill) => !keptSkills.has(skill.toLowerCase()))
     : [];
-  // Short skill names only: older tailorings may hold whole sentences, which don't fit a skills list.
+  // Short skill names only: older tailorings may hold whole sentences, which don't fit a skills list
   const suggestedSkills = base ? [] : suggestions.filter((skill) => (
     skill.length <= 40 && skill.trim().split(/\s+/).length <= 4 && !keptSkills.has(skill.toLowerCase())
   ));
-
   const [collapsed, setCollapsed] = useState(() => new Set(
     [...cv.experience, ...cv.projects, ...cv.education].map((entry) => entry.id)
   ));
 
+  // Collapses or expands an entry
   function toggle(id) {
     setCollapsed((current) => {
       const next = new Set(current);
+
       if (next.has(id)) next.delete(id);
       else next.add(id);
+
       return next;
     });
   }
 
+  // Renders an entry as a collapsible card
   function entryCard(section, entry, index, { label, title, sub, bullets, fields }) {
     const isCollapsed = collapsed.has(entry.id);
     const complete = isEntryComplete(section, entry);
@@ -450,10 +480,12 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
     );
   }
 
+  // Sets a resume field
   function set(field, value) {
     onChange({ ...cv, [field]: value });
   }
 
+  // Adds a skill to a group, creating the first group if needed
   function addSkill(skill, groupIndex) {
     if (cv.skills.length === 0) {
       set("skills", [{ category: "Skills", items: [skill] }]);
@@ -462,8 +494,11 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
     }
   }
 
+  // Puts a removed skill back in its original group
   function restoreSkill(skill) {
+    // Compares two names, ignoring case and spaces
     const sameName = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
     const baseIndex = original.skills.findIndex((group) => group.items.includes(skill));
     const baseGroup = original.skills[baseIndex];
     const index = cv.skills.findIndex((group) => sameName(group.category, baseGroup.category));
@@ -472,6 +507,7 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
       const items = [...cv.skills[index].items];
       items.splice(placeAfter(items, baseGroup.items, skill), 0, skill);
       set("skills", cv.skills.map((group, i) => (i === index ? { ...group, items } : group)));
+
       return;
     }
 
@@ -486,12 +522,14 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
     set("skills", skills);
   }
 
+  // Removes a project and remembers its position
   function removeProject(index) {
     const project = cv.projects[index];
     remember(`projects:${project.id}`, { project, position: index });
     removeEntry("projects", index);
   }
 
+  // Puts a removed project back
   function restoreProject(project) {
     const key = `projects:${project.id}`;
 
@@ -500,6 +538,7 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
       projects.splice(Math.min(removedHere[key].position, projects.length), 0, removedHere[key].project);
       forget(key);
       set("projects", projects);
+
       return;
     }
 
@@ -513,14 +552,17 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
     set("projects", projects);
   }
 
+  // Updates fields of an entry
   function setEntry(section, index, patch) {
     set(section, cv[section].map((entry, i) => (i === index ? { ...entry, ...patch } : entry)));
   }
 
+  // Removes an entry
   function removeEntry(section, index) {
     set(section, cv[section].filter((_, i) => i !== index));
   }
 
+  // Renders an input for an entry field
   function entryInput(section, index, field, { label, required = false, format, className = "", ...props } = {}) {
     const entry = cv[section][index];
 
@@ -536,6 +578,7 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
     );
   }
 
+  // Renders the start and end date fields of an entry
   function dates(section, index, { monthOptional = false, required = true } = {}) {
     const entry = cv[section][index];
 
@@ -560,6 +603,7 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
     );
   }
 
+  // Builds the bullet list props for an entry
   const bulletProps = (section, index, max) => ({
     items: cv[section][index].bullets,
     max,
@@ -573,6 +617,7 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
     onChange: (bullets) => setEntry(section, index, { bullets })
   });
 
+  // Renders an entry's title with its moved or restored mark
   function tailoredTitle(section, entry, index) {
     const order = compare ? basePositions(cv[section], original[section].map((other) => other.id)) : new Map();
     const was = order.get(entry.id);

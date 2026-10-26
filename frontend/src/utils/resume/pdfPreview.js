@@ -2,9 +2,11 @@ import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 let pdfjsLoaded = null;
 
+// Loads pdf.js on first use
 function loadPdfjs() {
   pdfjsLoaded ??= import("pdfjs-dist").then((pdfjs) => {
     pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+
     return pdfjs;
   }).catch((err) => {
     pdfjsLoaded = null;
@@ -14,6 +16,7 @@ function loadPdfjs() {
   return pdfjsLoaded;
 }
 
+// Renders a PDF's first page as an image
 export async function renderFirstPage(blob, width) {
   const pdfjs = await loadPdfjs();
   const pdf = await pdfjs.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;

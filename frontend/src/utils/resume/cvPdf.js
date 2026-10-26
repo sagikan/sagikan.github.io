@@ -1,4 +1,4 @@
-import { apiFile, apiRequest } from "../../api";
+import { apiFile, apiRequest } from "../../lib/api";
 import { FONTS, cvDocument } from "./cvLayout";
 import garamondRegular from "../../assets/fonts/ebgaramond/EBGaramond-Regular.ttf?url";
 import garamondBold from "../../assets/fonts/ebgaramond/EBGaramond-Bold.ttf?url";
@@ -13,6 +13,7 @@ const FONT_URLS = {
 };
 let fontsLoaded = null;
 
+// Loads pdfmake and the fonts on first use
 function loadPdfMake() {
   fontsLoaded ??= (async () => {
     const [{ default: pdfMake }, { default: times }] = await Promise.all([
@@ -33,6 +34,7 @@ function loadPdfMake() {
     pdfMake.addVirtualFileSystem(Object.fromEntries(files));
     pdfMake.addFonts(FONTS);
     pdfMake.setUrlAccessPolicy?.(() => false);
+
     return pdfMake;
   })().catch((err) => {
     fontsLoaded = null;
@@ -42,6 +44,7 @@ function loadPdfMake() {
   return fontsLoaded;
 }
 
+// Encodes bytes as base64
 function toBase64(bytes) {
   let binary = "";
 
@@ -52,6 +55,7 @@ function toBase64(bytes) {
   return btoa(binary);
 }
 
+// Builds the resume PDF, appending the grade sheet if given
 async function buildCvPdf(cv, gradeSheet = null) {
   const pdfMake = await loadPdfMake();
   const resume = await pdfMake.createPdf(cvDocument(cv)).getBuffer();
@@ -66,18 +70,22 @@ async function buildCvPdf(cv, gradeSheet = null) {
   const pages = await merged.copyPages(extra, extra.getPageIndices());
 
   pages.forEach((page) => merged.addPage(page));
+
   return new Blob([await merged.save()], { type: "application/pdf" });
 }
 
+// Names the PDF file
 function cvFileName(gradeSheetName = null) {
   if (gradeSheetName === null) {
     return "Resume.pdf";
   }
 
   const name = gradeSheetName.replace(/\.pdf$/i, "").replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim();
+
   return `Resume + ${name || "Grade sheet"}.pdf`;
 }
 
+// Downloads a blob as a file
 export function downloadBlob(blob, fileName) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -90,19 +98,23 @@ export function downloadBlob(blob, fileName) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
+// Builds the tailored resume PDF
 export async function makeTailoredPdf(cv, includeGradeSheet) {
   const gradeSheet = includeGradeSheet ? await apiFile("/api/jobs/grade-sheet") : null;
+
   return {
     blob: await buildCvPdf(cv, gradeSheet?.bytes),
     fileName: cvFileName(gradeSheet ? gradeSheet.fileName : null)
   };
 }
 
+// Builds and downloads the tailored resume PDF
 async function downloadTailoredCv(cv, includeGradeSheet) {
   const { blob, fileName } = await makeTailoredPdf(cv, includeGradeSheet);
   downloadBlob(blob, fileName);
 }
 
+// Downloads the resume saved for a job
 export async function downloadSavedCv(jobId) {
   const { response, data } = await apiRequest(`/api/jobs/${jobId}/tailoring`);
 

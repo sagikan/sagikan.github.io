@@ -1,15 +1,18 @@
 import { useState } from "react";
-import Modal from "../Modal";
-import { WORKPLACE_MODELS, apiRequest } from "../../api";
-import Alert from "../Alert";
+import Modal from "../ui/Modal";
+import { WORKPLACE_MODELS, apiRequest } from "../../lib/api";
+import Alert from "../ui/Alert";
 
+// Modal for adding a job by hand
 function AddJobModal({ csrfToken, onClose, onAdded, onUnauthorized }) {
   const [values, setValues] = useState({ company: "", position: "", location: "", workplace_model: "", url: "", description: "" });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // Returns a change handler for a field
   const update = (field) => (event) => setValues((current) => ({ ...current, [field]: event.target.value }));
 
+  // Adds the job
   async function submit(event) {
     event.preventDefault();
     setSaving(true);
@@ -24,11 +27,13 @@ function AddJobModal({ csrfToken, onClose, onAdded, onUnauthorized }) {
 
       if (response.status === 401) {
         onUnauthorized();
+
         return;
       }
 
       if (!response.ok) {
         setError(data.error || "Could not add the job.");
+
         return;
       }
 

@@ -1,5 +1,5 @@
 export const FONTS = {
-  // EB Garamond: a free Garamond close to the one in the Word resume, which can't be shipped.
+  // EB Garamond: a free Garamond close to the one in the Word resume, which can't be shipped
   Garamond: {
     normal: "EBGaramond-Regular.ttf",
     bold: "EBGaramond-Bold.ttf",
@@ -26,14 +26,17 @@ const LETTER_SPACING = 0;
 const WIN_ANSI_EXTRAS = new Set("€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ");
 const SEPARATOR = { text: " | ", bold: false, color: DARK };
 
+// Converts a line count to pdfmake line height
 function lines(multiple) {
   return multiple * 0.865;
 }
 
+// Turns a value into trimmed text with normal spaces
 function text(value) {
   return String(value ?? "").replace(/[\u00a0\u2007\u202f]/g, " ").trim();
 }
 
+// Splits text so hyphenated words don't break
 function justified(value) {
   return text(value)
     .split(/(\S+[-/]\S+\s*)/)
@@ -41,6 +44,7 @@ function justified(value) {
     .map((part) => (/\S[-/]\S/.test(part) ? { text: part, noWrap: true } : part));
 }
 
+// Removes characters the PDF font can't show
 function winAnsi(value) {
   return text(value)
     .replace(/[\u2010-\u2012]/g, "-")
@@ -49,19 +53,24 @@ function winAnsi(value) {
     .join("");
 }
 
+// Formats an Israeli mobile number
 function phone(value) {
   const digits = text(value).replace(/\D/g, "");
+
   return /^05\d{8}$/.test(digits) ? `${digits.slice(0, 3)} ${digits.slice(3, 6)}-${digits.slice(6)}` : text(value);
 }
 
+// Formats an entry's date range
 function dates(entry) {
   return [entry.start, entry.end].map(text).filter(Boolean).join(" – ");
 }
 
+// Adds vertical space
 function gap(size) {
   return { text: " ", fontSize: size, lineHeight: lines(1) };
 }
 
+// Builds a section heading in small caps
 function heading(title) {
   const runs = [];
   text(title).toUpperCase().split(" ").forEach((word, index) => {
@@ -82,6 +91,7 @@ function heading(title) {
   };
 }
 
+// Builds a row with text on the left and right
 function row(left, right, rightStyle = { color: GREY }) {
   return {
     columns: [
@@ -93,6 +103,7 @@ function row(left, right, rightStyle = { color: GREY }) {
   };
 }
 
+// Builds an entry title with its detail
 function titleRuns(title, detail) {
   const runs = [{ text: text(title).toUpperCase(), bold: true, color: DARK }];
 
@@ -103,6 +114,7 @@ function titleRuns(title, detail) {
   return runs;
 }
 
+// Builds the bullet list
 function bullets(items) {
   return items
     .map((item) => text(typeof item === "string" ? item : item.text))
@@ -121,6 +133,7 @@ function bullets(items) {
     }));
 }
 
+// Builds an entry that doesn't break across pages when short
 function entry(header, items, last) {
   return {
     stack: [...header, ...bullets(items), ...(last ? [] : [gap(6)])],
@@ -128,10 +141,13 @@ function entry(header, items, last) {
   };
 }
 
+// Builds the pdfmake document for a resume
 export function cvDocument(cv) {
   const content = [];
   const contact = [text(cv.location), text(cv.phone) && `P: ${phone(cv.phone)}`, text(cv.email)].filter(Boolean);
   const links = cv.links.map((link) => text(link.url)).filter(Boolean);
+
+  // Joins parts with separators
   const joined = (parts) => parts.flatMap((part, index) => (index ? [SEPARATOR, part] : [part]));
 
   content.push({ text: text(cv.name).toUpperCase() || "RESUME", fontSize: 18, bold: true, alignment: "center", lineHeight: lines(1.15), margin: [0, 0, 0, 1.3] });
@@ -140,6 +156,8 @@ export function cvDocument(cv) {
   content.push(gap(BODY));
 
   let first = true;
+
+  // Adds a section with its heading kept on the same page
   const section = (title, body) => {
     if (!first) content.push(gap(BODY));
     first = false;

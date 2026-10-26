@@ -1,14 +1,15 @@
 import { useRef, useState } from "react";
-import Modal from "../Modal";
+import Modal from "../ui/Modal";
 import CvEditor, { Count, Required } from "./CvEditor";
 import TagInput from "./TagInput";
-import { WORKPLACE_MODELS, apiRequest, apiUpload } from "../../api";
+import { WORKPLACE_MODELS, apiRequest, apiUpload } from "../../lib/api";
 import { LIMITS, formatResume, resumeProblems } from "../../utils/resume/resumeRules";
-import Alert from "../Alert";
+import Alert from "../ui/Alert";
 import { MAX_CV_MB, MAX_GRADES_MB, checkPdf } from "../../utils/resume/pdfFiles";
 
 const SENIORITIES = ["Any", "Student", "Junior", "Mid", "Senior"];
 
+// Turns saved preferences into form values
 function toForm(preferences) {
   const prefs = preferences || {};
 
@@ -20,6 +21,7 @@ function toForm(preferences) {
   };
 }
 
+// Button that opens a PDF file picker
 function PdfButton({ label, disabled, onFile, primary = false }) {
   const inputRef = useRef(null);
 
@@ -48,6 +50,7 @@ function PdfButton({ label, disabled, onFile, primary = false }) {
   );
 }
 
+// Modal for editing the resume, preferences and grade sheet
 function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) {
   const [cv, setCv] = useState(() => profile.cv && formatResume(profile.cv));
   const [prefs, setPrefs] = useState(() => toForm(profile.preferences));
@@ -58,11 +61,12 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [problems, setProblems] = useState([]);
-  // Changes on every Save, so a closed problem list shows again if the next save also fails.
+  // Changes on every Save, so a closed problem list shows again if the next save also fails
   const [saveAttempts, setSaveAttempts] = useState(0);
-  // Bumped each time a resume is read, so the editor restarts with the new entries collapsed.
+  // Bumped each time a resume is read, so the editor restarts with the new entries collapsed
   const [readCount, setReadCount] = useState(0);
 
+  // Uploads a resume PDF and fills the editor from it
   async function readCv(file) {
     const problem = checkPdf(file, MAX_CV_MB);
     setError(problem);
@@ -79,11 +83,13 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
 
       if (response.status === 401) {
         onUnauthorized();
+
         return;
       }
 
       if (!response.ok) {
         setError(data.error || "Could not read your resume.");
+
         return;
       }
 
@@ -97,6 +103,7 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
     }
   }
 
+  // Uploads a grade sheet PDF
   async function uploadGrades(file) {
     const problem = checkPdf(file, MAX_GRADES_MB);
     setError(problem);
@@ -112,6 +119,7 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
 
       if (!response.ok) {
         setError(data.error || "Could not upload your grade sheet.");
+
         return;
       }
 
@@ -124,6 +132,7 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
     }
   }
 
+  // Removes the grade sheet
   async function removeGrades() {
     setGradeBusy(true);
     setError("");
@@ -133,6 +142,7 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
 
       if (!response.ok) {
         setError(data.error || "Could not remove your grade sheet.");
+
         return;
       }
 
@@ -145,6 +155,7 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
     }
   }
 
+  // Saves the resume and preferences
   async function save(event) {
     event.preventDefault();
     setError("");
@@ -165,6 +176,7 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
     if (found.length > 0) {
       const form = event.currentTarget;
       requestAnimationFrame(() => form.querySelector(".problem-list")?.scrollIntoView({ behavior: "smooth", block: "center" }));
+
       return;
     }
 
@@ -179,6 +191,7 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
 
       if (!response.ok) {
         setError(data.error || "Could not save your profile.");
+
         return;
       }
 

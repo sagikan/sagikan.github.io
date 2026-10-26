@@ -1,3 +1,4 @@
+// Password input
 function PasswordInput({ value, onChange, ...props }) {
   return (
     <input

@@ -8,10 +8,10 @@ import PasswordInput from "../components/auth/PasswordInput";
 import RecoveryCodesStep from "../components/auth/RecoveryCodesStep";
 import ResetPasswordStep from "../components/auth/ResetPasswordStep";
 import VerifyEmailStep from "../components/auth/VerifyEmailStep";
-import { apiRequest } from "../api";
+import { apiRequest } from "../lib/api";
 import { newPasswordError } from "../utils/auth/authForms";
-import { redirect } from "../router";
-import Alert from "../components/Alert";
+import { redirect } from "../lib/router";
+import Alert from "../components/ui/Alert";
 
 const STEP_HEADERS = {
   verify_email: {
@@ -48,6 +48,7 @@ const BACK_ICON = (
   </svg>
 );
 
+// Sign-in and sign-up page with all their steps
 function Login({ mode, onAuthenticated, apiStatus }) {
   const [step, setStep] = useState("credentials");
   const [email, setEmail] = useState("");
@@ -62,13 +63,14 @@ function Login({ mode, onAuthenticated, apiStatus }) {
   const [recoveryCodes, setRecoveryCodes] = useState([]);
   const [verifiedEmail, setVerifiedEmail] = useState("");
   const [usingRecoveryCode, setUsingRecoveryCode] = useState(false);
-
   const isLogin = mode === "login";
 
+  // Switches between sign-in and sign-up
   function switchMode(next) {
     redirect(next === "login" ? "/login" : "/signup");
   }
 
+  // Returns to the first step with a message
   const restart = useCallback((message = "", successNotice = "") => {
     setStep("credentials");
     setPassword("");
@@ -79,6 +81,7 @@ function Login({ mode, onAuthenticated, apiStatus }) {
     setNotice(successNotice);
   }, []);
 
+  // Sends a request, restarting when the sign-in expired
   const request = useCallback(async (path, body = {}) => {
     try {
       const { response, data } = await apiRequest(path, { method: "POST", body });
@@ -97,6 +100,7 @@ function Login({ mode, onAuthenticated, apiStatus }) {
     }
   }, [restart]);
 
+  // Signs in or creates the account
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
@@ -108,6 +112,7 @@ function Login({ mode, onAuthenticated, apiStatus }) {
 
       if (passwordError) {
         setError(passwordError);
+
         return;
       }
     }
@@ -120,6 +125,7 @@ function Login({ mode, onAuthenticated, apiStatus }) {
 
     if (!result.ok) {
       setError(result.error);
+
       return;
     }
 

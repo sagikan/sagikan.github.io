@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { STATUSES, WORKPLACE_MODELS, formatDate, jobDay, localISO, toDateInput } from "../api";
-import Alert from "./Alert";
+import { STATUSES, WORKPLACE_MODELS, formatDate, jobDay, localISO, toDateInput } from "../../lib/api";
+import Alert from "../ui/Alert";
 
+// Returns the form's starting values for a job, or empty ones
 function initialValues(job) {
   return {
     company: job?.company || "",
@@ -15,13 +16,14 @@ function initialValues(job) {
   };
 }
 
+// Trims and lowercases text for comparison
 const normalize = (text) => text.trim().toLowerCase();
 
+// Form for adding or editing an application
 function ApplicationForm({ job, applications, onSubmit, onCancel }) {
   const [values, setValues] = useState(() => initialValues(job));
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-
   const earlierDuplicate = useMemo(() => {
     const position = normalize(values.position);
     const company = normalize(values.company);
@@ -41,10 +43,12 @@ function ApplicationForm({ job, applications, onSubmit, onCancel }) {
       .sort((a, b) => jobDay(b).localeCompare(jobDay(a)))[0] || null;
   }, [applications, job, values.position, values.company, values.applied_at]);
 
+  // Returns a change handler for a field
   function update(field) {
     return (event) => setValues((current) => ({ ...current, [field]: event.target.value }));
   }
 
+  // Validates and saves the application
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");

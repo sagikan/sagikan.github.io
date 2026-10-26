@@ -1,14 +1,16 @@
 import { useEffect, useRef } from "react";
-import CompanyAvatar from "../CompanyAvatar";
-import { formatDate } from "../../api";
+import CompanyAvatar from "../ui/CompanyAvatar";
+import { formatDate } from "../../lib/api";
 import { CALENDAR_ICON, EXTERNAL_ICON, PIN_ICON, postingAge, scoreLevel } from "./jobInfo";
 
 const CARD_TAGS = 4;
 
+// Shows a posting date with its age on hover
 export function PostedDate({ postedAt }) {
   return <span title={postingAge(postedAt).label}>{formatDate(postedAt)}</span>;
 }
 
+// Shows the match score as a ring
 export function ScoreRing({ score }) {
   return (
     <div
@@ -22,6 +24,7 @@ export function ScoreRing({ score }) {
   );
 }
 
+// Lists the matching and missing skills
 export function MatchSkills({ job, split = false }) {
   const limit = split ? Infinity : CARD_TAGS;
   const have = (job.match_have || []).slice(0, limit);
@@ -59,6 +62,7 @@ export function MatchSkills({ job, split = false }) {
   );
 }
 
+// Dialog with a job's full details
 function JobDetails({ job, onClose }) {
   const dialogRef = useRef(null);
   const titleId = `job-details-${job.id}`;
@@ -66,6 +70,7 @@ function JobDetails({ job, onClose }) {
   useEffect(() => {
     const dialog = dialogRef.current;
     dialog.showModal();
+
     return () => dialog.close();
   }, []);
 
