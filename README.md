@@ -1,14 +1,12 @@
-# <b style="color:#e8ebf3">Applicant Zer</b><img src="frontend/public/favicon.svg" alt="" height="20" align="abstop" />
+# <b style="color:#e8ebf3">Applicant Zer</b><img src="frontend/public/favicon.svg" alt="" height="22" align="abstop" />
 
 [![Deploy](https://github.com/sagikan/sagikan.github.io/actions/workflows/deploy.yml/badge.svg)](https://github.com/sagikan/sagikan.github.io/actions/workflows/deploy.yml)
 [![CI](https://github.com/sagikan/sagikan.github.io/actions/workflows/ci.yml/badge.svg)](https://github.com/sagikan/sagikan.github.io/actions/workflows/ci.yml)
 
-<ul style="padding-left: 15;">
-    <li>Log every application from submission to offer</li>
-    <li>Discover matching openings</li>
-    <li>Tailor your resume to each one with Claude</li>
-    <li>Let your inbox update application statuses for you</li>
-</ul>
+- Log every application from submission to offer
+- Discover matching openings
+- Tailor your resume to each one with Claude
+- Let your inbox update application statuses for you
 
 ## Stack
 
@@ -60,16 +58,14 @@
 | `/email/ingest` | Token-authenticated endpoint called by the Apps Script |
 | `/health` | Liveness check |
 
-> • All routes live under `/api`.<br>
-> • Rate limits, request size limits, and per-field length limits are enforced server-side.
+> • All routes live under `/api`<br>
+> • Rate limits, request size limits, and per-field length limits are enforced server-side
 
 ## Security Notes
 
-<ul style="padding-left: 15;">
-    <li>Passwords hashed with bcrypt; sessions in HTTP-only cookies; CSRF token and origin check on writes.</li>
-    <li>TOTP secrets are encrypted at rest; recovery codes are stored hashed.</li>
-    <li>Frontend ships a strict Content Security Policy; the API sends restrictive security headers.</li>
-    <li>Outgoing fetches of job postings go through a safe-fetch helper.</li>
-    <li>The Gmail script has read-only scope and never modifies mail.</li>
-    <li>.npmrc disables install scripts and enforces a minimum package age.</li>
-</ul>
+- Passwords hashed with bcrypt; sessions in HTTP-only cookies; CSRF token and origin check on writes
+- TOTP secrets are encrypted at rest; recovery codes are stored hashed
+- Frontend ships a strict Content Security Policy; the API sends restrictive security headers
+- Outgoing fetches of job postings go through a safe-fetch helper
+- The Gmail script has read-only scope and never modifies mail
+- .npmrc disables install scripts and enforces a minimum package age
