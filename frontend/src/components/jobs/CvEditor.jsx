@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from "react";
 import TagInput from "./TagInput";
 import CharCount from "../ui/CharCount";
 import InsetCount from "../ui/InsetCount";
+import SelectInput from "../ui/SelectInput";
 import { useSortable } from "../../hooks/useSortable";
 import { wordDiff } from "../../utils/resume/wordDiff";
 import { basePositions } from "../../utils/resume/cvChanges";
@@ -136,33 +137,33 @@ function MonthField({ label, value, onChange, allowPresent = false, monthOptiona
     <div className="field field-compact">
       <span>{label}{required && <Required />}</span>
       <div className="month-field">
-        <select
+        <SelectInput
           required={required && !monthOptional}
           aria-label={`${label} month`}
           value={monthValue}
-          onChange={(event) => {
-            const next = event.target.value;
-
+          onChange={(next) => {
             if (next === "present") onChange("Present");
             else if (next === "") onChange(formatMonth({ ...parsed, present: false, month: -1 }));
             else onChange(formatMonth({ ...parsed, present: false, month: next === "none" ? -1 : Number(next) }));
           }}
-        >
-          <option value="" disabled={required}>Month</option>
-          {allowPresent && <option value="present">Present</option>}
-          {monthOptional && <option value="none">No month</option>}
-          {MONTHS.map((month, index) => <option key={month} value={index}>{month}</option>)}
-        </select>
+          options={[
+            { value: "", label: "MM" },
+            ...(allowPresent ? [{ value: "present", label: "Present" }] : []),
+            ...(monthOptional ? [{ value: "none", label: "No month" }] : []),
+            ...MONTHS.map((month, index) => ({ value: String(index), label: String(index + 1).padStart(2, "0") }))
+          ]}
+        />
         {!parsed.present && (
-          <select
-            required={required}
-            aria-label={`${label} year`}
-            value={YEARS.includes(parsed.year) ? parsed.year : ""}
-            onChange={(event) => onChange(formatMonth({ ...parsed, year: event.target.value }))}
-          >
-            <option value="" disabled={required}>Year</option>
-            {YEARS.map((year) => <option key={year} value={year}>{year}</option>)}
-          </select>
+          <>
+            <span className="month-sep" aria-hidden="true">/</span>
+            <SelectInput
+              required={required}
+              aria-label={`${label} year`}
+              value={YEARS.includes(parsed.year) ? parsed.year : ""}
+              onChange={(next) => onChange(formatMonth({ ...parsed, year: next }))}
+              options={[{ value: "", label: "YYYY" }, ...YEARS.map((year) => ({ value: year, label: year }))]}
+            />
+          </>
         )}
       </div>
     </div>
@@ -373,7 +374,9 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
   const base = mode === "base";
   const flagged = new Set(flags);
   const compare = showChanges && !base && original;
+  const experienceSort = useSortable(cv.experience, (experience) => set("experience", experience));
   const projectSort = useSortable(cv.projects, (projects) => set("projects", projects));
+  const educationSort = useSortable(cv.education, (education) => set("education", education));
   const skillSort = useSortable(cv.skills, (skills) => set("skills", skills));
   const skillOrder = compare
     ? basePositions(cv.skills.map((group) => ({ id: groupKey(group) })), original.skills.map(groupKey))
@@ -476,9 +479,19 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
     const isCollapsed = collapsed.has(entry.id);
     const issues = entryIssues(section, entry);
     const period = [entry.start, entry.end].filter(Boolean).join(" – ");
+    const sort = { experience: experienceSort, projects: projectSort, education: educationSort }[section];
 
     return (
-      <div className={`cv-entry cv-entry-${section} ${isCollapsed ? "cv-entry-collapsed" : "cv-entry-open"}`} key={entry.id}>
+      <div
+        className={`cv-entry cv-entry-${section} ${isCollapsed ? "cv-entry-collapsed" : "cv-entry-open"}${sort && isCollapsed ? " cv-entry-sortable" : ""}${sort?.dragging === index ? " is-dragging" : ""}`}
+        key={entry.id}
+        ref={sort?.itemRef(index)}
+        {...(sort && isCollapsed ? {
+          tabIndex: 0,
+          "aria-label": `${title || `New ${label}`}. Drag to reorder, or use the arrow keys`,
+          ...sort.dragProps(index, { skipInteractive: true })
+        } : {})}
+      >
         <div className="cv-entry-actions">
           <RemoveButton label={`Remove ${label}`} onClick={() => removeEntry(section, index)} />
           <button
@@ -496,7 +509,12 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
         </div>
 
         {isCollapsed ? (
-          <button type="button" className="cv-entry-summary" onClick={() => toggle(entry.id)}>
+          <button
+            type="button"
+            className="cv-entry-summary"
+            onClick={() => toggle(entry.id)}
+            {...(sort ? sort.dragProps(index, { textField: true }) : {})}
+          >
             <span className="cv-entry-summary-text">
               <strong>{title || `New ${label}`}</strong>
               {sub && <span className="muted"> · {sub}</span>}
@@ -655,7 +673,7 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
     onRemoveItem: base ? null : (bullet, position) => removeBullet(section, index, bullet, position),
     baseOrder: baseEntryOf(section, cv[section][index])?.bullets.map((bullet) => bullet.id) ?? null,
     flagged,
-    sortable: !base,
+    sortable: true,
     onChange: (bullets) => setEntry(section, index, { bullets })
   });
 
@@ -953,7 +971,7 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
             <div
               className={`cv-skill-row${skillSort.dragging === index ? " is-dragging" : ""}`}
               key={index}
-              ref={base ? undefined : skillSort.itemRef(index)}
+              ref={skillSort.itemRef(index)}
             >
               <div className={`cv-skill-category${markTitle ? " cv-skill-marked" : ""}`}>
                 {markTitle && (
@@ -966,9 +984,9 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
                   value={group.category}
                   maxLength={LIMITS.groupName}
                   placeholder="Group, e.g. Languages"
-                  aria-label={base ? "Skill group name" : "Skill group name. Drag up or down, or press Alt with the arrow keys, to reorder"}
-                  title={base ? undefined : "Drag up or down to reorder"}
-                  {...(base ? {} : skillSort.dragProps(index, { textField: true, altKeys: true }))}
+                  aria-label="Skill group name. Drag up or down, or press Alt with the arrow keys, to reorder"
+                  title="Drag up or down to reorder"
+                  {...skillSort.dragProps(index, { textField: true, altKeys: true })}
                   onChange={(event) => set("skills", cv.skills.map((g, i) => (i === index ? { ...g, category: event.target.value } : g)))}
                 />
               </div>
@@ -981,7 +999,7 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
                 label={`Skills in ${group.category || "this group"}`}
                 placeholder="Type a skill and press Enter"
                 isAdded={compare ? (skill) => !originalSkills.has(skill.toLowerCase()) : undefined}
-                sortable={!base}
+                sortable
                 onChange={(items) => set("skills", cv.skills.map((g, i) => (i === index ? { ...g, items } : g)))}
               />
               <RemoveButton label="Remove skill group" onClick={() => set("skills", cv.skills.filter((_, i) => i !== index))} />

@@ -1686,6 +1686,7 @@ textarea {
 .field textarea,
 .field .select-trigger,
 .toolbar select,
+.toolbar .select-trigger,
 .search input {
   width: 100%;
   padding: 10px 12px;
@@ -1702,7 +1703,8 @@ textarea {
 
 /* The built-in arrow can't be moved, so it's swapped for an inset chevron */
 .field select,
-.field .select-trigger {
+.field .select-trigger,
+.toolbar .select-trigger {
   padding-right: 38px;
   appearance: none;
   background-image: var(--select-chevron);
@@ -1721,6 +1723,7 @@ textarea {
 .field textarea:focus,
 .field .select-trigger:focus,
 .toolbar select:focus,
+.toolbar .select-trigger:focus,
 .search input:focus {
   outline: none;
   border-color: var(--accent);
@@ -1780,6 +1783,46 @@ textarea {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+/* Invisible input that lets a required select block form submission */
+.dropdown .select-required {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Lists in compact spots can be wider than their trigger and scroll when long */
+.toolbar .dropdown-list,
+.app-actions .dropdown-list,
+.month-field .dropdown-list {
+  right: auto;
+  min-width: 100%;
+  width: max-content;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.app-actions .dropdown-list {
+  right: 0;
+  left: auto;
+}
+
+/* Compact date lists: every month fits without scrolling and about 15 years show at once */
+.month-field .dropdown-list {
+  max-height: 380px;
+  padding: 3px;
+}
+
+.month-field .dropdown-option {
+  padding: 3px 8px;
+  font-size: 0.85rem;
+  line-height: 1.3;
 }
 
 .hint {
@@ -2331,15 +2374,8 @@ textarea {
   padding-left: 36px;
 }
 
-.toolbar select {
+.toolbar .select-trigger {
   width: auto;
-  cursor: pointer;
-  appearance: none;
-  padding-right: 38px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 8l5 5 5-5'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 14px center;
-  background-size: 14px;
 }
 
 /* Filter chips */
@@ -2868,7 +2904,6 @@ textarea {
 }
 
 .app-notes {
-  margin-top: 2px;
   font-size: 0.88rem;
   color: var(--text-muted);
   white-space: nowrap;
@@ -2891,11 +2926,10 @@ textarea {
 
 .status-select {
   width: 120px;
-  padding: 6px 10px;
-  margin-right: 4px;
+  padding: 6px 28px 6px 10px;
   border: 1px solid color-mix(in srgb, var(--status) 40%, transparent);
   border-radius: 8px;
-  background: var(--status-soft);
+  background: var(--status-soft) var(--select-chevron) no-repeat right 10px center / 10px 6px;
   color: var(--status);
   font-size: 0.87rem;
   font-weight: 600;
@@ -2906,10 +2940,12 @@ textarea {
   margin-right: 4px;
 }
 
-.status-select option {
-  background: var(--surface);
-  color: var(--text);
-  font-weight: 400;
+.app-actions .dropdown {
+  margin-right: 4px;
+}
+
+.status-select .select-value {
+  flex: 1;
 }
 
 .confirm {
@@ -3612,7 +3648,8 @@ textarea {
     flex-direction: column;
   }
 
-  .toolbar select {
+  .toolbar .dropdown,
+  .toolbar .select-trigger {
     width: 100%;
   }
 
@@ -3659,7 +3696,7 @@ textarea {
 
   .app-card .app-actions .status-select {
     height: 34px;
-    padding: 0 10px;
+    padding: 0 28px 0 10px;
   }
 
   .app-card .app-actions .btn-sm {
@@ -3755,11 +3792,11 @@ textarea {
   }
 
   .status-select {
-    padding: 9px 10px;
+    padding: 9px 28px 9px 10px;
     font-size: 1rem;
   }
 
-  .toolbar select {
+  .toolbar .select-trigger {
     font-size: 1rem;
   }
 }
@@ -4354,10 +4391,6 @@ textarea {
   padding: 0 10px;
 }
 
-.profile-form .field select {
-  padding-right: 34px;
-}
-
 .req {
   color: var(--danger);
 }
@@ -4576,21 +4609,38 @@ textarea {
 .month-field {
   display: flex;
   gap: 4px;
-  width: 170px;
+  width: fit-content;
 }
 
-.month-field select,
-.cv-editor .month-field select {
+.month-field .dropdown {
   flex: 1 1 0;
   min-width: 0;
-  padding: 0 4px;
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
 }
 
-.month-field select:first-child:not(:only-child) {
-  flex-grow: 1.1;
+/* Month and year are sized to fit "MM" and "YYYY"; a lone month field also fits "Present" */
+.month-field .dropdown:first-child:not(:only-child) {
+  flex: 0 0 65px;
+}
+
+.month-field .dropdown:last-child:not(:only-child) {
+  flex: 0 0 80px;
+}
+
+.month-field .dropdown:only-child {
+  flex: 0 0 96px;
+}
+
+.month-sep {
+  align-self: flex-start;
+  line-height: 36px;
+  color: var(--text-muted);
+}
+
+.month-field .select-trigger,
+.cv-editor .month-field .select-trigger {
+  height: 36px;
+  padding: 0 24px 0 8px;
+  background-position: right 8px center;
 }
 
 .cv-row {
@@ -5547,9 +5597,6 @@ body.is-sorting * {
     flex: 1 1 auto;
   }
 
-  .cv-fields > .field-compact select {
-    width: 100%;
-  }
 
   .month-field {
     width: 100%;

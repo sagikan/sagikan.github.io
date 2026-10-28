@@ -4,6 +4,7 @@ import { STATUSES, formatDate, jobDay, localISO, toDateInput } from "../lib/api"
 import ApplicationForm from "../components/applications/ApplicationForm";
 import CompanyAvatar from "../components/ui/CompanyAvatar";
 import Modal from "../components/ui/Modal";
+import SelectInput from "../components/ui/SelectInput";
 import ApplicationStats from "../components/applications/ApplicationStats";
 import { downloadSavedCv } from "../utils/resume/cvPdf";
 import Alert from "../components/ui/Alert";
@@ -489,16 +490,13 @@ function Applications({
                     </svg>
                   </button>
                 )}
-                <select
+                <SelectInput
                   className="status-select"
                   value={job.status}
-                  onChange={(event) => onQuickStatus(job.id, event.target.value)}
+                  onChange={(value) => onQuickStatus(job.id, value)}
+                  options={STATUSES.map((status) => ({ value: status, label: status }))}
                   aria-label={`Change status for ${job.company}`}
-                >
-                  {STATUSES.map((status) => (
-                    <option key={status} value={status}>{status}</option>
-                  ))}
-                </select>
+                />
                 <button
                   type="button"
                   className="icon-btn"
@@ -712,11 +710,12 @@ function Applications({
           />
         </div>
 
-        <select value={sort} onChange={(event) => setSort(event.target.value)} aria-label="Sort applications">
-          {Object.entries(SORTS).map(([key, option]) => (
-            <option key={key} value={key}>{option.label}</option>
-          ))}
-        </select>
+        <SelectInput
+          value={sort}
+          onChange={setSort}
+          options={Object.entries(SORTS).map(([key, option]) => ({ value: key, label: option.label }))}
+          aria-label="Sort applications"
+        />
       </section>
 
       <div className="chips" role="tablist" aria-label="Filter by date">

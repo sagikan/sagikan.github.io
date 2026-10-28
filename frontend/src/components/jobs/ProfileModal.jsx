@@ -250,6 +250,7 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
                     max={LIMITS.roles}
                     maxLength={LIMITS.preference}
                     showCount
+                    sortable
                     label="Roles"
                     placeholder="Type a role and press Enter"
                     onChange={(roles) => setPrefs((current) => ({ ...current, roles }))}
@@ -262,6 +263,7 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
                     max={LIMITS.locations}
                     maxLength={LIMITS.preference}
                     showCount
+                    sortable
                     label="Locations"
                     placeholder="Type a location and press Enter"
                     onChange={(locations) => setPrefs((current) => ({ ...current, locations }))}
