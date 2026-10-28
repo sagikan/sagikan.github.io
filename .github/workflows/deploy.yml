@@ -1,4 +1,4 @@
-name: Deploy frontend to GitHub Pages
+name: Deploy
 
 on:
   push:
