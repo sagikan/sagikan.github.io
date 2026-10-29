@@ -66,7 +66,7 @@ function normalizeEmail(value) {
 
 // Checks whether a value looks like an email address
 function isValidEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  return typeof email === "string" && email.length <= 254 && /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(email);
 }
 
 // Signs a JWT that expires after the given number of seconds
