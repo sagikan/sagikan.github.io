@@ -72,9 +72,33 @@ describe("isValidEmail", () => {
     ["dana example@mail.com", false],
     ["@example.com", false],
     ["dana@@example.com", false],
-    ["", false]
+    ["dana@example..com", false],
+    ["dana@.example.com", false],
+    ["dana@example.com.", false],
+    ["", false],
+    [undefined, false],
+    [42, false]
   ])("treats %j as valid: %s", (email, expected) => {
     expect(auth.isValidEmail(email)).toBe(expected);
+  });
+
+  it("accepts an address of 254 characters and refuses one of 255", () => {
+    const domain = "@example.com";
+
+    expect(auth.isValidEmail(`${"a".repeat(254 - domain.length)}${domain}`)).toBe(true);
+    expect(auth.isValidEmail(`${"a".repeat(255 - domain.length)}${domain}`)).toBe(false);
+  });
+
+  it.each([
+    ["many dot-separated parts that end badly", `!@!.${"!.".repeat(50000)} `],
+    ["many dot-separated parts that end well", `a@${"!.".repeat(50000)}x`],
+    ["a long local part", `${"!".repeat(100000)}@`],
+    ["a long domain without a dot", `a@${"!".repeat(100000)}`]
+  ])("answers quickly for %s, so a crafted email can't tie the server up", (_title, email) => {
+    const started = performance.now();
+
+    expect(auth.isValidEmail(email)).toBe(false);
+    expect(performance.now() - started).toBeLessThan(100);
   });
 });
 

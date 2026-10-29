@@ -26,6 +26,11 @@ Thumbs.db
 # Test coverage
 coverage/
 
+# Local CodeQL runs (the tool, its databases and results)
+codeql/
+codeql-db/
+*.sarif
+
 # Keys, certificates and database dumps (never publish these)
 *.pem
 *.key

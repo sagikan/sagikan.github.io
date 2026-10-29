@@ -17,6 +17,15 @@ function requireTrustedOrigin(req, res, next) {
   next();
 }
 
+// Rejects state-changing requests that don't come from an allowed origin
+function csrfOriginProtection(req, res, next) {
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) {
+    return requireTrustedOrigin(req, res, next);
+  }
+
+  next();
+}
+
 // Rejects state-changing requests without a matching CSRF token
 function requireCsrf(req, res, next) {
   if (["GET", "HEAD", "OPTIONS"].includes(req.method)) {
@@ -36,4 +45,4 @@ function requireCsrf(req, res, next) {
   next();
 }
 
-module.exports = { allowedOrigins, requireTrustedOrigin, requireCsrf };
+module.exports = { allowedOrigins, requireTrustedOrigin, csrfOriginProtection, requireCsrf };
