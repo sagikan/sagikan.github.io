@@ -43,8 +43,12 @@ jobs:
         with:
           path: frontend/dist
 
-  deploy:
+  test:
     needs: build
+    uses: ./.github/workflows/tests.yml
+
+  deploy:
+    needs: [build, test]
     runs-on: ubuntu-latest
     environment:
       name: github-pages
