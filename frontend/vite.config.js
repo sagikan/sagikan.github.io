@@ -38,6 +38,14 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react(), contentSecurityPolicy(env.VITE_API_URL)],
-    base: "/"
+    base: "/",
+    test: {
+      environment: "jsdom",
+      include: ["src/**/__tests__/**/*.test.{js,jsx}"],
+      setupFiles: ["./tests/setup.js"],
+      restoreMocks: true,
+      unstubGlobals: true,
+      passWithNoTests: true
+    }
   };
 });

@@ -53,3 +53,7 @@ jobs:
       - name: Check syntax
         run: find src scripts -name "*.js" -print0 | xargs -0 -n1 node --check
         working-directory: backend
+
+  test:
+    needs: [frontend, backend]
+    uses: ./.github/workflows/tests.yml
