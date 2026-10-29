@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
-import { assertSafeDatabaseUrl, assertTestDatabase } from "./guard.js";
+import { assertSafeDatabaseUrl, assertTestDatabase, startupError } from "./guard.js";
 
 const require = createRequire(import.meta.url);
 const { Client } = require("pg");
@@ -15,9 +15,15 @@ export default async function setup() {
   await client.connect();
 
   try {
+    const schema = readFileSync(SCHEMA, "utf8");
+
     await assertTestDatabase(client);
     await client.query("DROP SCHEMA public CASCADE; CREATE SCHEMA public");
-    await client.query(readFileSync(SCHEMA, "utf8"));
+    await client.query(schema);
+    // Applied a second time, since every deploy re-applies it to the real database
+    await client.query(schema);
+  } catch (error) {
+    throw error.startup ? error : startupError(`Could not set up the test database: ${error.message}`);
   } finally {
     await client.end();
   }
