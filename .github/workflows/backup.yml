@@ -20,6 +20,14 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     steps:
+      - name: Prepare
+        env:
+          BACKUP_REPO: ${{ vars.BACKUP_REPO }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          echo "::add-mask::${BACKUP_REPO}"
+          for v in $(printf '%s' "${DATABASE_URL#*://}" | tr ':/@?&=' ' '); do echo "::add-mask::$v"; done
+
       - name: Install the matching pg_dump
         run: |
           sudo apt-get install -y postgresql-common
@@ -45,17 +53,11 @@ jobs:
           sep=$([[ "$base" == *\?* ]] && echo '&' || echo '?')
           url="${base}${sep}sslmode=verify-full&sslrootcert=system"
 
-          if ! "$bin/psql" "$url" -XAtqc 'SELECT 1' > /dev/null 2> ssl-check.log; then
-            echo "::error title=Database certificate not verified::$(head -c 300 ssl-check.log | tr '\n' ' ')"
-            exit 1
-          fi
-          rm -f ssl-check.log
-
           file="backups/job-tracker-$(date -u +%Y-%m-%d_%H%M).sql.gz.gpg"
-          "$bin/pg_dump" --no-owner --no-privileges "$url" \
+          "$bin/pg_dump" --no-owner --no-privileges "$url" 2> /dev/null \
             | gzip \
             | gpg --batch --yes --pinentry-mode loopback --symmetric --cipher-algo AES256 \
-                --passphrase "$BACKUP_PASSPHRASE" --output "$file"
+                --passphrase-fd 3 --output "$file" 3<<<"$BACKUP_PASSPHRASE"
           test -s "$file"
 
       - name: Delete old backups and push

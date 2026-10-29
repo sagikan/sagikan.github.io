@@ -47,8 +47,35 @@ jobs:
     needs: build
     uses: ./.github/workflows/tests.yml
 
+  migrate:
+    needs: test
+    runs-on: ubuntu-latest
+    concurrency:
+      group: migrate
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: backend/schema.sql
+
+      - name: Prepare
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          for v in $(printf '%s' "${DATABASE_URL#*://}" | tr ':/@?&=' ' '); do echo "::add-mask::$v"; done
+
+      - name: Apply the schema
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          base=$(printf '%s' "$DATABASE_URL" | sed -E 's/([?&])(sslmode|sslrootcert)=[^&]*&?/\1/g; s/[?&]$//')
+          sep=$([[ "$base" == *\?* ]] && echo '&' || echo '?')
+          psql "${base}${sep}sslmode=verify-full&sslrootcert=system" -X -q -v ON_ERROR_STOP=1 --single-transaction -f backend/schema.sql > /dev/null 2>&1
+
   deploy:
-    needs: [build, test]
+    needs: migrate
     runs-on: ubuntu-latest
     environment:
       name: github-pages
