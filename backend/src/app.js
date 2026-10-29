@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
-const { requireTrustedOrigin, allowedOrigins } = require("./middleware/csrf");
+const { csrfOriginProtection, allowedOrigins } = require("./middleware/csrf");
 const { checkSecrets, securityHeaders, errorHandler } = require("./middleware/security");
 const { apiLimiter } = require("./middleware/rateLimit");
 const authRoutes = require("./routes/auth");
@@ -39,14 +39,7 @@ app.use("/api", apiLimiter);
 app.use(express.json({ limit: "100kb", inflate: false }));
 app.use(cookieParser());
 
-// Checks the origin of state-changing requests
-app.use((req, res, next) => {
-  if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) {
-    return requireTrustedOrigin(req, res, next);
-  }
-
-  next();
-});
+app.use(csrfOriginProtection);
 
 // Reports that the API is up
 app.get("/api/health", (req, res) => {
