@@ -222,7 +222,7 @@ function normalizeCv(raw) {
       const name = text(entry?.name);
       const item = {
         id,
-        name: stack && !name.includes(stack) ? `${name} | ${stack}` : name,
+        name: name && stack && !name.includes(stack) ? `${name} | ${stack}` : name,
         link: link(entry?.link),
         start: text(entry?.start, 40),
         end: text(entry?.end, 40),

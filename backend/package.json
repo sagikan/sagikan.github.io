@@ -6,6 +6,7 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:db": "vitest run --config vitest.integration.config.mjs",
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "db:reset": "node scripts/reset-db.js"
@@ -30,6 +31,7 @@
     "node": "^22.23.4 || ^24.22.1 || >=26.12.1"
   },
   "devDependencies": {
+    "supertest": "^7.3.1",
     "vitest": "^5.0.5"
   }
 }

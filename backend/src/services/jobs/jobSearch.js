@@ -480,4 +480,4 @@ function failInterrupted() {
   );
 }
 
-module.exports = { status, start, failInterrupted, score };
+module.exports = { status, start, run, shortlist, failInterrupted, score };

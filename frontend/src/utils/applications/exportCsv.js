@@ -11,7 +11,7 @@ const COLUMNS = [
 ];
 
 // Escapes a value for a CSV cell
-function cell(value) {
+export function cell(value) {
   let text = value == null ? "" : String(value);
 
   if (/^[=+\-@\t\r]/.test(text)) {
