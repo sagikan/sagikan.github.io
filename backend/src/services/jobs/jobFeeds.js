@@ -657,4 +657,4 @@ async function ensureFresh() {
   }
 }
 
-module.exports = { ensureFresh, removeOldPostings, markClosed, MAX_AGE_DAYS };
+module.exports = { ensureFresh, removeOldPostings, markClosed, refreshBoard, PROVIDERS, boardsIn, cleanUrl, prettyName, searchRoles, MAX_AGE_DAYS };
