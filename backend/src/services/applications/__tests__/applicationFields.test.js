@@ -68,10 +68,10 @@ describe("checkApplicationField", () => {
     expect(checkApplicationField("job_url", `https://example.com/${"a".repeat(500)}`)).toBe("The link can be at most 500 characters.");
   });
 
-  it("accepts notes as a string or null, up to 5000 characters", () => {
+  it("accepts notes as a string or null, up to 2000 characters", () => {
     expect(checkApplicationField("notes", null)).toBeNull();
-    expect(checkApplicationField("notes", "a".repeat(5000))).toBeNull();
-    expect(checkApplicationField("notes", "a".repeat(5001))).toBe("Notes can be at most 5000 characters.");
+    expect(checkApplicationField("notes", "a".repeat(2000))).toBeNull();
+    expect(checkApplicationField("notes", "a".repeat(2001))).toBe("Notes can be at most 2000 characters.");
     expect(checkApplicationField("notes", 5)).toBe("notes must be a string or null.");
   });
 
