@@ -2,7 +2,7 @@ import { useCallback, useId, useRef, useState } from "react";
 import { useDismiss } from "../../hooks/useDismiss";
 
 // Dropdown for picking one of the given options, styled like the site's other menus
-function SelectInput({ value, onChange, options, className = "", required = false, ...props }) {
+function SelectInput({ value, onChange, options, className = "", required = false, openUp = false, ...props }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const ref = useRef(null);
@@ -70,7 +70,7 @@ function SelectInput({ value, onChange, options, className = "", required = fals
       </button>
       {required && <input className="select-required" tabIndex={-1} aria-hidden="true" value={value} onChange={() => {}} required />}
       {open && (
-        <ul className="dropdown-list" id={listId} role="listbox">
+        <ul className={`dropdown-list${openUp ? " dropdown-list-up" : ""}`} id={listId} role="listbox">
           {options.map((option, index) => (
             <li
               key={option.value}

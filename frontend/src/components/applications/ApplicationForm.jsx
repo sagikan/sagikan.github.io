@@ -1,13 +1,14 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { STATUSES, WORKPLACE_MODELS, formatDate, jobDay, localISO, toDateInput } from "../../lib/api";
 import { lastLocationFor, suggestionsFor } from "../../utils/forms/suggestions";
 import Alert from "../ui/Alert";
 import AutocompleteInput from "../ui/AutocompleteInput";
 import CharCount from "../ui/CharCount";
+import ModalSubmit from "../ui/ModalSubmit";
 import SelectInput from "../ui/SelectInput";
 
 const WORKPLACE_OPTIONS = [{ value: "", label: "Not specified" }, ...WORKPLACE_MODELS.map((model) => ({ value: model, label: model }))];
-const MAX_LENGTH = { position: 200, company: 200, location: 200, job_url: 500, notes: 5000 };
+const MAX_LENGTH = { position: 200, company: 200, location: 200, job_url: 500, notes: 2000 };
 const STATUS_OPTIONS = STATUSES.map((status) => ({ value: status, label: status }));
 
 // Returns the form's starting values for a job, or empty ones
@@ -28,7 +29,8 @@ function initialValues(job) {
 const normalize = (text) => text.trim().toLowerCase();
 
 // Form for adding or editing an application
-function ApplicationForm({ job, applications, onSubmit, onCancel }) {
+function ApplicationForm({ job, applications, onSubmit, active = true }) {
+  const formId = useId();
   const [values, setValues] = useState(() => initialValues(job));
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -104,7 +106,7 @@ function ApplicationForm({ job, applications, onSubmit, onCancel }) {
   }
 
   return (
-    <form className="app-form" onSubmit={handleSubmit}>
+    <form id={formId} className="app-form" onSubmit={handleSubmit}>
       {error && <Alert type="error">{error}</Alert>}
 
       {earlierDuplicate && (
@@ -113,7 +115,7 @@ function ApplicationForm({ job, applications, onSubmit, onCancel }) {
         </Alert>
       )}
 
-      <div className="form-grid">
+      <div className="form-grid" style={{ "--fixed-rows": 4 }}>
         <label className="field">
           <span className="field-head">Position <CharCount value={values.position} max={MAX_LENGTH.position} /></span>
           <AutocompleteInput
@@ -160,9 +162,14 @@ function ApplicationForm({ job, applications, onSubmit, onCancel }) {
           />
         </label>
 
+        <label className="field field-full">
+          <span className="field-head">Job Posting URL <small className="optional">&ensp;optional</small> <CharCount value={values.job_url} max={MAX_LENGTH.job_url} /></span>
+          <input type="url" value={values.job_url} onChange={update("job_url")} placeholder="https://…" maxLength={MAX_LENGTH.job_url} />
+        </label>
+
         <label className="field">
           <span>Status</span>
-          <SelectInput value={values.status} onChange={(value) => setField("status", value)} options={STATUS_OPTIONS} />
+          <SelectInput value={values.status} onChange={(value) => setField("status", value)} options={STATUS_OPTIONS} openUp />
         </label>
 
         <label className="field">
@@ -171,30 +178,20 @@ function ApplicationForm({ job, applications, onSubmit, onCancel }) {
         </label>
 
         <label className="field field-full">
-          <span className="field-head">Job Posting URL <small className="optional">&ensp;optional</small> <CharCount value={values.job_url} max={MAX_LENGTH.job_url} /></span>
-          <input type="url" value={values.job_url} onChange={update("job_url")} placeholder="https://…" maxLength={MAX_LENGTH.job_url} />
-        </label>
-
-        <label className="field field-full">
           <span className="field-head">Notes <small className="optional">&ensp;optional</small> <CharCount value={values.notes} max={MAX_LENGTH.notes} /></span>
           <textarea
             value={values.notes}
             onChange={update("notes")}
-            rows={4}
+            rows={3}
             maxLength={MAX_LENGTH.notes}
             placeholder="Recruiter name, salary range, next steps, etc."
           />
         </label>
       </div>
 
-      <div className="form-actions">
-        <button type="button" className="btn btn-ghost" onClick={onCancel}>
-          Cancel
-        </button>
-        <button type="submit" className="btn btn-primary" disabled={saving}>
-          {saving ? "Saving…" : job?.id ? "Save changes" : "Add application"}
-        </button>
-      </div>
+      <ModalSubmit formId={formId} active={active} label={job?.id ? "Save changes" : "Add application"} busy={saving} plus={!job?.id}>
+        {job?.id ? (saving ? "Saving…" : "Save changes") : "Add"}
+      </ModalSubmit>
     </form>
   );
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiRequest, checkHealth } from "./lib/api";
 import { navigate, redirect, useHashRoute } from "./lib/router";
+import Footer from "./components/layout/Footer";
 import Navbar from "./components/layout/Navbar";
 import Alert from "./components/ui/Alert";
 import Landing from "./pages/Landing";
@@ -8,15 +9,13 @@ import Login from "./pages/Login";
 import Applications from "./pages/Applications";
 import Account from "./pages/Account";
 import Jobs from "./pages/Jobs";
+import Privacy from "./pages/Privacy";
+import PolicyNotice from "./components/auth/PolicyNotice";
+import { POLICY_VERSION, needsPolicyNotice } from "./utils/policy/policy";
 
 const PROTECTED_ROUTES = ["/applications", "/jobs", "/account"];
 const NO_EMAIL_UPDATES = { pending: [], recent: [] };
 const EMAIL_REFRESH_MS = 2 * 60 * 1000;
-const API_LABELS = {
-  checking: "Connecting…",
-  online: "API online",
-  offline: "API offline"
-};
 
 // Root component: checks the session and routes between pages
 function App() {
@@ -26,6 +25,7 @@ function App() {
   const [csrfToken, setCsrfToken] = useState("");
   const [authenticated, setAuthenticated] = useState(false);
   const [email, setEmail] = useState("");
+  const [seenPolicy, setSeenPolicy] = useState(undefined);
   const [applications, setApplications] = useState([]);
   const [emailUpdates, setEmailUpdates] = useState(NO_EMAIL_UPDATES);
   const [error, setError] = useState("");
@@ -36,6 +36,7 @@ function App() {
     setAuthenticated(false);
     setApplications([]);
     setEmailUpdates(NO_EMAIL_UPDATES);
+    setSeenPolicy(undefined);
     setCsrfToken("");
   }, []);
 
@@ -69,6 +70,7 @@ function App() {
 
     if (response.ok) {
       setEmail(data.user.email);
+      setSeenPolicy(data.user.policyVersion);
     }
   }, []);
 
@@ -159,6 +161,15 @@ function App() {
     };
   }, [authenticated, route, loadEmailUpdates]);
 
+  // Records that the user has seen the current privacy policy, and closes the notice
+  const acknowledgePolicy = useCallback(async () => {
+    setSeenPolicy(POLICY_VERSION);
+
+    if (csrfToken) {
+      await apiRequest("/api/account/policy", { method: "POST", body: { version: POLICY_VERSION }, csrfToken }).catch(() => {});
+    }
+  }, [csrfToken]);
+
   // Loads the user's applications after sign-in and opens them
   async function completeLogin(userEmail) {
     setFlash(null);
@@ -169,7 +180,7 @@ function App() {
         setAuthenticated(true);
       }
 
-      await loadApps();
+      await Promise.all([loadUser(), loadApps()]);
     } catch {
       setError("Could not load your applications.");
     }
@@ -293,6 +304,7 @@ function App() {
   }
 
   let page;
+  let showCredit = false;
 
   if (route === "/login" || route === "/signup") {
     page = (
@@ -331,6 +343,8 @@ function App() {
   } else if (route === "/applications") {
     page = (
       <Applications
+        csrfToken={csrfToken}
+        onUnauthorized={clearSession}
         applications={applications}
         emailUpdates={emailUpdates}
         onResolveEmailUpdate={resolveEmailUpdate}
@@ -341,6 +355,9 @@ function App() {
         onQuickStatus={handleQuickStatus}
       />
     );
+  } else if (route === "/privacy") {
+    page = <Privacy />;
+    showCredit = true;
   } else {
     page = <Landing authenticated={authenticated} />;
   }
@@ -359,14 +376,16 @@ function App() {
         </div>
       )}
       {page}
-      <footer className="footer">
-        <div className="footer-inner">
-          <div className={`api-pill api-${apiStatus}`} title={API_LABELS[apiStatus]}>
-            <span className="api-dot" aria-hidden="true" />
-          </div>
-          © {new Date().getFullYear()} Applicant Zero
-        </div>
-      </footer>
+      {needsPolicyNotice({ authenticated, seenVersion: seenPolicy, route }) && (
+        <PolicyNotice
+          onClose={acknowledgePolicy}
+          onReview={() => {
+            acknowledgePolicy();
+            navigate("/privacy");
+          }}
+        />
+      )}
+      <Footer apiStatus={apiStatus} showCredit={showCredit} />
     </div>
   );
 }

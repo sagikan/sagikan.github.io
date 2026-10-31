@@ -1,7 +1,10 @@
 import { Fragment, useMemo, useRef, useState } from "react";
 import { downloadApplicationsCsv } from "../utils/applications/exportCsv";
 import { STATUSES, formatDate, jobDay, localISO, toDateInput } from "../lib/api";
+import { navigate } from "../lib/router";
+import AppNote from "../components/applications/AppNote";
 import ApplicationForm from "../components/applications/ApplicationForm";
+import JobPostForm from "../components/jobs/JobPostForm";
 import CompanyAvatar from "../components/ui/CompanyAvatar";
 import Modal from "../components/ui/Modal";
 import SelectInput from "../components/ui/SelectInput";
@@ -9,6 +12,7 @@ import ApplicationStats from "../components/applications/ApplicationStats";
 import { downloadSavedCv } from "../utils/resume/cvPdf";
 import Alert from "../components/ui/Alert";
 
+const KIND_OPTIONS = [{ value: "application", label: "Application" }, { value: "job", label: "Job Post" }];
 const STATUS_ORDER = ["Offer", "Interview", "Applied", "Rejected", "Withdrawn"];
 const SORTS = {
   newestStatus: {
@@ -114,7 +118,7 @@ function StatusPill({ status }) {
 
 // Applications page with filters, email updates and the list by day
 function Applications({
-  applications, emailUpdates, onResolveEmailUpdate, error, onDismissError, onSave, onDelete, onQuickStatus
+  csrfToken, applications, emailUpdates, onResolveEmailUpdate, error, onDismissError, onSave, onDelete, onQuickStatus, onUnauthorized
 }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -122,6 +126,7 @@ function Applications({
   const [pickedDate, setPickedDate] = useState("");
   const [sort, setSort] = useState(DEFAULT_SORT);
   const [editing, setEditing] = useState(null);
+  const [newKind, setNewKind] = useState("application");
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [collapsedDays, setCollapsedDays] = useState([]);
   const [resolvingId, setResolvingId] = useState(null);
@@ -268,6 +273,12 @@ function Applications({
     });
   }
 
+  // Closes the form and resets its switch to applications
+  function closeEditing() {
+    setEditing(null);
+    setNewKind("application");
+  }
+
   // Saves the form and resolves its email update, if any
   async function handleSubmit(fields) {
     const message = await onSave(editing === "new" ? null : editing.id, fields);
@@ -277,7 +288,7 @@ function Applications({
         onResolveEmailUpdate(editing.eventId, "dismiss");
       }
 
-      setEditing(null);
+      closeEditing();
     }
 
     return message;
@@ -440,7 +451,7 @@ function Applications({
                 </a>
               )}
             </div>
-            {job.notes && <p className="app-notes">{job.notes}</p>}
+            {job.notes && <AppNote notes={job.notes} />}
           </div>
 
           {update && <StatusPill status={job.status} />}
@@ -840,13 +851,33 @@ function Applications({
       )}
 
       {editing && (
-        <Modal title={editing === "new" || !editing.id ? "New Application" : "Edit Application"} onClose={() => setEditing(null)}>
-          <ApplicationForm
-            job={editing === "new" ? null : editing}
-            applications={applications}
-            onSubmit={handleSubmit}
-            onCancel={() => setEditing(null)}
-          />
+        <Modal
+          title={editing === "new" ? (
+            <span className="modal-title-row">
+              New
+              <SelectInput value={newKind} onChange={setNewKind} options={KIND_OPTIONS} aria-label="Entry type" />
+            </span>
+          ) : editing.id ? "Edit Application" : "New Application"}
+          onClose={closeEditing}
+        >
+          {editing === "new" ? (
+            <div className="form-stack">
+              <div className={newKind === "application" ? "" : "is-hidden"}>
+                <ApplicationForm job={null} applications={applications} onSubmit={handleSubmit} active={newKind === "application"} />
+              </div>
+              <div className={newKind === "job" ? "" : "is-hidden"}>
+                <JobPostForm
+                  active={newKind === "job"}
+                  csrfToken={csrfToken}
+                  pastEntries={applications}
+                  onAdded={() => navigate("/jobs")}
+                  onUnauthorized={onUnauthorized}
+                />
+              </div>
+            </div>
+          ) : (
+            <ApplicationForm job={editing} applications={applications} onSubmit={handleSubmit} />
+          )}
         </Modal>
       )}
     </main>

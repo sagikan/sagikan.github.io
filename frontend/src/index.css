@@ -235,6 +235,19 @@ textarea {
   transition: background-color 0.15s, border-color 0.15s, transform 0.15s, box-shadow 0.15s;
 }
 
+/* Small button for a modal header, level with the close button */
+.btn-compact {
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  font-size: 0.85rem;
+}
+
+.btn-compact .spinner {
+  border-color: rgb(255 255 255 / 0.35);
+  border-top-color: #fff;
+}
+
 .btn:hover {
   text-decoration: none;
 }
@@ -1539,6 +1552,37 @@ textarea {
   border-top: 1px solid var(--border);
 }
 
+.footer-copy {
+  text-align: center;
+}
+
+.footer-links {
+  grid-column: 3;
+  justify-self: end;
+  display: flex;
+  gap: 14px;
+  white-space: nowrap;
+}
+
+.footer-links a {
+  color: inherit;
+}
+
+.footer-links a:hover {
+  color: var(--text);
+}
+
+@media (max-width: 640px) {
+  .footer-inner {
+    grid-template-columns: auto 1fr auto;
+    gap: 8px;
+  }
+
+  .footer-credit-prefix {
+    display: none;
+  }
+}
+
 .footer-inner {
   max-width: 1120px;
   height: 100%;
@@ -1749,6 +1793,11 @@ textarea {
   background: var(--surface);
   box-shadow: var(--shadow-md);
   animation: fade-in 0.12s ease-out;
+}
+
+.dropdown-list-up {
+  top: auto;
+  bottom: calc(100% + 4px);
 }
 
 .dropdown-option {
@@ -2486,6 +2535,18 @@ textarea {
   color: hsl(var(--hue) 55% 42%);
 }
 
+.avatar-logo {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+
+.avatar-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
 /* Date headers */
 .day-header {
   margin-top: 8px;
@@ -2911,6 +2972,19 @@ textarea {
   text-overflow: ellipsis;
 }
 
+.app-notes.is-expandable {
+  cursor: pointer;
+}
+
+.app-notes.is-expandable:hover {
+  color: var(--text);
+}
+
+.app-notes.is-open {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .app-notes.empty {
   font-style: italic;
   opacity: 0.6;
@@ -2926,7 +3000,8 @@ textarea {
 
 .status-select {
   width: 120px;
-  padding: 6px 28px 6px 10px;
+  height: 30px;
+  padding: 0 28px 0 10px;
   border: 1px solid color-mix(in srgb, var(--status) 40%, transparent);
   border-radius: 8px;
   background: var(--status-soft) var(--select-chevron) no-repeat right 10px center / 10px 6px;
@@ -3126,6 +3201,16 @@ textarea {
 }
 
 /* The X sits about 10px inside its 30px button, so the button is pulled right to line the X up with the content */
+.modal-header-end {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.modal-actions {
+  display: flex;
+}
+
 .modal-header .icon-btn {
   margin-right: -8px;
 }
@@ -3792,7 +3877,8 @@ textarea {
   }
 
   .status-select {
-    padding: 9px 28px 9px 10px;
+    height: 40px;
+    padding: 0 28px 0 10px;
     font-size: 1rem;
   }
 
@@ -3940,8 +4026,8 @@ textarea {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 14px;
-  margin: 4px 0 0;
+  gap: 2px 14px;
+  margin: 2px 0 0;
   font-size: 0.88rem;
   color: var(--text-muted);
 }
@@ -4031,7 +4117,7 @@ textarea {
 
 .job-heading .job-skills,
 .job-heading .job-reason {
-  margin: 7px 0 0;
+  margin: 6px 0 0;
 }
 
 .job-posting-link {
@@ -5654,4 +5740,146 @@ body.is-sorting * {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+/* New application / job post picker in the modal title, styled like the title text */
+.modal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+}
+
+.modal-title-row .dropdown {
+  min-width: 0;
+}
+
+.modal-title-row .select-trigger {
+  gap: 0.4em;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.modal-title-row .select-trigger::after {
+  content: "";
+  flex: none;
+  width: 10px;
+  height: 6px;
+  background: var(--select-chevron) center / 10px 6px no-repeat;
+}
+
+.modal-title-row .dropdown-list {
+  right: auto;
+  min-width: 180px;
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+/* Tall enough that the job post form is as high as the application form, wherever it opens */
+.field textarea.job-description {
+  min-height: 177px;
+}
+
+/* Both new-entry forms share one grid cell, so the modal is as tall as the taller form and the shorter one's last field stretches */
+.form-stack {
+  display: grid;
+}
+
+.form-stack > div {
+  grid-area: 1 / 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.form-stack > div.is-hidden {
+  visibility: hidden;
+}
+
+.form-stack .app-form {
+  flex: 1;
+}
+
+.form-stack .form-grid {
+  flex: 1;
+  grid-template-rows: repeat(var(--fixed-rows), auto) 1fr;
+}
+
+.form-stack .form-grid > :last-child textarea {
+  flex: 1;
+}
+
+/* Privacy policy */
+.legal {
+  line-height: 1.65;
+}
+
+.legal h2 {
+  margin: 32px 0 8px;
+  font-size: 1.2rem;
+}
+
+.legal-summary + h2 {
+  margin-top: 28px;
+}
+
+.legal p,
+.legal li {
+  color: var(--text);
+}
+
+.legal ul {
+  padding-left: 20px;
+}
+
+.legal li + li {
+  margin-top: 4px;
+}
+
+.legal code {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  font-size: 0.9em;
+}
+
+.legal-summary {
+  margin: 0 0 8px;
+  padding: 14px 18px;
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+}
+
+.legal-summary ul {
+  margin: 6px 0 0;
+}
+
+.legal-table-wrap {
+  overflow-x: auto;
+}
+
+.legal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.legal-table th,
+.legal-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.legal-table thead th {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.legal-table tbody th {
+  white-space: nowrap;
+  font-weight: 600;
 }
