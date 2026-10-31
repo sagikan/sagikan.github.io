@@ -5,6 +5,7 @@ const requireAuth = require("../middleware/auth");
 const { requireCsrf } = require("../middleware/csrf");
 const mfa = require("../services/auth/mfa");
 const auth = require("../services/auth/authService");
+const { readPolicyVersion } = require("../services/auth/policy");
 const { loginLimiter, registerLimiter, passwordResetLimiter, codeLimiter } = require("../middleware/rateLimit");
 
 const router = express.Router();
@@ -23,7 +24,7 @@ router.get("/csrf", requireAuth, (req, res) => {
 router.get("/me", requireAuth, async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT id, email FROM users WHERE id = $1`,
+      `SELECT id, email, policy_version AS "policyVersion" FROM users WHERE id = $1`,
       [req.user.id]
     );
     const user = result.rows[0];
@@ -64,10 +65,10 @@ router.post("/register", registerLimiter, async (req, res) => {
 
     const passwordHash = await bcrypt.hash(password, 12);
     const result = await db.query(
-      `INSERT INTO users (email, password_hash)
-       VALUES ($1, $2)
+      `INSERT INTO users (email, password_hash, policy_version, policy_seen_at)
+       VALUES ($1, $2, $3::text, CASE WHEN $3::text IS NULL THEN NULL ELSE NOW() END)
        RETURNING id, email, token_version`,
-      [email, passwordHash]
+      [email, passwordHash, readPolicyVersion(req.body.policyVersion)]
     );
     const user = result.rows[0];
 

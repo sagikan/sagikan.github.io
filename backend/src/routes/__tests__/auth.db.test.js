@@ -44,7 +44,7 @@ describe("GET /api/auth/csrf and /api/auth/me", () => {
     const user = await createUser();
     const b = await loginFully(user);
 
-    expect((await b.get("/api/auth/me")).body).toEqual({ user: { id: user.id, email: user.email } });
+    expect((await b.get("/api/auth/me")).body).toEqual({ user: { id: user.id, email: user.email, policyVersion: null } });
     expect((await b.get("/api/auth/csrf")).body.csrfToken).toMatch(/^[0-9a-f]{64}$/);
   });
 
@@ -82,6 +82,29 @@ describe("POST /api/auth/register", () => {
 
     expect(code).toMatch(/^\d{6}$/);
     expect(stored).toEqual({ code_hash: mfa.hashCode(code), attempts: 0 });
+  });
+
+  it("records the policy version the person was shown when signing up", async () => {
+    await browser().post("/api/auth/register").send({ email: "dana@example.com", password: PASSWORD, policyVersion: "2026-10-31" });
+
+    const user = await userRow();
+
+    expect(user.policy_version).toBe("2026-10-31");
+    expect(user.policy_seen_at).toBeInstanceOf(Date);
+  });
+
+  it.each([
+    ["no version", undefined],
+    ["a version that is not a date", "latest"],
+    ["a date that does not exist", "2026-02-30"],
+    ["a version that is not text", 20261031]
+  ])("records no policy version when the sign-up has %s", async (_title, policyVersion) => {
+    const res = await browser().post("/api/auth/register").send({ email: "dana@example.com", password: PASSWORD, policyVersion });
+    const user = await userRow();
+
+    expect(res.status).toBe(201);
+    expect(user.policy_version).toBeNull();
+    expect(user.policy_seen_at).toBeNull();
   });
 
   it("still creates the account when the email can't be sent, and says so", async () => {

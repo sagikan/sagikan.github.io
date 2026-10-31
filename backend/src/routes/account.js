@@ -5,10 +5,30 @@ const requireAuth = require("../middleware/auth");
 const { requireCsrf } = require("../middleware/csrf");
 const mfa = require("../services/auth/mfa");
 const auth = require("../services/auth/authService");
+const { readPolicyVersion } = require("../services/auth/policy");
 
 const router = express.Router();
 
 router.use(requireAuth, requireCsrf);
+
+// Records that the user has seen a version of the privacy policy
+router.post("/policy", async (req, res) => {
+  const version = readPolicyVersion(req.body.version);
+
+  if (!version) {
+    return res.status(400).json({ error: "A policy version written as YYYY-MM-DD is required." });
+  }
+
+  try {
+    await db.query(`UPDATE users SET policy_version = $2, policy_seen_at = NOW() WHERE id = $1`, [req.user.id, version]);
+
+    res.json({ policyVersion: version });
+  } catch (err) {
+    console.error(err);
+
+    res.status(500).json({ error: "Could not save your choice." });
+  }
+});
 
 // Returns how many recovery codes are left
 router.get("/security", async (req, res) => {

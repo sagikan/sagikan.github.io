@@ -37,6 +37,7 @@ beforeEach(() => {
 describe("authentication", () => {
   it.each([
     ["get", "/api/account/security"],
+    ["post", "/api/account/policy"],
     ["post", "/api/account/recovery-codes"],
     ["post", "/api/account/mfa/reset/start"],
     ["post", "/api/account/mfa/reset/confirm"],
@@ -46,6 +47,7 @@ describe("authentication", () => {
   });
 
   it.each([
+    "/api/account/policy",
     "/api/account/recovery-codes",
     "/api/account/mfa/reset/start",
     "/api/account/mfa/reset/confirm",
@@ -54,6 +56,60 @@ describe("authentication", () => {
     const { client } = await signedInClient();
 
     expect((await client.post(path).unset("X-CSRF-Token")).status).toBe(403);
+  });
+});
+
+describe("POST /api/account/policy", () => {
+  it("records the policy version the user has seen, and when", async () => {
+    const { client, user } = await signedInClient();
+    const res = await client.post("/api/account/policy").send({ version: "2026-10-31" });
+    const row = (await db.query("SELECT policy_version, policy_seen_at FROM users WHERE id = $1", [user.id])).rows[0];
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ policyVersion: "2026-10-31" });
+    expect(row.policy_version).toBe("2026-10-31");
+    expect(row.policy_seen_at).toBeInstanceOf(Date);
+  });
+
+  it("shows the recorded version in the user's details", async () => {
+    const { client } = await signedInClient();
+
+    await client.post("/api/account/policy").send({ version: "2026-10-31" });
+
+    expect((await client.get("/api/auth/me")).body.user.policyVersion).toBe("2026-10-31");
+  });
+
+  it("replaces an earlier version", async () => {
+    const { client, user } = await signedInClient();
+
+    await client.post("/api/account/policy").send({ version: "2026-01-01" });
+    await client.post("/api/account/policy").send({ version: "2026-10-31" });
+
+    expect((await db.query("SELECT policy_version FROM users WHERE id = $1", [user.id])).rows[0].policy_version).toBe("2026-10-31");
+  });
+
+  it.each([
+    ["no version", {}],
+    ["a date that does not exist", { version: "2026-02-30" }],
+    ["text", { version: "latest" }],
+    ["a number", { version: 20261031 }],
+    ["a very long string", { version: "2026-10-31".repeat(1000) }]
+  ])("refuses %s and changes nothing", async (_title, body) => {
+    const { client, user } = await signedInClient();
+    const res = await client.post("/api/account/policy").send(body);
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: "A policy version written as YYYY-MM-DD is required." });
+    expect((await db.query("SELECT policy_version FROM users WHERE id = $1", [user.id])).rows[0].policy_version).toBeNull();
+  });
+
+  it("changes only the signed-in user's version", async () => {
+    const { client } = await signedInClient({ email: "dana@example.com" });
+    const other = await createUser({ email: "noa@example.com" });
+
+    await client.post("/api/account/policy").send({ version: "2026-10-31" });
+
+    expect((await db.query("SELECT policy_version FROM users WHERE id = $1", [other.id])).rows[0].policy_version).toBeNull();
   });
 });
 
