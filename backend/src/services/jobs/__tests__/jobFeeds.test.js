@@ -5,6 +5,7 @@ import { jsonResponse, mockFetch } from "../../../../tests/helpers/network";
 const require = createRequire(import.meta.url);
 const db = require("../../../config/db");
 const claude = require("../../ai/anthropic");
+const logoPrefetch = require("../../logos/logoPrefetch");
 const feeds = require("../jobFeeds");
 
 const NOW = "2026-10-29T12:00:00Z";
@@ -643,6 +644,39 @@ describe("ensureFresh", () => {
     await expect(feeds.ensureFresh()).rejects.toThrow("db down");
     expect(client.query.mock.calls.some(([sql]) => sql.includes("pg_advisory_unlock"))).toBe(true);
     expect(client.release).toHaveBeenCalledOnce();
+  });
+
+  it("starts looking up logos after refreshing the boards, without waiting for them", async () => {
+    mockDatabase();
+
+    let finish;
+    const prefetch = vi.spyOn(logoPrefetch, "prefetchLogos").mockImplementation(() => new Promise((resolve) => {
+      finish = resolve;
+    }));
+
+    await feeds.ensureFresh();
+
+    expect(prefetch).toHaveBeenCalledOnce();
+    expect(callsWith("WHERE active AND")).toHaveLength(1);
+    finish(null);
+  });
+
+  it("does not look up logos when another server holds the lock", async () => {
+    mockDatabase({ locked: false });
+
+    const prefetch = vi.spyOn(logoPrefetch, "prefetchLogos").mockResolvedValue(null);
+
+    await feeds.ensureFresh();
+
+    expect(prefetch).not.toHaveBeenCalled();
+  });
+
+  it("logs a failed logo lookup and carries on", async () => {
+    mockDatabase();
+    vi.spyOn(logoPrefetch, "prefetchLogos").mockRejectedValue(new Error("logo down"));
+
+    await expect(feeds.ensureFresh()).resolves.toBeUndefined();
+    await vi.waitFor(() => expect(console.error).toHaveBeenCalledWith("Logo prefetch failed:", "logo down"));
   });
 
   it("refreshes only boards that are due, skipping JSearch unless it's set up", async () => {

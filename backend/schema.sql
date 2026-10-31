@@ -292,3 +292,26 @@ ALTER TABLE email_verifications ADD COLUMN IF NOT EXISTS send_count INTEGER NOT 
 ALTER TABLE email_verifications ADD COLUMN IF NOT EXISTS window_started_at TIMESTAMPTZ;
 ALTER TABLE password_resets ADD COLUMN IF NOT EXISTS send_count INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE password_resets ADD COLUMN IF NOT EXISTS window_started_at TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS company_logos (
+    name_key TEXT PRIMARY KEY,
+    image BYTEA NOT NULL,
+    content_type TEXT NOT NULL,
+    fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS logo_misses (
+    user_id BIGINT NOT NULL REFERENCES users(id)
+        ON DELETE CASCADE,
+    name_key TEXT NOT NULL,
+    fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, name_key)
+);
+
+CREATE TABLE IF NOT EXISTS feed_logo_misses (
+    name_key TEXT PRIMARY KEY,
+    fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS policy_version TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS policy_seen_at TIMESTAMPTZ;

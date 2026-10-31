@@ -1,5 +1,6 @@
 const db = require("../../config/db");
 const claude = require("../ai/anthropic");
+const logoPrefetch = require("../logos/logoPrefetch");
 const dev = require("../shared/devMode");
 const { htmlToText } = require("../shared/htmlText");
 const { areasFor, areaScore, tidyLocation } = require("./locations");
@@ -649,6 +650,9 @@ async function ensureFresh() {
       }
 
       await refreshStaleBoards();
+
+      // Runs in the background, so the refresh (and the search waiting for it) doesn't wait for logos
+      logoPrefetch.prefetchLogos().catch((err) => console.error("Logo prefetch failed:", err.message));
     } finally {
       await client.query(`SELECT pg_advisory_unlock($1)`, [LOCK_KEY]);
     }

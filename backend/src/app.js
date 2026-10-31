@@ -10,6 +10,7 @@ const applicationRoutes = require("./routes/applications");
 const emailRoutes = require("./routes/email");
 const emailIngestRoutes = require("./routes/emailIngest");
 const jobRoutes = require("./routes/jobs");
+const logoRoutes = require("./routes/logos");
 
 const app = express();
 
@@ -51,6 +52,7 @@ app.use("/api/account", accountRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/email", emailRoutes);
 app.use("/api/jobs", jobRoutes);
+app.use("/api/logos", logoRoutes);
 
 // Responds to unknown routes
 app.use((req, res) => {
