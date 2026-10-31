@@ -202,7 +202,7 @@ describe("POST /api/applications", () => {
     ["an unknown workplace type", { workplace_model: "Office" }, "Invalid workplace model."],
     ["a link that isn't http", { job_url: "ftp://example.com/job" }, "The link must start with http:// or https://."],
     ["a link over 500 characters", { job_url: `https://example.com/${"a".repeat(500)}` }, "The link can be at most 500 characters."],
-    ["notes over 5000 characters", { notes: "n".repeat(5001) }, "Notes can be at most 5000 characters."],
+    ["notes over 2000 characters", { notes: "n".repeat(2001) }, "Notes can be at most 2000 characters."],
     ["a date that doesn't exist", { applied_at: "2026-02-30" }, "applied_at must be a real date in YYYY-MM-DD format or null."]
   ])("refuses an application with %s", async (_title, change, message) => {
     const { client } = await signedInClient();
