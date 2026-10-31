@@ -174,7 +174,7 @@ function WindowBar({ step, children }) {
 function applicationRow(item) {
   return (
     <li key={item.company} className="preview-pop">
-      <CompanyAvatar company={item.company} />
+      <CompanyAvatar company={item.company} logo={false} />
       <span className="preview-text">
         <strong>{item.company}</strong>
         <small>{item.position}</small>
@@ -245,7 +245,7 @@ function jobRow(job, active) {
   return (
     <li key={job.company} className={`preview-pop${job.fresh ? " is-new" : ""}`}>
       <div className="preview-job-top">
-        <CompanyAvatar company={job.company} />
+        <CompanyAvatar company={job.company} logo={false} />
         <span className="preview-text">
           <strong>{job.position}</strong>
           <small>

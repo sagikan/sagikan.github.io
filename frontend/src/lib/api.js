@@ -72,6 +72,21 @@ export async function apiFile(path) {
   return { bytes: new Uint8Array(await response.arrayBuffer()), fileName };
 }
 
+// Downloads a company's logo, or returns null when it has none
+export async function apiLogo(company) {
+  const response = await fetch(`${API_URL}/api/logos?company=${encodeURIComponent(company)}`, { credentials: "include" });
+
+  if (response.status === 204) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error("Logo request failed");
+  }
+
+  return response.blob();
+}
+
 // Turns a date value into YYYY-MM-DD
 export function toDateInput(value) {
   return value ? String(value).slice(0, 10) : "";

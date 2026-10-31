@@ -179,6 +179,31 @@ describe("apiFile", () => {
   });
 });
 
+describe("apiLogo", () => {
+  it("returns the logo image and asks for the company by name", async () => {
+    const fetchMock = mockFetch(new Response(new Uint8Array([1, 2]), { headers: { "content-type": "image/png" } }));
+    const { apiLogo } = await freshModule();
+    const blob = await apiLogo("AT&T");
+
+    expect(blob.type).toBe("image/png");
+    expect(fetchMock).toHaveBeenCalledWith(`${API}/api/logos?company=AT%26T`, { credentials: "include" });
+  });
+
+  it("returns null when the company has no logo", async () => {
+    mockFetch(new Response(null, { status: 204 }));
+    const { apiLogo } = await freshModule();
+
+    expect(await apiLogo("Nobody")).toBeNull();
+  });
+
+  it("throws when the request fails", async () => {
+    mockFetch(new Response("busy", { status: 429 }));
+    const { apiLogo } = await freshModule();
+
+    await expect(apiLogo("Orbit")).rejects.toThrow("Logo request failed");
+  });
+});
+
 describe("dates", () => {
   let api;
 
