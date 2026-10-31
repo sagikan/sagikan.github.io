@@ -16,7 +16,7 @@
 | Backend | Node.js/Express REST API with cookie-based sessions and two-factor authentication |
 | Database | PostgreSQL |
 | AI | Resume parsing and tailoring, job scoring, and email classification with Claude (Anthropic API)
-| Job data | JSearch and company job boards |
+| Job data | JSearch and company job boards; company logos from Logo.dev |
 | Email | Brevo or SMTP for outgoing mail; Apps Script for incoming job mails |
 | Testing | Vitest, React Testing Library, and supertest against a real PostgreSQL |
 | Hosting | GitHub Pages (frontend) and Render (backend, database) |
@@ -37,7 +37,7 @@
 │       ├── middleware/      # auth, CSRF, rate limits, security headers
 │       ├── routes/          # one file per API area
 │       └── services/        # business logic by domain
-│           ├── ai/  applications/  auth/  email/  jobs/  resume/  shared/
+│           ├── ai/  applications/  auth/  email/  jobs/  logos/  resume/  shared/
 ├── frontend/
 │   ├── tests/               # test setup
 │   └── src/
@@ -57,7 +57,8 @@
 | Prefix | Area |
 |---|---|
 | `/auth` | Register, login, email verification, TOTP setup and verify, password reset, logout |
-| `/account` | Security status, recovery codes, 2FA reset, account deletion |
+| `/account` | Security status, recovery codes, 2FA reset, privacy policy, account deletion |
+| `/logos` | Company logo images (lookup, cache) |
 | `/applications` | CRUD for tracked applications |
 | `/jobs` | Discovered jobs, search, dismiss, resume tailoring, apply, resume profile, additional PDF uploads |
 | `/email` | Gmail sync status, token, settings, review of suggested updates |
