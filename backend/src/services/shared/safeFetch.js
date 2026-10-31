@@ -1,8 +1,14 @@
-const dns = require("dns").promises;
+const dnsModule = require("dns");
+const http = require("http");
+const https = require("https");
 const net = require("net");
+const { pipeline } = require("stream");
+const zlib = require("zlib");
 
+const dns = dnsModule.promises;
 const MAX_REDIRECTS = 5;
 const MAX_BYTES = 2 * 1024 * 1024;
+const DECODERS = { gzip: zlib.createGunzip, "x-gzip": zlib.createGunzip, deflate: zlib.createInflate, br: zlib.createBrotliDecompress };
 const blocked = new net.BlockList();
 
 [
@@ -54,53 +60,82 @@ async function checkUrl(raw) {
   return url;
 }
 
-// Reads a response body up to the size limit
+/* Looks up a host name for a connection and refuses any address that is not public.
+   The socket connects to the addresses this returns, so a name can't answer differently
+   to an earlier check (DNS rebinding) */
+function safeLookup(hostname, options, callback) {
+  dnsModule.lookup(hostname, { all: true, verbatim: true }, (error, addresses) => {
+    if (error) {
+      return callback(error);
+    }
+
+    if (addresses.length === 0 || !addresses.every(({ address }) => isPublicAddress(address))) {
+      return callback(new Error("That address is not on the public internet."));
+    }
+
+    if (options?.all) {
+      return callback(null, addresses);
+    }
+
+    callback(null, addresses[0].address, addresses[0].family);
+  });
+}
+
+// Reads a response body up to the size limit, undoing any compression
 async function readLimited(response) {
-  const reader = response.body?.getReader();
-
-  if (!reader) {
-    return "";
-  }
-
+  const decoder = DECODERS[String(response.headers["content-encoding"] || "").toLowerCase()];
+  const stream = decoder ? pipeline(response, decoder(), () => {}) : response;
   const chunks = [];
   let size = 0;
 
-  for (;;) {
-    const { done, value } = await reader.read();
-
-    if (done) break;
-
-    size += value.length;
+  for await (const chunk of stream) {
+    size += chunk.length;
 
     if (size > MAX_BYTES) {
-      await reader.cancel().catch(() => {});
+      stream.destroy();
       break;
     }
 
-    chunks.push(value);
+    chunks.push(chunk);
   }
 
   return Buffer.concat(chunks).toString("utf8");
 }
 
-// Fetches a public URL, checking every redirect
+// Sends one GET request, connecting only to public addresses
+function requestOnce(url, headers, signal) {
+  return new Promise((resolve, reject) => {
+    const transport = url.protocol === "https:" ? https : http;
+    const lowered = Object.fromEntries(Object.entries(headers).map(([name, value]) => [name.toLowerCase(), value]));
+    const request = transport.request(
+      url,
+      { method: "GET", headers: { "user-agent": "node", "accept-encoding": "gzip, deflate, br", ...lowered }, lookup: safeLookup, signal },
+      resolve
+    );
+
+    request.on("error", reject);
+    request.end();
+  });
+}
+
+// Fetches a public URL, checking every redirect and every connection
 async function safeFetch(raw, { headers = {}, timeoutMs = 12_000 } = {}) {
   const signal = AbortSignal.timeout(timeoutMs);
   let url = await checkUrl(raw);
 
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    const response = await fetch(url, { headers, signal, redirect: "manual" });
-    const location = response.headers.get("location");
+    const response = await requestOnce(url, headers, signal);
+    const location = response.headers.location;
 
-    if (response.status >= 300 && response.status < 400 && location) {
-      await response.body?.cancel().catch(() => {});
+    if (response.statusCode >= 300 && response.statusCode < 400 && location) {
+      response.resume();
       url = await checkUrl(new URL(location, url).toString());
       continue;
     }
 
     return {
-      status: response.status,
-      ok: response.ok,
+      status: response.statusCode,
+      ok: response.statusCode >= 200 && response.statusCode < 300,
       url: url.toString(),
       text: () => readLimited(response)
     };
@@ -109,4 +144,4 @@ async function safeFetch(raw, { headers = {}, timeoutMs = 12_000 } = {}) {
   throw new Error("Too many redirects.");
 }
 
-module.exports = { safeFetch, isPublicAddress };
+module.exports = { safeFetch, safeLookup, isPublicAddress };

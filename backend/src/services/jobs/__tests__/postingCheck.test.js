@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 import { describe, expect, it, vi } from "vitest";
-import { mockDns, mockFetch } from "../../../../tests/helpers/network";
+import { mockDns, mockWeb } from "../../../../tests/helpers/network";
 
 const require = createRequire(import.meta.url);
 const { needsCheck, status, statuses } = require("../postingCheck");
@@ -28,21 +28,21 @@ describe("needsCheck", () => {
 describe("status", () => {
   it("reports a normal page as open", async () => {
     mockDns();
-    mockFetch(page("<h1>Backend Engineer</h1> Apply now"));
+    mockWeb(page("<h1>Backend Engineer</h1> Apply now"));
 
     expect(await status("https://careers.acme.com/jobs/1")).toBe("open");
   });
 
   it.each([404, 410])("reports HTTP %i as closed", async (httpStatus) => {
     mockDns();
-    mockFetch(page("gone", httpStatus));
+    mockWeb(page("gone", httpStatus));
 
     expect(await status("https://careers.acme.com/jobs/1")).toBe("closed");
   });
 
   it("reports other error statuses as unknown", async () => {
     mockDns();
-    mockFetch(page("oops", 500));
+    mockWeb(page("oops", 500));
 
     expect(await status("https://careers.acme.com/jobs/1")).toBe("unknown");
   });
@@ -54,21 +54,21 @@ describe("status", () => {
     ["an expired Indeed posting", "https://www.indeed.com/viewjob?jk=1", "This job has expired"]
   ])("reports %s as closed", async (_title, url, html) => {
     mockDns();
-    mockFetch(page(html));
+    mockWeb(page(html));
 
     expect(await status(url)).toBe("closed");
   });
 
   it("ignores a site-specific marker on another site", async () => {
     mockDns();
-    mockFetch(page("Job is no longer available on Indeed"));
+    mockWeb(page("Job is no longer available on Indeed"));
 
     expect(await status("https://careers.acme.com/jobs/1")).toBe("open");
   });
 
   it("reports unknown when the page can't be fetched", async () => {
     mockDns();
-    mockFetch(() => {
+    mockWeb(() => {
       throw new Error("network down");
     });
 
@@ -76,30 +76,28 @@ describe("status", () => {
   });
 
   it("reports unknown for a private address without fetching it", async () => {
-    const fetchMock = mockFetch(page("secret"));
+    const requestMock = mockWeb(page("secret"));
 
     expect(await status("http://127.0.0.1/jobs/1")).toBe("unknown");
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(requestMock).not.toHaveBeenCalled();
   });
 
   it("makes no request in development, where outside calls are off", async () => {
     vi.stubEnv("NODE_ENV", "development");
-    const fetchMock = mockFetch(page("anything"));
+    const requestMock = mockWeb(page("anything"));
 
     expect(await status("https://careers.acme.com/jobs/1")).toBe("unknown");
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(requestMock).not.toHaveBeenCalled();
   });
 });
 
 describe("statuses", () => {
   it("checks each distinct link once and maps it to its status", async () => {
     mockDns();
-    const fetchMock = vi.fn(async (url) => new Response("page", { status: url.hostname === "b.example.com" ? 404 : 200 }));
-
-    vi.stubGlobal("fetch", fetchMock);
+    const requestMock = mockWeb((url) => new Response("page", { status: url.hostname === "b.example.com" ? 404 : 200 }));
     const result = await statuses(["https://a.example.com/1", "https://a.example.com/1", "https://b.example.com/2"]);
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(requestMock).toHaveBeenCalledTimes(2);
     expect(Object.fromEntries(result)).toEqual({ "https://a.example.com/1": "open", "https://b.example.com/2": "closed" });
   });
 
