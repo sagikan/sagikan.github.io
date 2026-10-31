@@ -11,6 +11,7 @@ import VerifyEmailStep from "../components/auth/VerifyEmailStep";
 import { apiRequest } from "../lib/api";
 import { newPasswordError } from "../utils/auth/authForms";
 import { redirect } from "../lib/router";
+import { POLICY_VERSION } from "../utils/policy/policy";
 import Alert from "../components/ui/Alert";
 
 const STEP_HEADERS = {
@@ -119,7 +120,7 @@ function Login({ mode, onAuthenticated, apiStatus }) {
 
     setLoading(true);
 
-    const result = await request(isLogin ? "/api/auth/login" : "/api/auth/register", { email, password });
+    const result = await request(isLogin ? "/api/auth/login" : "/api/auth/register", isLogin ? { email, password } : { email, password, policyVersion: POLICY_VERSION });
 
     setLoading(false);
 
@@ -307,6 +308,12 @@ function Login({ mode, onAuthenticated, apiStatus }) {
                   {loading ? "Please wait…" : isLogin ? "Log in" : "Create account"}
                 </button>
               </form>
+            )}
+
+            {!isLogin && (
+              <p className="auth-switch">
+                By creating an account you agree to our <b><a href="#/privacy">Privacy Policy</a></b>.
+              </p>
             )}
 
             <p className="auth-switch">
