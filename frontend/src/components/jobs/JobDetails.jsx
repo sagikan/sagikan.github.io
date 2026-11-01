@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
 import CompanyAvatar from "../ui/CompanyAvatar";
 import { formatDate } from "../../lib/api";
-import { CALENDAR_ICON, EXTERNAL_ICON, PIN_ICON, postingAge, scoreLevel } from "./jobInfo";
+import { postingAge, scoreLevel } from "./jobInfo";
+import { CalendarIcon, ExternalIcon, FreshnessCalendar, PinIcon } from "./JobIcons";
 
 const CARD_TAGS = 4;
 
@@ -94,7 +95,7 @@ function JobDetails({ job, onClose }) {
               {job.company}
               {job.url && (
                 <a className="job-posting-link" href={job.url} target="_blank" rel="noreferrer">
-                  View posting {EXTERNAL_ICON}
+                  View posting <ExternalIcon />
                 </a>
               )}
             </p>
@@ -112,7 +113,7 @@ function JobDetails({ job, onClose }) {
             <dl>
               {(job.location || job.workplace_model) && (
                 <>
-                  <dt>{PIN_ICON}<span className="visually-hidden">Location</span></dt>
+                  <dt><PinIcon /><span className="visually-hidden">Location</span></dt>
                   <dd>
                     {job.location}
                     {job.workplace_model && (
@@ -124,7 +125,8 @@ function JobDetails({ job, onClose }) {
               {job.posted_at && (
                 <>
                   <dt className={job.state === "applied" ? "" : `posted-${postingAge(job.posted_at).level}`}>
-                    {CALENDAR_ICON}<span className="visually-hidden">Posted</span>
+                    {job.state === "applied" ? <CalendarIcon /> : <FreshnessCalendar level={postingAge(job.posted_at).level} />}
+                    <span className="visually-hidden">Posted</span>
                   </dt>
                   <dd><PostedDate postedAt={job.posted_at} /></dd>
                 </>

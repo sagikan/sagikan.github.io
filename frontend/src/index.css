@@ -2335,6 +2335,34 @@ textarea {
 .seg-rejected { background: var(--rejected); }
 .seg-withdrawn { background: var(--withdrawn); }
 
+/* Section divider styled like the status breakdown bar, split by match score */
+.day-line.section-line {
+  display: flex;
+  gap: 3px;
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  opacity: 0.85;
+  transition: opacity 0.15s;
+}
+
+.day-line.section-line:empty {
+  height: 1px;
+}
+
+.match-seg-high { background: var(--offer); }
+.match-seg-mid { background: var(--interview); }
+.match-seg-low { background: var(--withdrawn); }
+.match-seg-none { background: var(--border); }
+
+.day-toggle:hover .section-line {
+  opacity: 1;
+}
+
+.day-toggle[aria-expanded="false"] .section-line {
+  opacity: 0.4;
+}
+
 /* Stats layout by page width */
 @container dashboard (max-width: 1067px) {
   .stats {
@@ -2436,6 +2464,10 @@ textarea {
 
 .chips + .chips {
   margin-top: -10px;
+}
+
+.chips + .job-list {
+  margin-top: 10px;
 }
 
 .chip {
@@ -2954,6 +2986,8 @@ textarea {
 }
 
 .workplace-tag {
+  padding: 1px 8px;
+  font-size: 0.94em;
   color: color-mix(in srgb, var(--mix) 70%, var(--text));
   border-color: color-mix(in srgb, var(--mix) 45%, transparent);
   background: color-mix(in srgb, var(--mix) 12%, transparent);
@@ -3892,15 +3926,7 @@ textarea {
 .jobs-section {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-}
-
-.jobs-section + .jobs-section {
-  margin-top: 14px;
-}
-
-.jobs-section-head + .chips {
-  margin-top: -8px;
+  gap: 5px;
 }
 
 .jobs-filter-empty {
@@ -3908,10 +3934,23 @@ textarea {
   font-size: 0.9rem;
 }
 
+/* The line, chevron and buttons are 15px apart between their visible edges:
+   the margins cancel the spacing built into the chevron (4px) and button (7px padding, 2.6px icon) */
 .jobs-section-head {
   display: flex;
   align-items: center;
-  gap: 12px;
+}
+
+.jobs-section-head .day-chevron {
+  margin-left: 1px;
+}
+
+.jobs-section-head > .btn-group {
+  margin-left: 1.4px;
+}
+
+.jobs-section-head .btn-group > * + * {
+  margin-left: -4.2px;
 }
 
 .jobs-section-head .jobs-section-title {
@@ -3919,34 +3958,78 @@ textarea {
   min-width: 0;
 }
 
-.sync-btn {
+/* Ghost icon buttons that tint and expand to show their text on hover */
+.btn-group {
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
-  gap: 6px;
-  padding: 3px 10px 3px 8px;
-  border: 1px solid var(--border);
+}
+
+.sync-btn,
+.clear-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 7px;
+  border: 0;
   border-radius: 999px;
-  background: var(--surface);
+  background: transparent;
   color: var(--text-muted);
   font: inherit;
   font-size: 0.78rem;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
-  line-height: 1.4;
+  line-height: 1;
   white-space: nowrap;
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, background-color 0.15s;
+  transition: color 0.15s, background-color 0.2s;
 }
 
-.sync-btn svg {
+.sync-btn { --tone: var(--accent); }
+.clear-btn { --tone: var(--danger); }
+
+.sync-btn:hover:not(:disabled),
+.clear-btn:hover:not(:disabled),
+.clear-btn.is-confirming,
+.sync-btn.is-running {
+  background: color-mix(in srgb, var(--tone) 12%, transparent);
+  color: var(--tone);
+}
+
+.sync-btn svg,
+.clear-btn svg {
   flex-shrink: 0;
   transition: transform 0.4s ease;
 }
 
-.sync-btn:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
+.btn-flex-label {
+  max-width: 0;
+  line-height: 1.5;
+  padding-left: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-width 0.25s ease, padding-left 0.25s ease, opacity 0.2s ease;
+}
+
+.sync-btn:hover .btn-flex-label,
+.sync-btn:focus-visible .btn-flex-label,
+.clear-btn:hover .btn-flex-label,
+.clear-btn:focus-visible .btn-flex-label,
+.clear-btn.is-confirming .btn-flex-label {
+  max-width: 9rem;
+  padding-left: 6px;
+  opacity: 1;
+}
+
+.sync-btn:focus-visible,
+.clear-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.sync-btn:active:not(:disabled),
+.clear-btn:active:not(:disabled) {
+  background: color-mix(in srgb, var(--tone) 20%, transparent);
 }
 
 .sync-btn:hover:not(:disabled) svg {
@@ -3957,14 +4040,13 @@ textarea {
   cursor: default;
 }
 
-.sync-btn.is-running {
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
 .sync-btn.is-running svg {
   animation: spin 0.9s linear infinite;
+}
+
+.clear-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .spinner.spinner-sm {
@@ -3988,26 +4070,70 @@ textarea {
   gap: 12px;
   padding: 16px 18px 10px;
   background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
-  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+  transition: box-shadow 0.15s;
+}
+
+/* Soft hue of the card's match score */
+.job-card.match-high,
+.job-card.match-mid,
+.job-card.match-low {
+  background: color-mix(in srgb, var(--ring) 6%, var(--surface));
+}
+
+.job-card.match-high {
+  background: color-mix(in srgb, var(--ring) 3.5%, var(--surface));
+}
+
+/* Card content picks up the card's hue */
+.job-card:is(.match-high, .match-mid, .match-low) .job-meta {
+  color: color-mix(in srgb, var(--ring) 25%, var(--text-muted));
+}
+
+.job-card:is(.match-high, .match-mid, .match-low) {
+  --details-color: color-mix(in srgb, var(--ring) 70%, var(--text));
+}
+
+/* Green is the strongest hue, so it gets a lighter touch */
+.job-card.match-high .job-meta {
+  color: color-mix(in srgb, var(--ring) 10%, var(--text-muted));
+}
+
+.job-card.match-high {
+  --details-color: color-mix(in srgb, var(--ring) 35%, var(--text));
+}
+
+.job-card:is(.match-high, .match-mid, .match-low) .skill-have {
+  background: color-mix(in srgb, var(--offer) 14%, transparent);
+}
+
+.job-card:is(.match-high, .match-mid, .match-low) .skill-missing {
+  background: color-mix(in srgb, var(--rejected) 12%, transparent);
 }
 
 .job-card:hover {
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
   box-shadow: var(--shadow-card-hover);
-  transform: translateY(-1px);
 }
 
 .job-card-top {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: stretch;
-  gap: 14px;
+  gap: 8px 14px;
 }
 
 .job-card-top > .avatar {
-  align-self: flex-start;
+  grid-column: 1;
+  align-self: start;
+}
+
+.job-card-top > .job-heading {
+  grid-column: 2;
+}
+
+.job-card-top > .job-card-side {
+  grid-column: 3;
 }
 
 .job-heading {
@@ -4018,7 +4144,7 @@ textarea {
 .job-title {
   margin: 0;
   font-size: 1.05rem;
-  line-height: 1.3;
+  line-height: 1.27;
   letter-spacing: -0.01em;
 }
 
@@ -4115,9 +4241,15 @@ textarea {
   }
 }
 
-.job-heading .job-skills,
-.job-heading .job-reason {
-  margin: 6px 0 0;
+/* The tags sit under the heading and the avatar, and the score column spans both rows */
+.job-card-top > .job-skills,
+.job-card-top > .job-reason {
+  grid-column: 1 / span 2;
+  margin: 0;
+}
+
+.job-card-top:has(> .job-skills, > .job-reason) > .job-card-side {
+  grid-row: 1 / span 2;
 }
 
 .job-posting-link {
@@ -4177,13 +4309,52 @@ textarea {
 }
 
 .job-card-footer {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 8px;
   padding-top: 10px;
-  border-top: 1px solid var(--border);
+}
+
+/* A line that starts in the Details link's color and fades out to the right */
+.job-card-footer::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1.5px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--details-color, var(--accent)) 45%, transparent), transparent 70%);
+}
+
+/* Card buttons: soft pills in the card's hue, a tonal one and a solid one */
+.job-card .job-actions {
+  --tone: var(--ring, var(--accent));
+}
+
+.job-card .job-actions .btn {
+  padding: 4px 14px;
+  border-color: transparent;
+  border-radius: 999px;
+  font-size: 0.84rem;
+}
+
+.job-card .job-actions .btn-ghost,
+.job-card .job-actions .btn-ghost:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--tone) 13%, var(--surface));
+  color: color-mix(in srgb, var(--tone) 80%, var(--text));
+}
+
+.job-card .job-actions .btn-primary,
+.job-card .job-actions .btn-primary:hover:not(:disabled) {
+  background: var(--tone);
+  color: var(--surface);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--tone) 22%, transparent);
+}
+
+.job-card .job-actions .btn-primary:hover:not(:disabled) {
+  filter: brightness(1.06);
 }
 
 .job-details-btn {
@@ -4193,7 +4364,7 @@ textarea {
   padding: 4px 6px 4px 0;
   border: 0;
   background: none;
-  color: var(--accent);
+  color: var(--details-color, var(--accent));
   font-size: 0.87rem;
   font-weight: 600;
   cursor: pointer;
@@ -5638,6 +5809,20 @@ body.is-sorting * {
 
   .job-card-top .avatar {
     display: none;
+  }
+
+  .job-card-top {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .job-card-top > .job-heading,
+  .job-card-top > .job-skills,
+  .job-card-top > .job-reason {
+    grid-column: 1;
+  }
+
+  .job-card-top > .job-card-side {
+    grid-column: 2;
   }
 
   .drawer {

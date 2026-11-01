@@ -4,7 +4,8 @@ import AddJobModal from "../components/jobs/AddJobModal";
 import ProfileModal from "../components/jobs/ProfileModal";
 import TailorModal from "../components/jobs/TailorModal";
 import JobDetails, { MatchSkills, PostedDate, ScoreRing } from "../components/jobs/JobDetails";
-import { CALENDAR_ICON, EXTERNAL_ICON, PIN_ICON, postingAge } from "../components/jobs/jobInfo";
+import { postingAge, scoreLevel } from "../components/jobs/jobInfo";
+import { CalendarIcon, ExternalIcon, FreshnessCalendar, PinIcon } from "../components/jobs/JobIcons";
 import { apiRequest, localISO, toDateInput } from "../lib/api";
 import { downloadSavedCv } from "../utils/resume/cvPdf";
 import Alert from "../components/ui/Alert";
@@ -16,6 +17,18 @@ const DATE_RANGES = [
   { key: "week", label: "Last Week", days: 7 },
   { key: "month", label: "Last Month", days: 30 }
 ];
+
+// Orders jobs the way the server lists them: unscored first, then best match, then newest
+function byListOrder(a, b) {
+  if (a.match_score !== b.match_score) {
+    if (a.match_score === null) return -1;
+    if (b.match_score === null) return 1;
+
+    return b.match_score - a.match_score;
+  }
+
+  return new Date(b.created_at) - new Date(a.created_at);
+}
 
 // Describes how long ago a time was
 function timeAgo(value, now) {
@@ -61,20 +74,82 @@ function SyncButton({ search, onSearch }) {
       <svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true">
         <path d="M16 10a6 6 0 1 1-1.76-4.24M16 4v3.5h-3.5" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-      <span aria-live="polite">{search.running ? "Searching…" : last ? timeAgo(last, now) : "Search now"}</span>
+      <span className="btn-flex-label" aria-live="polite">{search.running ? "Searching…" : last ? timeAgo(last, now) : "Search now"}</span>
     </button>
   );
 }
 
+// Button that clears a section after a second click to confirm
+function ClearAllButton({ section, count, disabled, onClear }) {
+  const [confirming, setConfirming] = useState(false);
+  const armed = confirming && !disabled;
+
+  useEffect(() => {
+    if (!armed) {
+      return;
+    }
+
+    const timer = setTimeout(() => setConfirming(false), 4000);
+
+    return () => clearTimeout(timer);
+  }, [armed]);
+
+  // Clears the section on the second click
+  function click() {
+    if (!armed) {
+      setConfirming(true);
+
+      return;
+    }
+
+    setConfirming(false);
+    onClear();
+  }
+
+  return (
+    <button
+      type="button"
+      className={`clear-btn${armed ? " is-confirming" : ""}`}
+      disabled={disabled}
+      title={disabled ? "Wait for the search to finish before clearing" : `Remove all ${count} cards from the ${section} section`}
+      aria-label={armed ? `Confirm clearing ${count} cards from ${section}` : `Clear all ${section} cards`}
+      onClick={click}
+      onBlur={() => setConfirming(false)}
+    >
+      <svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true">
+        <path d="M4 6h12M8 6V4.5h4V6M6 6l.7 9.5h6.6L14 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <span className="btn-flex-label">{armed ? `Clear ${count}?` : "Clear all"}</span>
+    </button>
+  );
+}
+
+// Bar split by how well the section's jobs match
+function ScoreLine({ jobs }) {
+  const counts = { high: 0, mid: 0, low: 0, none: 0 };
+
+  jobs.forEach((job) => {
+    counts[job.match_score === null ? "none" : scoreLevel(job.match_score)] += 1;
+  });
+
+  return (
+    <span className="day-line section-line">
+      {Object.entries(counts).filter(([, value]) => value > 0).map(([level, value]) => (
+        <span key={level} className={`pipeline-segment match-seg-${level}`} style={{ flexGrow: value }} />
+      ))}
+    </span>
+  );
+}
+
 // Section heading that collapses its content
-function SectionToggle({ title, count, open, onToggle, children }) {
+function SectionToggle({ title, jobs, count, open, onToggle, children }) {
   return (
     <div className="jobs-section-head">
       <h2 className="jobs-section-title">
         <button type="button" className="day-toggle" aria-expanded={open} onClick={onToggle}>
           <span>{title}</span>
           <span className="day-count">{count}</span>
-          <span className="day-line" />
+          <ScoreLine jobs={jobs} />
           <svg className="day-chevron" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
             <path d="M5 8l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -141,7 +216,7 @@ function JobCard({ job, onTailor, onApply, onDismiss, onDownload }) {
   const applied = job.state === "applied";
 
   return (
-    <li className={`job-card${applied ? " job-applied" : ""}`}>
+    <li className={`job-card${applied ? " job-applied" : ""}${job.match_score !== null ? ` match-${scoreLevel(job.match_score)}` : ""}`}>
       <div className="job-card-top">
         <CompanyAvatar company={job.company} />
 
@@ -151,7 +226,7 @@ function JobCard({ job, onTailor, onApply, onDismiss, onDownload }) {
             <span className="job-company">{job.company}</span>
             {job.location && (
               <span className="app-meta-item">
-                {PIN_ICON}
+                <PinIcon />
                 {job.location}
               </span>
             )}
@@ -160,18 +235,16 @@ function JobCard({ job, onTailor, onApply, onDismiss, onDownload }) {
             )}
             {job.posted_at && (
               <span className={`app-meta-item${applied ? "" : ` posted-${postingAge(job.posted_at).level}`}`}>
-                {CALENDAR_ICON}
+                {applied ? <CalendarIcon /> : <FreshnessCalendar level={postingAge(job.posted_at).level} />}
                 <PostedDate postedAt={job.posted_at} />
               </span>
             )}
             {job.url && (
               <a className="job-posting-link" href={job.url} target="_blank" rel="noreferrer">
-                View posting {EXTERNAL_ICON}
+                View posting <ExternalIcon />
               </a>
             )}
           </p>
-
-          <MatchSkills job={job} />
         </div>
 
         <div className="job-card-side">
@@ -191,6 +264,8 @@ function JobCard({ job, onTailor, onApply, onDismiss, onDownload }) {
             ? <ScoreRing score={job.match_score} />
             : job.source === "manual" && <span className="job-source">Added by you</span>}
         </div>
+
+        <MatchSkills job={job} />
       </div>
 
       <div className="job-card-footer">
@@ -365,6 +440,26 @@ function Jobs({ csrfToken, applications, onApplied, onUnauthorized }) {
     }
   }
 
+  // Clears the given jobs from a section
+  async function clearAll(section, cleared) {
+    const ids = new Set(cleared.map((job) => job.id));
+    setJobs((current) => current.filter((job) => !ids.has(job.id)));
+
+    try {
+      const { response, data } = await request("/api/jobs/dismiss-all", {
+        method: "POST",
+        body: { section, ids: [...ids] }
+      });
+
+      if (!response.ok) {
+        throw new Error(data.error);
+      }
+    } catch (err) {
+      setError(err.message || "Could not clear the jobs.");
+      loadJobs().catch(() => {});
+    }
+  }
+
   // Marks a job as applied
   async function apply(job) {
     setError("");
@@ -380,6 +475,11 @@ function Jobs({ csrfToken, applications, onApplied, onUnauthorized }) {
       }
 
       updateJob(job.id, data.job);
+
+      if (data.hidden_job_ids?.length) {
+        setJobs((current) => current.filter((other) => !data.hidden_job_ids.includes(other.id)));
+      }
+
       onApplied(data.application);
     } catch (err) {
       setError(err.message || "Could not add the application.");
@@ -420,7 +520,7 @@ function Jobs({ csrfToken, applications, onApplied, onUnauthorized }) {
   const [appliedOpen, toggleApplied] = useRememberedOpen("jobs.applied");
   const openJobs = jobs.filter((job) => job.state !== "applied");
   const shownJobs = openJobs.filter((job) => inDateRange(job, dateRange));
-  const appliedJobs = jobs.filter((job) => job.state === "applied");
+  const appliedJobs = jobs.filter((job) => job.state === "applied").sort(byListOrder);
   const cardProps = {
     onTailor: (job) => setModal({ type: "tailor", job }),
     onApply: apply,
@@ -486,8 +586,15 @@ function Jobs({ csrfToken, applications, onApplied, onUnauthorized }) {
       ) : (
         <>
           <section className="jobs-section">
-            <SectionToggle title="Found" count={openJobs.length} open={foundOpen} onToggle={toggleFound}>
-              {search && <SyncButton search={search} onSearch={() => startSearch(false)} />}
+            <SectionToggle title="Found" jobs={openJobs} count={openJobs.length} open={foundOpen} onToggle={toggleFound}>
+              {(shownJobs.length > 0 || search) && (
+                <div className="btn-group">
+                  {shownJobs.length > 0 && (
+                    <ClearAllButton section="found" count={shownJobs.length} disabled={Boolean(search?.running)} onClear={() => clearAll("found", shownJobs)} />
+                  )}
+                  {search && <SyncButton search={search} onSearch={() => startSearch(false)} />}
+                </div>
+              )}
             </SectionToggle>
 
             {foundOpen && (openJobs.length === 0 ? (
@@ -531,7 +638,11 @@ function Jobs({ csrfToken, applications, onApplied, onUnauthorized }) {
 
           {appliedJobs.length > 0 && (
             <section className="jobs-section">
-              <SectionToggle title="Applied" count={appliedJobs.length} open={appliedOpen} onToggle={toggleApplied} />
+              <SectionToggle title="Applied" jobs={appliedJobs} count={appliedJobs.length} open={appliedOpen} onToggle={toggleApplied}>
+                <div className="btn-group">
+                  <ClearAllButton section="applied" count={appliedJobs.length} onClear={() => clearAll("applied", appliedJobs)} />
+                </div>
+              </SectionToggle>
               {appliedOpen && (
                 <ul className="job-list">
                   {appliedJobs.map((job) => <JobCard key={job.id} job={job} {...cardProps} />)}
