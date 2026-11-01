@@ -67,7 +67,7 @@ function mockChoice(choice) {
 
 // Makes fetch answer by address, so lookups running at the same time each get the right kind of answer
 function mockProvider(results) {
-  const fetchMock = vi.fn(async (url) => (String(url).startsWith("https://api.logo.dev") ? jsonResponse({ data: results }) : image()()));
+  const fetchMock = vi.fn(async (url) => (new URL(String(url)).hostname === "api.logo.dev" ? jsonResponse({ data: results }) : image()()));
 
   vi.stubGlobal("fetch", fetchMock);
 
