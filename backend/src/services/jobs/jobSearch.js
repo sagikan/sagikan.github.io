@@ -16,6 +16,7 @@ const HOURLY_LIMIT = 10;
 const STALE_MINUTES = 5;
 const AUTO_RETRY_MINUTES = 15;
 const MAX_NEW_JOBS = 15;
+const MAX_FOUND_JOBS = 300;
 const MIN_SCORE = 25;
 const MAX_TAGS = 8;
 const CANDIDATES = 40;
@@ -192,12 +193,28 @@ async function run(userId, searchId) {
       );
     }
 
+    await trimFound(userId);
     await finish(searchId, "done", null, picked.length, usage);
   } catch (err) {
     console.error("Job search failed:", err);
     const message = err instanceof claude.ClaudeError ? err.message : "The search failed. Please try again later.";
     await finish(searchId, "failed", message, 0, usage).catch((finishErr) => console.error(finishErr));
   }
+}
+
+// Dismisses the weakest found jobs beyond the cap, leaving hand-added ones alone
+async function trimFound(userId) {
+  await db.query(
+    `UPDATE jobs SET state = 'dismissed'
+     WHERE id IN (
+       SELECT id FROM jobs
+       WHERE user_id = $1 AND source = 'search' AND state = 'new' AND NOT hidden
+         AND COALESCE(posted_at, created_at) >= NOW() - make_interval(days => $2)
+       ORDER BY match_score DESC NULLS LAST, created_at DESC
+       OFFSET $3
+     )`,
+    [userId, MAX_AGE_DAYS, MAX_FOUND_JOBS]
+  );
 }
 
 // Keeps the jobs whose postings are still open, up to the limit
@@ -480,4 +497,4 @@ function failInterrupted() {
   );
 }
 
-module.exports = { status, start, run, shortlist, failInterrupted, score };
+module.exports = { MAX_FOUND_JOBS, status, start, run, shortlist, failInterrupted, score, trimFound };

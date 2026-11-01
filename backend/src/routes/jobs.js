@@ -21,6 +21,8 @@ const JOB_FIELDS = `
 `;
 const TAILORING_FIELDS = `job_id, cv, gaps, flags, include_grade_sheet, updated_at`;
 const MAX_MANUAL_JOBS = 2000;
+const MAX_APPLIED_JOBS = 100;
+const MAX_BULK_IDS = jobSearch.MAX_FOUND_JOBS + MAX_MANUAL_JOBS;
 const readCvLimiter = userLimiter(5, 60, "You've uploaded your resume several times this hour.");
 const tailorLimiter = [
   userLimiter(10, 60, "You've tailored a lot of resumes this hour."),
@@ -334,6 +336,33 @@ async function scoreAddedJob(userId, job) {
   }
 }
 
+// Dismisses every new job, or hides every applied one, among the given IDs
+router.post("/dismiss-all", async (req, res) => {
+  const ids = req.body?.ids;
+  const section = req.body?.section;
+
+  if (!["found", "applied"].includes(section) || !Array.isArray(ids) || ids.length > MAX_BULK_IDS
+    || !ids.every((id) => /^[1-9]\d{0,17}$/.test(String(id)))) {
+    return res.status(400).json({ error: "Invalid request." });
+  }
+
+  try {
+    /* Only jobs in the chosen section are touched, so a stale list can't hide an applied job
+       from the Found section or the other way around */
+    await db.query(
+      `UPDATE jobs
+       SET state = CASE WHEN state = 'new' THEN 'dismissed' ELSE state END,
+           hidden = hidden OR state = 'applied'
+       WHERE user_id = $1 AND id = ANY($2::bigint[]) AND state = $3`,
+      [req.user.id, ids, section === "found" ? "new" : "applied"]
+    );
+
+    res.status(204).end();
+  } catch (err) {
+    fail(res, err, "Could not clear the jobs.");
+  }
+});
+
 // Dismisses a new job, or hides an applied one
 router.post("/:id/dismiss", async (req, res) => {
   const id = jobId(req, res);
@@ -504,9 +533,23 @@ router.post("/:id/apply", async (req, res) => {
     );
     const application = await client.query(`SELECT ${APPLICATION_FIELDS} FROM applications WHERE id = $1`, [applicationId]);
 
+    /* Only the most recent applied jobs stay on the Jobs page. Older ones are hidden, not un-applied,
+       so they and the resume that was sent are kept for the Applications page */
+    const trimmed = await client.query(
+      `UPDATE jobs SET hidden = TRUE
+       WHERE id IN (
+         SELECT id FROM jobs
+         WHERE user_id = $1 AND state = 'applied' AND NOT hidden
+         ORDER BY application_id DESC NULLS LAST, id DESC
+         OFFSET $2
+       )
+       RETURNING id`,
+      [req.user.id, MAX_APPLIED_JOBS]
+    );
+
     await client.query("COMMIT");
 
-    res.json({ job: updated.rows[0], application: application.rows[0] });
+    res.json({ job: updated.rows[0], application: application.rows[0], hidden_job_ids: trimmed.rows.map((row) => row.id) });
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
     fail(res, err, "Could not add the application.");

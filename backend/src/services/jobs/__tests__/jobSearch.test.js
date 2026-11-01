@@ -624,6 +624,18 @@ describe("run", () => {
     expect(finishParams()[3]).toBe(15);
   });
 
+  it("trims the found jobs to the cap after storing new ones", async () => {
+    mockDatabase({ postings: [posting(1)] });
+    mockScoring();
+
+    await jobSearch.run(7, 55);
+
+    const trim = db.query.mock.calls.find(([sql]) => sql.includes("SET state = 'dismissed'"));
+
+    expect(trim[1]).toEqual([7, feeds.MAX_AGE_DAYS, jobSearch.MAX_FOUND_JOBS]);
+    expect(db.query.mock.calls.indexOf(trim)).toBeGreaterThan(db.query.mock.calls.findIndex(([sql]) => sql.includes("INSERT INTO jobs")));
+  });
+
   it("drops postings that have closed and reports them", async () => {
     mockDatabase({ postings: [posting(1), posting(2)] });
     mockScoring((id) => (id === 1 ? 90 : 80));

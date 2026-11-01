@@ -81,6 +81,7 @@ describe("authentication", () => {
     ["delete", "/api/jobs/grade-sheet"],
     ["post", "/api/jobs/search"],
     ["post", "/api/jobs/1/dismiss"],
+    ["post", "/api/jobs/dismiss-all"],
     ["get", "/api/jobs/1/tailoring"],
     ["post", "/api/jobs/1/tailor"],
     ["put", "/api/jobs/1/tailoring"],
@@ -581,6 +582,58 @@ describe("POST /api/jobs/:id/dismiss", () => {
   });
 });
 
+describe("POST /api/jobs/dismiss-all", () => {
+  it("dismisses the given new jobs and leaves applied ones alone", async () => {
+    const { client, user } = await signedInClient();
+    const first = await createJob(user.id);
+    const second = await createJob(user.id, { url: "https://example.com/job/2" });
+    const applied = await createJob(user.id, { url: "https://example.com/job/3", state: "applied" });
+    const res = await client.post("/api/jobs/dismiss-all").send({ section: "found", ids: [first, second, applied] });
+
+    expect(res.status).toBe(204);
+    expect((await db.query("SELECT id, state, hidden FROM jobs ORDER BY id")).rows).toEqual([
+      { id: first, state: "dismissed", hidden: false },
+      { id: second, state: "dismissed", hidden: false },
+      { id: applied, state: "applied", hidden: false }
+    ]);
+  });
+
+  it("hides the given applied jobs without un-applying them", async () => {
+    const { client, user } = await signedInClient();
+    const fresh = await createJob(user.id);
+    const applied = await createJob(user.id, { url: "https://example.com/job/2", state: "applied" });
+
+    await client.post("/api/jobs/dismiss-all").send({ section: "applied", ids: [fresh, applied] });
+
+    expect((await db.query("SELECT id, state, hidden FROM jobs ORDER BY id")).rows).toEqual([
+      { id: fresh, state: "new", hidden: false },
+      { id: applied, state: "applied", hidden: true }
+    ]);
+  });
+
+  it("can't change another user's jobs", async () => {
+    const { client } = await signedInClient({ email: "dana@example.com" });
+    const other = await createUser({ email: "noa@example.com" });
+    const theirs = await createJob(other.id);
+
+    await client.post("/api/jobs/dismiss-all").send({ section: "found", ids: [theirs] });
+
+    expect((await db.query("SELECT state FROM jobs WHERE id = $1", [theirs])).rows[0].state).toBe("new");
+  });
+
+  it.each([
+    [{ section: "other", ids: [1] }],
+    [{ section: "found" }],
+    [{ section: "found", ids: ["abc"] }],
+    [{ section: "found", ids: [0] }],
+    [{ section: "found", ids: [1.5] }]
+  ])("refuses the body %j", async (body) => {
+    const { client } = await signedInClient();
+
+    expect((await client.post("/api/jobs/dismiss-all").send(body)).status).toBe(400);
+  });
+});
+
 describe("tailoring a resume", () => {
   describe("POST /api/jobs/:id/tailor", () => {
     it("answers 503 when the server has no AI set up", async () => {
@@ -795,6 +848,31 @@ describe("POST /api/jobs/:id/apply", () => {
     expect(res.body.application).toMatchObject({ company: "Acme", position: "Backend Engineer", location: "Haifa", workplace_model: "Remote", status: "Applied", job_url: "https://example.com/job/1", applied_at: "2026-05-01" });
     expect(res.body.job).toMatchObject({ id: String(id), state: "applied", application_id: res.body.application.id });
     expect((await db.query("SELECT user_id FROM applications")).rows).toEqual([{ user_id: String(user.id) }]);
+  });
+
+  it("hides the oldest applied jobs beyond the 100 most recent, without un-applying them", async () => {
+    const { client, user } = await signedInClient();
+    const older = [];
+
+    for (let index = 0; index < 100; index++) {
+      older.push(await createJob(user.id, { state: "applied", url: `https://example.com/old/${index}` }));
+    }
+
+    const id = await createJob(user.id);
+    const res = await client.post(`/api/jobs/${id}/apply`).send({});
+    const hidden = (await db.query("SELECT id FROM jobs WHERE hidden")).rows.map((row) => row.id);
+
+    expect(res.body.hidden_job_ids).toEqual([older[0]]);
+    expect(hidden).toEqual([older[0]]);
+    expect((await db.query("SELECT COUNT(*)::int AS count FROM jobs WHERE state = 'applied'")).rows[0].count).toBe(101);
+  });
+
+  it("reports no hidden jobs when there are 100 applied jobs or fewer", async () => {
+    const { client, user } = await signedInClient();
+    const id = await createJob(user.id);
+    const res = await client.post(`/api/jobs/${id}/apply`).send({});
+
+    expect(res.body.hidden_job_ids).toEqual([]);
   });
 
   it("applies today when no valid date is given, and fills in a missing location", async () => {
