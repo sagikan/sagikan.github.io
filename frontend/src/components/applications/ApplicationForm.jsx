@@ -1,11 +1,13 @@
 import { useId, useMemo, useState } from "react";
-import { STATUSES, WORKPLACE_MODELS, formatDate, jobDay, localISO, toDateInput } from "../../lib/api";
+import { STATUSES, WORKPLACE_MODELS, localISO, toDateInput } from "../../lib/api";
+import { findLatestDuplicate, withSuggestedNote } from "../../utils/applications/duplicates";
 import { lastLocationFor, suggestionsFor } from "../../utils/forms/suggestions";
 import Alert from "../ui/Alert";
 import AutocompleteInput from "../ui/AutocompleteInput";
 import CharCount from "../ui/CharCount";
 import ModalSubmit from "../ui/ModalSubmit";
 import SelectInput from "../ui/SelectInput";
+import DuplicateWarning from "./DuplicateWarning";
 
 const WORKPLACE_OPTIONS = [{ value: "", label: "Not specified" }, ...WORKPLACE_MODELS.map((model) => ({ value: model, label: model }))];
 const MAX_LENGTH = { position: 200, company: 200, location: 200, job_url: 500, notes: 2000 };
@@ -21,17 +23,19 @@ function initialValues(job) {
     status: job?.status || "Applied",
     job_url: job?.job_url || "",
     applied_at: job ? toDateInput(job.applied_at) : new Date().toLocaleDateString("en-CA"),
-    notes: job?.notes || ""
+    notes: job?.notes || "",
+    autoNote: ""
   };
 }
-
-// Trims and lowercases text for comparison
-const normalize = (text) => text.trim().toLowerCase();
 
 // Form for adding or editing an application
 function ApplicationForm({ job, applications, onSubmit, active = true }) {
   const formId = useId();
-  const [values, setValues] = useState(() => initialValues(job));
+  const [values, setValues] = useState(() => {
+    const starting = initialValues(job);
+
+    return withSuggestedNote(starting, starting, null, applications, job?.id);
+  });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [autoLocation, setAutoLocation] = useState("");
@@ -40,24 +44,12 @@ function ApplicationForm({ job, applications, onSubmit, active = true }) {
     company: suggestionsFor(applications, "company"),
     location: suggestionsFor(applications, "location")
   }), [applications]);
-  const earlierDuplicate = useMemo(() => {
-    const position = normalize(values.position);
-    const company = normalize(values.company);
-    const day = values.applied_at || localISO(new Date());
-
-    if (!position || !company) {
-      return null;
-    }
-
-    return applications
-      .filter((other) =>
-        other.id !== job?.id &&
-        normalize(other.position) === position &&
-        normalize(other.company) === company &&
-        jobDay(other) < day
-      )
-      .sort((a, b) => jobDay(b).localeCompare(jobDay(a)))[0] || null;
-  }, [applications, job, values.position, values.company, values.applied_at]);
+  const earlierDuplicate = useMemo(() => findLatestDuplicate(applications, {
+    position: values.position,
+    company: values.company,
+    day: values.applied_at || localISO(new Date()),
+    excludeId: job?.id
+  }), [applications, job, values.position, values.company, values.applied_at]);
 
   // Returns a change handler for a field
   function update(field) {
@@ -66,7 +58,11 @@ function ApplicationForm({ job, applications, onSubmit, active = true }) {
 
   // Sets a field's value
   function setField(field, value) {
-    setValues((current) => ({ ...current, [field]: value }));
+    setValues((current) => {
+      const next = { ...current, [field]: value };
+
+      return withSuggestedNote(current, next, field, applications, job?.id);
+    });
   }
 
   // Sets the company and fills in its last-used location unless the user typed their own
@@ -74,7 +70,11 @@ function ApplicationForm({ job, applications, onSubmit, active = true }) {
     const untouched = !values.location || values.location === autoLocation;
     const location = lastLocationFor(applications, company);
 
-    setValues((current) => ({ ...current, company, ...(untouched ? { location } : {}) }));
+    setValues((current) => {
+      const next = { ...current, company, ...(untouched ? { location } : {}) };
+
+      return withSuggestedNote(current, next, "company", applications, job?.id);
+    });
 
     if (untouched) {
       setAutoLocation(location);
@@ -109,11 +109,7 @@ function ApplicationForm({ job, applications, onSubmit, active = true }) {
     <form id={formId} className="app-form" onSubmit={handleSubmit}>
       {error && <Alert type="error">{error}</Alert>}
 
-      {earlierDuplicate && (
-        <Alert type="warning">
-          You already applied to this position at this company on {formatDate(jobDay(earlierDuplicate))}.
-        </Alert>
-      )}
+      <DuplicateWarning duplicate={earlierDuplicate} />
 
       <div className="form-grid" style={{ "--fixed-rows": 4 }}>
         <label className="field">

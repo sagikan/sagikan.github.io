@@ -870,6 +870,7 @@ function Applications({
                   active={newKind === "job"}
                   csrfToken={csrfToken}
                   pastEntries={applications}
+                  applications={applications}
                   onAdded={() => navigate("/jobs")}
                   onUnauthorized={onUnauthorized}
                 />

@@ -1,6 +1,8 @@
 import { useId, useMemo, useState } from "react";
 import { WORKPLACE_MODELS, apiRequest } from "../../lib/api";
+import { findLatestDuplicate } from "../../utils/applications/duplicates";
 import { lastLocationFor, suggestionsFor } from "../../utils/forms/suggestions";
+import DuplicateWarning from "../applications/DuplicateWarning";
 import Alert from "../ui/Alert";
 import AutocompleteInput from "../ui/AutocompleteInput";
 import CharCount from "../ui/CharCount";
@@ -11,12 +13,16 @@ const MAX_LENGTH = { position: 200, company: 200, location: 200, url: 500, descr
 const WORKPLACE_OPTIONS = [{ value: "", label: "Not specified" }, ...WORKPLACE_MODELS.map((model) => ({ value: model, label: model }))];
 
 // Form for adding a job by hand
-function JobPostForm({ csrfToken, pastEntries, onAdded, onUnauthorized, active = true }) {
+function JobPostForm({ csrfToken, pastEntries, applications, onAdded, onUnauthorized, active = true }) {
   const formId = useId();
   const [values, setValues] = useState({ company: "", position: "", location: "", workplace_model: "", url: "", description: "" });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [autoLocation, setAutoLocation] = useState("");
+  const duplicate = useMemo(
+    () => findLatestDuplicate(applications, { position: values.position, company: values.company }),
+    [applications, values.position, values.company]
+  );
   const suggestions = useMemo(() => ({
     position: suggestionsFor(pastEntries, "position"),
     company: suggestionsFor(pastEntries, "company"),
@@ -77,6 +83,8 @@ function JobPostForm({ csrfToken, pastEntries, onAdded, onUnauthorized, active =
   return (
     <form id={formId} className="app-form" onSubmit={submit}>
       {error && <Alert type="error">{error}</Alert>}
+
+      <DuplicateWarning duplicate={duplicate} />
 
       <div className="form-grid" style={{ "--fixed-rows": 3 }}>
         <label className="field">

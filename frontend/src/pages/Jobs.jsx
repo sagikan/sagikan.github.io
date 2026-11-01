@@ -556,6 +556,7 @@ function Jobs({ csrfToken, applications, onApplied, onUnauthorized }) {
         <AddJobModal
           csrfToken={csrfToken}
           pastEntries={pastEntries}
+          applications={applications}
           onClose={() => setModal(null)}
           onUnauthorized={onUnauthorized}
           onAdded={(job) => {
