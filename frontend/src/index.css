@@ -405,7 +405,6 @@ textarea {
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
   color: var(--text-muted);
   transition: color 0.2s;
 }
@@ -417,10 +416,46 @@ textarea {
 }
 
 .brand-name {
+  overflow: hidden;
+  padding-left: 10px;
+  pointer-events: none;
+}
+
+/* Starts fully behind the zero and slides out; only the transform animates, so the layout never changes */
+.brand-text {
+  display: inline-block;
+  vertical-align: middle;
+  white-space: nowrap;
   font-family: var(--font-display);
   font-size: 1.1rem;
   font-weight: 600;
   letter-spacing: -0.035em;
+  transform: translateX(calc(-100% - 10px));
+  transition: transform 0.26s cubic-bezier(0.3, 0.2, 0.7, 0.8);
+  will-change: transform;
+}
+
+.brand-open .brand-name,
+.brand:hover .brand-name,
+.brand:focus-visible .brand-name {
+  pointer-events: auto;
+}
+
+.brand-open .brand-text,
+.brand:hover .brand-text,
+.brand:focus-visible .brand-text {
+  transform: none;
+  transition-duration: 0.5s;
+  transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-text,
+  .brand-open .brand-text,
+  .brand:hover .brand-text,
+  .brand:focus-visible .brand-text {
+    transition: none;
+  }
 }
 
 .logo {
@@ -429,13 +464,11 @@ textarea {
 }
 
 .brand-zero {
-  color: inherit;
-  transition: color 0.2s;
-}
-
-.brand:hover .brand-zero,
-.brand.active .brand-zero {
-  color: var(--accent);
+  background: linear-gradient(90deg, color-mix(in srgb, color-mix(in srgb, var(--accent) 60%, #a855f7) 52%, var(--text)), color-mix(in srgb, color-mix(in srgb, var(--accent) 75%, var(--accent-2)) 52%, var(--text)));
+  background: linear-gradient(in oklch 90deg, color-mix(in srgb, color-mix(in srgb, var(--accent) 60%, #a855f7) 52%, var(--text)), color-mix(in srgb, color-mix(in srgb, var(--accent) 75%, var(--accent-2)) 52%, var(--text)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .navbar-links {
@@ -556,13 +589,14 @@ textarea {
   overflow-x: clip;
 }
 
-/* Hero */
+/* Hero
+   Ends where the pinned tabs rest (above the footer), so scrolling lets them go right away */
 .hero {
   position: relative;
   max-width: 880px;
   margin: 0 auto;
-  min-height: min(calc(100vh / var(--zoom) - var(--navbar-height)), 880px);
-  min-height: min(calc(100svh / var(--zoom) - var(--navbar-height)), 880px);
+  min-height: calc(100vh / var(--zoom) - var(--navbar-height) - var(--footer-height) - 12px - var(--dock-space, 62px));
+  min-height: calc(100svh / var(--zoom) - var(--navbar-height) - var(--footer-height) - 12px - var(--dock-space, 62px));
   padding: 40px 20px;
   display: flex;
   flex-direction: column;
@@ -891,7 +925,7 @@ textarea {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
   gap: 64px;
   align-items: center;
-  scroll-margin-top: 80px;
+  scroll-margin-top: calc(var(--navbar-height) + 88px);
 }
 
 .showcase-row-flip {
@@ -971,6 +1005,7 @@ textarea {
 
 /* Preview windows */
 .preview-window {
+  container-type: inline-size;
   padding: 14px;
   border: 1px solid var(--border);
   border-radius: 18px;
@@ -1032,7 +1067,33 @@ textarea {
   margin-left: auto;
 }
 
+/* The previews reuse the real pages' components, scaled down to fit the window */
+.preview-stats {
+  --stat-size: 76px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 2.4fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.preview-stats .stat-card {
+  min-height: var(--stat-size);
+  padding: 28px 10px 8px;
+  border-radius: 12px;
+}
+
+.preview-stats .stat-label {
+  height: 22px;
+  padding: 0 12px;
+  font-size: 0.72rem;
+}
+
+.preview-stats .stat-value {
+  font-size: 1.6rem;
+}
+
 .preview-stats > .preview-pulse {
+  min-height: 0;
   padding: 0;
   overflow: hidden;
 }
@@ -1048,111 +1109,122 @@ textarea {
   box-shadow: none;
 }
 
-.preview-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr) 1.7fr;
-  gap: 10px;
+.preview-pipeline {
+  height: 6px;
   margin-bottom: 12px;
 }
 
-.preview-stats > div {
-  display: flex;
-  flex-direction: column;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: var(--surface-2);
-}
-
-.preview-stats strong {
-  font-family: var(--font-display);
-  font-size: 1.3rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.preview-stats small,
-.preview-text small,
-.preview-date {
-  color: var(--text-muted);
-  font-size: 0.78rem;
-}
-
-.preview-chips {
-  display: flex;
-  flex-wrap: wrap;
+.preview-window .chips {
   gap: 6px;
   margin-bottom: 10px;
 }
 
-.preview-chip {
+.preview-window .chip {
+  gap: 6px;
+  padding: 3px 10px;
+  font-size: 0.78rem;
+}
+
+.preview-window .chip-count {
+  padding: 0 6px;
+  font-size: 0.7rem;
+}
+
+.preview-window .app-list,
+.preview-window .job-list {
+  gap: 8px;
+}
+
+.preview-window .app-card {
+  gap: 12px;
+  padding: 8px 10px;
+}
+
+.preview-window .app-card .avatar {
+  width: 38px;
+  height: 38px;
+  font-size: 1.05rem;
+}
+
+.preview-window .job-card-top > .avatar {
+  align-self: start;
+  width: 36px;
+  height: 36px;
+  aspect-ratio: auto;
+  font-size: 0.95rem;
+}
+
+.preview-window .app-title h3,
+.preview-window .job-title {
+  font-size: 0.95rem;
+}
+
+.preview-window .app-meta,
+.preview-window .job-meta {
+  gap: 2px 8px;
+  font-size: 0.8rem;
+}
+
+.preview-status {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 4px 11px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--text-muted);
-  font: inherit;
-  font-size: 0.78rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+  width: 96px;
+  height: 26px;
+  padding-right: 24px;
+  font-size: 0.8rem;
+  cursor: default;
+  pointer-events: none;
 }
 
-.preview-chip span {
-  font-variant-numeric: tabular-nums;
-  opacity: 0.65;
+.preview-window .job-card {
+  gap: 10px;
+  padding: 10px 12px 8px;
 }
 
-.preview-chip:hover {
-  border-color: var(--border-strong);
-  color: var(--text);
+.preview-window .job-card-top {
+  gap: 6px 12px;
 }
 
-.preview-chip.is-active {
-  border-color: var(--text);
-  background: var(--text);
-  color: var(--bg);
+.preview-window .job-card .skill {
+  padding: 2px 8px;
+  font-size: 0.75rem;
 }
 
-.preview-list,
-.preview-jobs {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+/* Keeps the line under the title on one row, so the avatar can match its height */
+@container (max-width: 470px) {
+  .job-meta > .app-meta-item:last-child {
+    display: none;
+  }
 }
 
-.preview-list li {
+.preview-job-foot {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  justify-content: space-between;
+  gap: 8px;
 }
 
-.preview-list .avatar {
-  width: 34px;
-  height: 34px;
-  font-size: 0.9rem;
-}
-
-.preview-text {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
+/* Same height as the skill pills beside it */
+.preview-window .job-card .job-actions .btn {
+  padding: 2px 12px;
+  border-width: 0;
+  font-size: 0.75rem;
   line-height: 1.3;
 }
 
-.preview-text strong,
-.preview-text small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.preview-window .job-card .score-ring {
+  width: 34px;
+  height: 34px;
+}
+
+.preview-window .job-card .score-ring span {
+  width: 28px;
+  height: 28px;
+  font-size: 0.72rem;
+}
+
+.preview-window .jobs-section-head {
+  margin-bottom: 8px;
 }
 
 @keyframes preview-pop {
@@ -1163,87 +1235,12 @@ textarea {
   animation: preview-pop 0.3s ease both;
 }
 
-.preview-section-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
-  color: var(--text-muted);
-  font-size: 0.74rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.preview-section-head .sync-btn {
-  letter-spacing: 0;
-  text-transform: none;
-}
-
-.preview-muted {
-  font-weight: 500;
-  opacity: 0.7;
-}
-
-.preview-line {
-  flex: 1;
-  height: 1px;
-  background: var(--border);
-}
-
-.preview-jobs > li {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-
-.preview-jobs > li:hover {
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-sm);
-}
-
 @keyframes preview-new {
-  from { border-color: var(--accent); background: var(--accent-soft); }
+  from { box-shadow: 0 0 0 2px var(--accent), var(--shadow-sm); }
 }
 
-.preview-jobs > li.is-new {
+.preview-window .job-card.is-new {
   animation: preview-pop 0.3s ease both, preview-new 2.4s ease-out both;
-}
-
-.preview-job-top {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.preview-job-top .avatar {
-  width: 36px;
-  height: 36px;
-  font-size: 0.95rem;
-}
-
-.preview-age {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  vertical-align: -1px;
-}
-
-.preview-skills {
-  margin: 0 0 0 48px;
-}
-
-.preview-empty {
-  padding: 18px;
-  border: 1px dashed var(--border-strong);
-  border-radius: 12px;
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  text-align: center;
 }
 
 @property --score {
@@ -1263,39 +1260,57 @@ textarea {
 
 .preview-doc-download {
   gap: 6px;
-  padding: 4px 12px;
+  padding: 5px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: none;
   font-size: 0.78rem;
+  text-shadow: none;
+  transition: background-color 0.15s, transform 0.15s;
+}
+
+.preview-doc-download:hover:not(:disabled) {
+  background: var(--accent-hover);
+  filter: none;
+  transform: none;
+  box-shadow: none;
+}
+
+.preview-doc-download:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .preview-tailor {
   display: inline-grid;
   min-width: 92px;
-  padding: 4px 12px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+  padding: 5px 14px;
+  border: 0;
+  border-radius: 999px;
   background: var(--accent);
   color: #fff;
   font: inherit;
   font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2), 0 1px 2px rgb(0 0 0 / 0.14);
-  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, transform 0.15s ease;
+  transition: background-color 0.3s ease, color 0.3s ease, transform 0.15s ease;
 }
 
 .preview-tailor:hover {
-  filter: brightness(1.06);
+  background: var(--accent-hover);
 }
 
 .preview-tailor:active {
-  transform: scale(0.96);
+  transform: scale(0.97);
 }
 
 .preview-tailor[aria-pressed="true"] {
-  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
   background: var(--accent-soft);
   color: var(--accent);
-  box-shadow: none;
+}
+
+.preview-tailor[aria-pressed="true"]:hover {
+  background: color-mix(in srgb, var(--accent) 16%, var(--accent-soft));
 }
 
 .preview-tailor-face {
@@ -3660,20 +3675,12 @@ textarea {
     gap: 6px;
   }
 
-  .preview-stats > div {
-    padding: 8px 10px;
-  }
-
-  .preview-list li {
+  .preview-window .app-card {
     gap: 10px;
   }
 
-  .preview-date {
-    display: none;
-  }
-
-  .preview-skills {
-    margin-left: 0;
+  .preview-status {
+    width: 84px;
   }
 
   .cta-band {
@@ -3723,10 +3730,6 @@ textarea {
   .cta-band p {
     margin: 8px 0 18px;
     font-size: 0.93rem;
-  }
-
-  .preview-date {
-    display: none;
   }
 
   /* Auth */
@@ -4123,9 +4126,14 @@ textarea {
   gap: 8px 14px;
 }
 
+/* Square, as tall as the title and the line under it (capped, in case that line wraps) */
 .job-card-top > .avatar {
   grid-column: 1;
-  align-self: start;
+  align-self: stretch;
+  width: auto;
+  height: auto;
+  max-height: 48px;
+  aspect-ratio: 1;
 }
 
 .job-card-top > .job-heading {
@@ -4225,14 +4233,10 @@ textarea {
   margin: -8px -10px 0 0;
 }
 
-.job-dismiss:hover {
-  background: var(--surface-2);
-}
-
 @media (hover: hover) {
   .job-dismiss {
     opacity: 0.45;
-    transition: opacity 0.15s, background-color 0.15s, color 0.15s;
+    transition: opacity 0.15s, color 0.15s;
   }
 
   .job-card:hover .job-dismiss,

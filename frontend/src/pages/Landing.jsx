@@ -2,17 +2,14 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import CompanyAvatar from "../components/ui/CompanyAvatar";
 import { PixelDigit, PixelZero } from "../components/layout/Logo";
 import { PulseChart } from "../components/applications/StatCharts";
-import StatusBadge from "../components/applications/StatusBadge";
+import { FreshnessCalendar, PinIcon } from "../components/jobs/JobIcons";
+import { postingAge, scoreLevel } from "../components/jobs/jobInfo";
+import { localISO } from "../lib/api";
 
 const REDUCED_MOTION = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 const CHECK = (
   <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
     <path d="M5 10.5l3.2 3.2L15 7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-const CROSS = (
-  <svg viewBox="0 0 20 20" width="11" height="11" aria-hidden="true">
-    <path d="M6 6l8 8M14 6l-8 8" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
   </svg>
 );
 const REFRESH = (
@@ -36,35 +33,26 @@ const DOWNLOAD = (
   </svg>
 );
 const APPLICATIONS = [
-  { company: "Northwind", position: "Frontend Engineer", status: "Interview", date: "Oct 12" },
-  { company: "Globex", position: "Full-stack Developer", status: "Applied", date: "Oct 9" },
-  { company: "Initech", position: "Software Engineer II", status: "Offer", date: "Sep 28" },
-  { company: "Hooli", position: "Backend Engineer", status: "Interview", date: "Sep 24" },
-  { company: "Umbrella", position: "React Developer", status: "Rejected", date: "Sep 20" },
-  { company: "Stark", position: "Platform Engineer", status: "Applied", date: "Sep 18" }
+  { company: "Northwind", position: "Frontend Engineer", status: "Interview", location: "Tel Aviv", workplace: "Hybrid" },
+  { company: "Globex", position: "Full-stack Developer", status: "Applied", location: "Remote", workplace: "Remote" },
+  { company: "Initech", position: "Software Engineer II", status: "Offer", location: "Haifa", workplace: "On-site" },
+  { company: "Umbrella", position: "React Developer", status: "Rejected", location: "Remote", workplace: "Remote" }
 ];
 const STATUS_FILTERS = ["All", "Applied", "Interview", "Offer", "Rejected"];
-const PULSE_SAMPLE = Array.from({ length: 364 }, (_, daysAgo) => {
-  const daily = Math.sin(daysAgo * 1.9) * 1.6 + Math.sin(daysAgo * 0.77 + 1) * 1.1;
-  const waves = Math.sin(daysAgo / 17) * 0.9;
-  const recent = Math.max(0, 1 - daysAgo / 120);
-  const count = Math.max(0, Math.round(3 + daily + waves + recent * 2.5));
+const PIPELINE = STATUS_FILTERS.slice(1);
+// Applications per day over the last month, oldest first: bursts and quiet days, a few reaching green
+const PULSE_DAILY = [1, 0, 3, 1, 0, 5, 2, 0, 1, 7, 4, 1, 0, 2, 9, 3, 1, 0, 4, 12, 6, 2, 1, 5, 8, 3, 0, 6, 13, 7];
+const PULSE_SAMPLE = PULSE_DAILY.flatMap((count, index) => {
   const day = new Date();
-  day.setDate(day.getDate() - daysAgo);
+  day.setDate(day.getDate() - (PULSE_DAILY.length - 1 - index));
 
   return Array.from({ length: count }, () => ({ created_at: day.toISOString() }));
-}).flat();
+});
 const JOBS = [
-  { company: "Northwind", position: "Backend Engineer", place: "Tel Aviv · Hybrid", score: 86, days: 1, have: ["Node.js", "REST APIs"], missing: ["Kubernetes"] },
-  { company: "Globex", position: "Full-stack Developer", place: "Remote", score: 72, days: 5, have: ["React", "PostgreSQL"], missing: ["GraphQL"] },
-  { company: "Initech", position: "Software Engineer", place: "Haifa · On-site", score: 58, days: 21, have: ["Python"], missing: ["Go", "AWS"] }
+  { company: "Northwind", position: "Backend Engineer", location: "Tel Aviv", workplace: "Hybrid", score: 86, days: 1, have: ["Node.js", "REST APIs"], missing: ["Kubernetes"] },
+  { company: "Initech", position: "Software Engineer", location: "Haifa", workplace: "On-site", score: 58, days: 21, have: ["Python"], missing: ["Go", "AWS"] }
 ];
-const NEW_JOB = { company: "Hooli", position: "Platform Engineer", place: "Tel Aviv · Hybrid", score: 91, days: 0, have: ["Docker", "TypeScript"], missing: ["Terraform"], fresh: true };
-const DATE_FILTERS = [
-  { key: "all", label: "All Time" },
-  { key: "today", label: "Today", days: 0 },
-  { key: "week", label: "Last Week", days: 7 }
-];
+const NEW_JOB = { company: "Hooli", position: "Platform Engineer", location: "Tel Aviv", workplace: "Hybrid", score: 91, days: 0, have: ["Docker", "TypeScript"], missing: ["Terraform"], fresh: true };
 const PROJECTS = {
   email: (
     <>
@@ -170,17 +158,20 @@ function WindowBar({ step, children }) {
   );
 }
 
-// Renders an application row in the preview
+// Renders an application card in the preview
 function applicationRow(item) {
   return (
-    <li key={item.company} className="preview-pop">
+    <li key={item.company} className={`app-card status-${item.status.toLowerCase()} preview-pop`}>
       <CompanyAvatar company={item.company} logo={false} />
-      <span className="preview-text">
-        <strong>{item.company}</strong>
-        <small>{item.position}</small>
-      </span>
-      <StatusBadge status={item.status} />
-      <small className="preview-date">{item.date}</small>
+      <div className="app-main">
+        <div className="app-title"><h3>{item.position}</h3></div>
+        <div className="app-meta">
+          <span className="app-company">{item.company}</span>
+          {item.workplace !== "Remote" && <span className="app-meta-item"><PinIcon />{item.location}</span>}
+          <span className={`app-tag workplace-tag mix-${item.workplace.toLowerCase()}`}>{item.workplace}</span>
+        </div>
+      </div>
+      <span className="status-select preview-status" aria-hidden="true">{item.status}</span>
     </li>
   );
 }
@@ -199,77 +190,99 @@ function Stack({ ghost, children }) {
 function ApplicationsPreview({ active }) {
   const [filter, setFilter] = useState("All");
   const shown = APPLICATIONS.filter((item) => filter === "All" || item.status === filter);
+  const total = APPLICATIONS.length;
 
   // Counts preview applications with a status
   const count = (status) => APPLICATIONS.filter((item) => item.status === status).length;
+
+  const inProgress = count("Applied") + count("Interview");
 
   return (
     <div className="preview-window showcase-window">
       <WindowBar step={1} />
       <div className="preview-stats">
-        <div><strong><CountUp value={APPLICATIONS.length} run={active} /></strong><small>Total</small></div>
-        <div><strong><CountUp value={count("Interview")} run={active} /></strong><small>Interviews</small></div>
-        <div><strong><CountUp value={count("Offer")} run={active} /></strong><small>Offers</small></div>
-        <div className="preview-pulse">
+        <div className="stat-card">
+          <span className="stat-label">Total</span>
+          <strong className="stat-value"><CountUp value={total} run={active} /></strong>
+        </div>
+        <div className="stat-card">
+          <span className="stat-label">In Progress</span>
+          <strong className="stat-value"><CountUp value={inProgress} run={active} /></strong>
+        </div>
+        <div className="stat-card preview-pulse">
           <PulseChart applications={PULSE_SAMPLE} bare />
         </div>
       </div>
-      <div className="preview-chips" role="group" aria-label="Filter the example applications">
+      <div className="pipeline preview-pipeline" aria-hidden="true">
+        {PIPELINE.map((status) => (
+          <span key={status} className={`pipeline-segment seg-${status.toLowerCase()}`} style={{ flexGrow: count(status) }} />
+        ))}
+      </div>
+      <div className="chips" role="group" aria-label="Filter the example applications">
         {STATUS_FILTERS.map((status) => (
           <button
             key={status}
             type="button"
-            className={`preview-chip${filter === status ? " is-active" : ""}`}
+            className={`chip${filter === status ? " active" : ""}`}
             aria-pressed={filter === status}
             onClick={() => setFilter(status)}
           >
             {status}
-            {status !== "All" && <span>{count(status)}</span>}
+            <span className="chip-count">{status === "All" ? total : count(status)}</span>
           </button>
         ))}
       </div>
-      <Stack ghost={<ul className="preview-list">{APPLICATIONS.map(applicationRow)}</ul>}>
-        <ul className="preview-list">{shown.map(applicationRow)}</ul>
+      <Stack ghost={<ul className="app-list">{APPLICATIONS.map(applicationRow)}</ul>}>
+        <ul className="app-list">{shown.map(applicationRow)}</ul>
       </Stack>
     </div>
   );
 }
 
-// Picks the class for a posting's age
-function ageClass(days) {
-  return days <= 7 ? "posted-fresh" : days <= 30 ? "posted-aging" : "posted-stale";
+// Returns the date a number of days ago
+function daysAgoISO(days) {
+  return localISO(new Date(Date.now() - days * 86_400_000));
 }
 
-// Renders a job row in the preview
+// Formats a date as a short month and day
+function shortDate(day) {
+  return new Date(`${day}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+// Renders a job card in the preview
 function jobRow(job, active) {
+  const level = scoreLevel(job.score);
+  const postedAt = daysAgoISO(job.days);
+  const age = postingAge(postedAt).level;
+
   return (
-    <li key={job.company} className={`preview-pop${job.fresh ? " is-new" : ""}`}>
-      <div className="preview-job-top">
+    <li key={job.company} className={`job-card match-${level} preview-pop${job.fresh ? " is-new" : ""}`}>
+      <div className="job-card-top">
         <CompanyAvatar company={job.company} logo={false} />
-        <span className="preview-text">
-          <strong>{job.position}</strong>
-          <small>
-            {job.company} · {job.place} ·{" "}
-            <span className={`preview-age ${ageClass(job.days)}`}>
-              <svg viewBox="0 0 20 20" width="11" height="11" aria-hidden="true">
-                <rect x="3.5" y="4.5" width="13" height="12" rx="2" fill="none" stroke="currentColor" strokeWidth="1.8" />
-                <path d="M3.5 8.5h13M7 2.75v3.5M13 2.75v3.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-              </svg>
-              {job.days === 0 ? "Today" : `${job.days}d`}
-            </span>
-          </small>
-        </span>
-        <span
-          className={`score-ring preview-ring match-${job.score >= 70 ? "high" : job.score >= 45 ? "mid" : "low"}`}
-          style={{ "--score": active ? job.score : 0 }}
-        >
-          <span>{job.score}</span>
-        </span>
+        <div className="job-heading">
+          <h3 className="job-title">{job.position}</h3>
+          <p className="job-meta">
+            <span className="job-company">{job.company}</span>
+            {job.workplace !== "Remote" && <span className="app-meta-item"><PinIcon />{job.location}</span>}
+            <span className={`app-tag workplace-tag mix-${job.workplace.toLowerCase()}`}>{job.workplace}</span>
+            <span className={`app-meta-item posted-${age}`}><FreshnessCalendar level={age} />{shortDate(postedAt)}</span>
+          </p>
+        </div>
+        <div className="job-card-side">
+          <span className={`score-ring preview-ring match-${level}`} style={{ "--score": active ? job.score : 0 }}>
+            <span>{job.score}</span>
+          </span>
+        </div>
       </div>
-      <ul className="job-skills preview-skills">
-        {job.have.map((skill) => <li key={skill} className="skill skill-have">{CHECK}{skill}</li>)}
-        {job.missing.map((skill) => <li key={skill} className="skill skill-missing">{CROSS}{skill}</li>)}
-      </ul>
+      <div className="preview-job-foot">
+        <ul className="job-skills">
+          {job.have.map((skill) => <li key={skill} className="skill skill-have">{skill}</li>)}
+          {job.missing.map((skill) => <li key={skill} className="skill skill-missing">{skill}</li>)}
+        </ul>
+        <div className="job-actions" aria-hidden="true">
+          <span className="btn btn-primary btn-sm">Tailor resume</span>
+        </div>
+      </div>
     </li>
   );
 }
@@ -277,7 +290,6 @@ function jobRow(job, active) {
 // Jobs page preview
 function JobsPreview({ active }) {
   const [jobs, setJobs] = useState(JOBS);
-  const [range, setRange] = useState("all");
   const [syncing, setSyncing] = useState(false);
   const [synced, setSynced] = useState(false);
   const timer = useRef(null);
@@ -295,38 +307,38 @@ function JobsPreview({ active }) {
     }, 1100);
   }
 
-  const limit = DATE_FILTERS.find((option) => option.key === range).days;
-  const shown = jobs.filter((job) => limit === undefined || job.days <= limit);
-
   return (
     <div className="preview-window showcase-window">
       <WindowBar step={2} />
-      <div className="preview-section-head">
-        <span>Found</span>
-        <span className="preview-muted">{jobs.length}</span>
-        <span className="preview-line" />
-        <button type="button" className={`sync-btn${syncing ? " is-running" : ""}`} onClick={sync}>
-          {REFRESH}
-          {syncing ? "Searching…" : synced ? "Just now" : "5 min ago"}
-        </button>
-      </div>
-      <div className="preview-chips" role="group" aria-label="Filter the example job posts by date">
-        {DATE_FILTERS.map((option) => (
+      <div className="jobs-section-head preview-section-head">
+        <div className="jobs-section-title">
+          <div className="day-toggle">
+            <span>Found</span>
+            <span className="day-count">{jobs.length}</span>
+            <span className="day-line section-line">
+              {["high", "mid", "low"].map((level) => {
+                const value = jobs.filter((job) => scoreLevel(job.score) === level).length;
+
+                return value > 0 && <span key={level} className={`pipeline-segment match-seg-${level}`} style={{ flexGrow: value }} />;
+              })}
+            </span>
+          </div>
+        </div>
+        <div className="btn-group">
           <button
-            key={option.key}
             type="button"
-            className={`preview-chip${range === option.key ? " is-active" : ""}`}
-            aria-pressed={range === option.key}
-            onClick={() => setRange(option.key)}
+            className={`sync-btn${syncing ? " is-running" : ""}`}
+            aria-label={syncing ? "Searching for new jobs" : "Search for new jobs"}
+            onClick={sync}
           >
-            {option.label}
+            {REFRESH}
+            <span className="btn-flex-label" aria-live="polite">{syncing ? "Searching…" : synced ? "Just now" : "5 min ago"}</span>
           </button>
-        ))}
+        </div>
       </div>
-      <Stack ghost={<ul className="preview-jobs">{[NEW_JOB, ...JOBS].map((job) => jobRow(job, false))}</ul>}>
-        <ul className="preview-jobs">
-          {shown.map((job) => jobRow(job, active))}
-          {shown.length === 0 && <li className="preview-empty">No posts from today yet. Try refreshing.</li>}
+      <Stack ghost={<ul className="job-list">{[NEW_JOB, ...JOBS].map((job) => jobRow(job, false))}</ul>}>
+        <ul className="job-list">
+          {jobs.map((job) => jobRow(job, active))}
         </ul>
       </Stack>
     </div>
@@ -497,7 +509,7 @@ function Reveal({ className = "", children }) {
 
 // Scrolls to a feature section
 function scrollToStory(id) {
-  document.getElementById(id)?.scrollIntoView({ behavior: REDUCED_MOTION ? "auto" : "smooth", block: "center" });
+  document.getElementById(id)?.scrollIntoView({ behavior: REDUCED_MOTION ? "auto" : "smooth", block: "start" });
 }
 
 /* Checks whether any tab label is too wide for its tab
@@ -521,6 +533,7 @@ function FeatureTabs() {
   const [active, setActive] = useState(null);
   const [pill, setPill] = useState(null);
   const [compact, setCompact] = useState(false);
+  const dock = useRef(null);
   const bar = useRef(null);
   const labels = useRef({});
   const tabs = useRef({});
@@ -604,6 +617,28 @@ function FeatureTabs() {
     return () => observer.disconnect();
   }, []);
 
+  // Tells the hero how much room the pinned tabs take, so they detach the moment the page scrolls
+  useLayoutEffect(() => {
+    const node = dock.current;
+    const zone = node?.parentElement;
+    if (!node || !zone || typeof ResizeObserver === "undefined") return undefined;
+
+    const measure = () => {
+      const style = getComputedStyle(node);
+      const space = node.offsetHeight + parseFloat(style.marginTop);
+      zone.style.setProperty("--dock-space", `${space}px`);
+    };
+    const observer = new ResizeObserver(measure);
+
+    measure();
+    observer.observe(node);
+
+    return () => {
+      observer.disconnect();
+      zone.style.removeProperty("--dock-space");
+    };
+  }, []);
+
   useEffect(() => {
     window.addEventListener("resize", place);
 
@@ -611,7 +646,7 @@ function FeatureTabs() {
   }, [place]);
 
   return (
-    <div className="feature-tabs-dock">
+    <div ref={dock} className="feature-tabs-dock">
       <nav ref={bar} className={`feature-tabs hero-rise${compact ? " is-compact" : ""}`} aria-label="Features">
         <span
           className={`feature-tabs-pill${pill ? " is-shown" : ""}`}
