@@ -1,22 +1,28 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import CompanyAvatar from "../ui/CompanyAvatar";
 import { formatDate } from "../../lib/api";
 import { postingAge, scoreLevel } from "./jobInfo";
 import { CalendarIcon, ExternalIcon, FreshnessCalendar, PinIcon } from "./JobIcons";
-
-const CARD_TAGS = 4;
 
 // Shows a posting date with its age on hover
 export function PostedDate({ postedAt }) {
   return <span title={postingAge(postedAt).label}>{formatDate(postedAt)}</span>;
 }
 
-// Shows the match score as a ring
+// Shows the match score as a ring that fills up when it first appears
 export function ScoreRing({ score }) {
+  const [filled, setFilled] = useState(false);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setFilled(true));
+
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
   return (
     <div
       className={`score-ring match-${scoreLevel(score)}`}
-      style={{ "--score": score }}
+      style={{ "--score": filled ? score : 0 }}
       role="img"
       aria-label={`${score}% match`}
     >
@@ -25,14 +31,92 @@ export function ScoreRing({ score }) {
   );
 }
 
+// Shows as many tags as fit on one line, with a count of the rest
+function FitTags({ items, label }) {
+  const listRef = useRef(null);
+  const signature = items.map((item) => item.key).join("|");
+
+  useLayoutEffect(() => {
+    const list = listRef.current;
+
+    if (!list) {
+      return undefined;
+    }
+
+    // Hides the tags that don't fit and counts them in the last chip
+    const fit = () => {
+      const tags = [...list.querySelectorAll("[data-tag]")];
+      const more = list.querySelector("[data-more]");
+      const gap = parseFloat(getComputedStyle(list).columnGap) || 0;
+      let used = 0;
+      let shown = 0;
+
+      tags.forEach((tag) => {
+        tag.style.display = "";
+      });
+      more.style.display = "";
+      more.textContent = `+${tags.length}`;
+
+      const moreWidth = more.offsetWidth;
+
+      for (const [index, tag] of tags.entries()) {
+        const next = used + (index ? gap : 0) + tag.offsetWidth;
+        const reserve = index < tags.length - 1 ? gap + moreWidth : 0;
+
+        if (next + reserve > list.clientWidth) {
+          break;
+        }
+
+        used = next;
+        shown = index + 1;
+      }
+
+      tags.forEach((tag, index) => {
+        tag.style.display = index < shown ? "" : "none";
+      });
+
+      const hidden = tags.slice(shown);
+
+      more.style.display = hidden.length ? "" : "none";
+      more.textContent = `+${hidden.length}`;
+      more.title = hidden.map((tag) => tag.dataset.tag).join(", ");
+    };
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(fit);
+
+    fit();
+    observer?.observe(list);
+
+    return () => observer?.disconnect();
+  }, [signature]);
+
+  return (
+    <ul ref={listRef} className="job-skills job-skills-fit" aria-label={label}>
+      {items.map((item) => (
+        <li key={item.key} data-tag={item.name} className={`skill skill-${item.kind}`}>
+          <span className="visually-hidden">{item.kind === "have" ? "Have: " : "Missing: "}</span>{item.name}
+        </li>
+      ))}
+      <li data-more className="skill skill-more" style={{ display: "none" }} />
+    </ul>
+  );
+}
+
 // Lists the matching and missing skills
 export function MatchSkills({ job, split = false }) {
-  const limit = split ? Infinity : CARD_TAGS;
-  const have = (job.match_have || []).slice(0, limit);
-  const missing = (job.match_missing || []).slice(0, limit);
+  const have = job.match_have || [];
+  const missing = job.match_missing || [];
 
   if (have.length === 0 && missing.length === 0) {
     return job.match_reason ? <p className="job-reason">{job.match_reason}</p> : null;
+  }
+
+  if (!split) {
+    const items = [
+      ...have.map((name) => ({ key: `have-${name}`, kind: "have", name })),
+      ...missing.map((name) => ({ key: `missing-${name}`, kind: "missing", name }))
+    ];
+
+    return <FitTags items={items} label="How your resume matches" />;
   }
 
   const haveItems = have.map((item) => (
@@ -46,20 +130,11 @@ export function MatchSkills({ job, split = false }) {
     </li>
   ));
 
-  if (split) {
-    return (
-      <div className="job-skill-groups">
-        {haveItems.length > 0 && <ul className="job-skills" aria-label="Skills you have">{haveItems}</ul>}
-        {missingItems.length > 0 && <ul className="job-skills" aria-label="Skills you're missing">{missingItems}</ul>}
-      </div>
-    );
-  }
-
   return (
-    <ul className="job-skills" aria-label="How your resume matches">
-      {haveItems}
-      {missingItems}
-    </ul>
+    <div className="job-skill-groups">
+      {haveItems.length > 0 && <ul className="job-skills" aria-label="Skills you have">{haveItems}</ul>}
+      {missingItems.length > 0 && <ul className="job-skills" aria-label="Skills you're missing">{missingItems}</ul>}
+    </div>
   );
 }
 

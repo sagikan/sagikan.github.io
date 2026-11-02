@@ -1,3 +1,5 @@
+const FRESH_JOB_MS = 24 * 60 * 60 * 1000;
+
 // Turns a match score into a level
 export function scoreLevel(score) {
   if (score >= 70) return "high";
@@ -20,3 +22,7 @@ export function postingAge(postedAt) {
   return { level, label: `Posted ${ago}` };
 }
 
+// Checks whether a job was found by a search in the last day and hasn't been acted on
+export function isFreshJob(job, now = Date.now()) {
+  return job.state === "new" && job.source === "search" && now - new Date(job.created_at).getTime() < FRESH_JOB_MS;
+}

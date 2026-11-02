@@ -4,7 +4,7 @@ import AddJobModal from "../components/jobs/AddJobModal";
 import ProfileModal from "../components/jobs/ProfileModal";
 import TailorModal from "../components/jobs/TailorModal";
 import JobDetails, { MatchSkills, PostedDate, ScoreRing } from "../components/jobs/JobDetails";
-import { postingAge, scoreLevel } from "../components/jobs/jobInfo";
+import { isFreshJob, postingAge, scoreLevel } from "../components/jobs/jobInfo";
 import { CalendarIcon, ExternalIcon, FreshnessCalendar, PinIcon } from "../components/jobs/JobIcons";
 import { apiRequest, localISO, toDateInput } from "../lib/api";
 import { downloadSavedCv } from "../utils/resume/cvPdf";
@@ -214,20 +214,33 @@ function JobCard({ job, onTailor, onApply, onDismiss, onDownload }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const applied = job.state === "applied";
+  const isNew = isFreshJob(job);
 
   return (
     <li className={`job-card${applied ? " job-applied" : ""}${job.match_score !== null ? ` match-${scoreLevel(job.match_score)}` : ""}`}>
-      <div className="job-card-top">
+      <div className="job-card-top job-card-grid">
+        {isNew && <span className="job-new-tag">New!</span>}
         <CompanyAvatar company={job.company} />
 
         <div className="job-heading">
-          <h3 className="job-title">{job.position}</h3>
+          <h3 className="job-title">
+            {job.description ? (
+              <button type="button" className="job-details-btn" aria-haspopup="dialog" title={job.position} onClick={() => setOpen(true)}>
+                <span className="job-title-text">{job.position}</span>
+                <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
+                  <path d="M8 5l5 5-5 5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            ) : (
+              <span className="job-title-text">{job.position}</span>
+            )}
+          </h3>
           <p className="job-meta">
             <span className="job-company">{job.company}</span>
             {job.location && (
-              <span className="app-meta-item">
+              <span className="app-meta-item job-location">
                 <PinIcon />
-                {job.location}
+                <span className="job-location-text">{job.location}</span>
               </span>
             )}
             {job.workplace_model && (
@@ -266,19 +279,8 @@ function JobCard({ job, onTailor, onApply, onDismiss, onDownload }) {
         </div>
 
         <MatchSkills job={job} />
-      </div>
 
-      <div className="job-card-footer">
-        {job.description && (
-          <button type="button" className="job-details-btn" aria-haspopup="dialog" onClick={() => setOpen(true)}>
-            Details
-            <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
-              <path d="M8 5l5 5-5 5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-        )}
-
-        <div className="job-actions">
+        <div className={`job-actions${applied && !job.has_tailoring ? " job-actions-none" : ""}`}>
           {applied ? (
             <>
               {job.has_tailoring && (
@@ -297,6 +299,12 @@ function JobCard({ job, onTailor, onApply, onDismiss, onDownload }) {
                     <path d="M10 3.5v9M6 8.75l4 4 4-4M4 15.5h12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                   {busy ? "Preparing…" : "Download resume"}
+                </button>
+              )}
+
+              {!job.has_tailoring && (
+                <button type="button" className="btn btn-ghost btn-sm job-actions-spacer" tabIndex={-1} aria-hidden="true" disabled>
+                  &nbsp;
                 </button>
               )}
             </>

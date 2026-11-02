@@ -1249,6 +1249,7 @@ textarea {
   initial-value: 0;
 }
 
+.score-ring,
 .preview-ring {
   transition: --score 1.4s cubic-bezier(0.2, 0.8, 0.2, 1) 0.2s;
 }
@@ -1259,98 +1260,30 @@ textarea {
 }
 
 .preview-doc-download {
+  /* A deeper shade of the accent keeps the white text readable in both themes */
   gap: 6px;
-  padding: 5px 14px;
+  min-width: 111px;
+  padding: 2px 11px;
   border: 0;
   border-radius: 999px;
-  background: var(--accent);
-  box-shadow: none;
-  font-size: 0.78rem;
+  background: color-mix(in srgb, var(--accent) 68%, #000);
+  color: #fff;
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  font-size: 0.75rem;
+  line-height: 1.3;
   text-shadow: none;
-  transition: background-color 0.15s, transform 0.15s;
+  transition: filter 0.15s, transform 0.15s;
 }
 
 .preview-doc-download:hover:not(:disabled) {
-  background: var(--accent-hover);
-  filter: none;
+  background: color-mix(in srgb, var(--accent) 68%, #000);
+  filter: brightness(1.06);
   transform: none;
-  box-shadow: none;
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
 .preview-doc-download:active:not(:disabled) {
   transform: scale(0.97);
-}
-
-.preview-tailor {
-  display: inline-grid;
-  min-width: 92px;
-  padding: 5px 14px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--accent);
-  color: #fff;
-  font: inherit;
-  font-size: 0.78rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.3s ease, color 0.3s ease, transform 0.15s ease;
-}
-
-.preview-tailor:hover {
-  background: var(--accent-hover);
-}
-
-.preview-tailor:active {
-  transform: scale(0.97);
-}
-
-.preview-tailor[aria-pressed="true"] {
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-.preview-tailor[aria-pressed="true"]:hover {
-  background: color-mix(in srgb, var(--accent) 16%, var(--accent-soft));
-}
-
-.preview-tailor-face {
-  grid-area: 1 / 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  transition: opacity 0.25s ease, transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.preview-tailor[aria-pressed="false"] .is-undo,
-.preview-tailor[aria-pressed="true"] .is-tailor {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.preview-tailor[aria-pressed="false"] .is-undo {
-  transform: translateY(7px);
-}
-
-.preview-tailor[aria-pressed="true"] .is-tailor {
-  transform: translateY(-7px);
-}
-
-.preview-doc-body:not(.show-changes) del {
-  padding: 0;
-}
-
-@keyframes doc-fade-in {
-  from { opacity: 0; }
-}
-
-.show-changes ins,
-.show-changes .preview-doc-moved,
-.show-changes .preview-doc-skill-new,
-.show-changes .preview-doc-cut,
-.preview-doc-body:not(.show-changes) del,
-.preview-doc-body:not(.show-changes) .preview-doc-cut {
-  animation: doc-fade-in 0.4s ease both;
 }
 
 .preview-doc-heading {
@@ -4068,13 +4001,16 @@ textarea {
 }
 
 .job-card {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px 18px 10px;
-  background: var(--surface);
+  gap: 8px;
+  padding: 12px 14px 12px;
+  --card-bg: var(--surface);
+  background: var(--card-bg);
+  /* A thin frosted top edge on every card; the new tag sits on it */
+  border-top: 2px solid color-mix(in srgb, var(--text) 14%, transparent);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
   transition: box-shadow 0.15s;
 }
 
@@ -4082,11 +4018,13 @@ textarea {
 .job-card.match-high,
 .job-card.match-mid,
 .job-card.match-low {
-  background: color-mix(in srgb, var(--ring) 6%, var(--surface));
+  --card-bg: color-mix(in srgb, var(--ring) 6%, var(--surface));
+  background: var(--card-bg);
 }
 
 .job-card.match-high {
-  background: color-mix(in srgb, var(--ring) 3.5%, var(--surface));
+  --card-bg: color-mix(in srgb, var(--ring) 3.5%, var(--surface));
+  background: var(--card-bg);
 }
 
 /* Card content picks up the card's hue */
@@ -4094,20 +4032,30 @@ textarea {
   color: color-mix(in srgb, var(--ring) 25%, var(--text-muted));
 }
 
-.job-card:is(.match-high, .match-mid, .match-low) {
-  --details-color: color-mix(in srgb, var(--ring) 70%, var(--text));
-}
-
 /* Green is the strongest hue, so it gets a lighter touch */
 .job-card.match-high .job-meta {
   color: color-mix(in srgb, var(--ring) 10%, var(--text-muted));
 }
 
-.job-card.match-high {
-  --details-color: color-mix(in srgb, var(--ring) 35%, var(--text));
+.job-card:is(.match-high, .match-mid, .match-low) .job-skills-fit {
+  flex-wrap: nowrap;
+  min-width: 0;
+  overflow: hidden;
 }
 
-.job-card:is(.match-high, .match-mid, .match-low) .skill-have {
+.job-skills-fit > .skill {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* The chip that counts the tags that didn't fit */
+.skill-more {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.skill-have {
   background: color-mix(in srgb, var(--offer) 14%, transparent);
 }
 
@@ -4161,14 +4109,14 @@ textarea {
   flex-wrap: wrap;
   align-items: center;
   gap: 2px 14px;
-  margin: 2px 0 0;
+  margin: 1px 0 0;
   font-size: 0.88rem;
   color: var(--text-muted);
 }
 
 .job-company {
   color: var(--text);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .score-ring {
@@ -4194,6 +4142,16 @@ textarea {
   font-size: 0.85rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+.job-card .score-ring {
+  width: 44px;
+  height: 44px;
+}
+
+.job-card .score-ring span {
+  width: 36px;
+  height: 36px;
 }
 
 .score-ring span::after {
@@ -4229,31 +4187,37 @@ textarea {
   margin-block: auto;
 }
 
-.job-dismiss {
-  margin: -8px -10px 0 0;
+/* A glass pill like the new tag, centered on the card's top line above the score ring */
+/* A plain close button at the top right, centered over the refresh button's column and clear of the score */
+.job-card .job-dismiss {
+  position: absolute;
+  top: 4px;
+  right: 7px;
+  z-index: 1;
+  width: 20px;
+  height: 20px;
+  color: color-mix(in srgb, var(--text-muted) 45%, transparent);
 }
 
-@media (hover: hover) {
-  .job-dismiss {
-    opacity: 0.45;
-    transition: opacity 0.15s, color 0.15s;
-  }
-
-  .job-card:hover .job-dismiss,
-  .job-dismiss:focus-visible {
-    opacity: 1;
-  }
+.job-card .job-dismiss svg {
+  width: 13px;
+  height: 13px;
 }
 
-/* The tags sit under the heading and the avatar, and the score column spans both rows */
+.job-card:hover .job-dismiss,
+.job-card .job-dismiss:focus-visible {
+  color: var(--text-muted);
+}
+
+.job-card .job-dismiss:hover {
+  color: var(--rejected);
+}
+
+/* The tags sit under the heading and the avatar */
 .job-card-top > .job-skills,
 .job-card-top > .job-reason {
   grid-column: 1 / span 2;
   margin: 0;
-}
-
-.job-card-top:has(> .job-skills, > .job-reason) > .job-card-side {
-  grid-row: 1 / span 2;
 }
 
 .job-posting-link {
@@ -4312,24 +4276,108 @@ textarea {
   color: var(--text-muted);
 }
 
-.job-card-footer {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding-top: 10px;
+/* The score sits beside the heading and the buttons beside the tags */
+.job-card-grid {
+  row-gap: 10px;
 }
 
-/* A line that starts in the Details link's color and fades out to the right */
-.job-card-footer::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto;
-  height: 1.5px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--details-color, var(--accent)) 45%, transparent), transparent 70%);
+/* A fixed size, centered against the title and the info line */
+.job-card-grid > .avatar {
+  align-self: center;
+  width: 42px;
+  height: 42px;
+  max-height: none;
+}
+
+/* As tall as the avatar, with the title's cap height at its top and the info line's lowest edge at its bottom */
+.job-card-grid > .job-heading {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-self: center;
+  grid-row: 1;
+  grid-column: 2 / -1;
+  height: 42px;
+}
+
+.job-card-grid .job-title {
+  font-size: 1.15rem;
+  padding-right: 15px;
+}
+
+/* The workplace pill is the row's lowest part, so its bottom is what meets the avatar's bottom */
+.job-card-grid .job-meta:has(> .workplace-tag) {
+  margin-bottom: -0.9px;
+}
+
+/* The line under the title never wraps: the location, then the company name, give way first */
+.job-card-grid .job-meta {
+  flex-wrap: nowrap;
+  min-width: 0;
+  margin: 2px 0;
+  font-size: 0.92rem;
+}
+
+.job-card-grid .job-meta > * {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.job-card-grid .job-meta > .job-company,
+.job-card-grid .job-meta > .job-location {
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.job-card-grid .job-meta > .job-location {
+  flex-shrink: 4;
+}
+
+.job-card-grid .job-company,
+.job-location-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.job-card-grid:has(.score-ring) > .job-heading {
+  padding-right: 60px;
+}
+
+.job-card-grid:has(.job-source) > .job-heading {
+  padding-right: 110px;
+}
+
+.job-card-grid > .job-card-side {
+  grid-column: 3;
+  grid-row: 1;
+  align-self: center;
+  justify-self: end;
+  margin-right: 12px;
+}
+
+/* With no buttons, the score is centered against both rows */
+.job-card-grid:has(> .job-actions-none) > .job-card-side {
+  grid-row: 1 / span 2;
+}
+
+.job-card-grid > .job-skills,
+.job-card-grid > .job-reason {
+  grid-row: 2;
+  align-self: start;
+}
+
+.job-card-grid > .job-actions {
+  grid-column: 3;
+  grid-row: 2;
+  align-self: start;
+  justify-self: end;
+  margin-right: 12px;
+}
+
+/* An invisible button that keeps the row as tall as when there are buttons */
+.job-actions-spacer {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* Card buttons: soft pills in the card's hue, a tonal one and a solid one */
@@ -4338,10 +4386,11 @@ textarea {
 }
 
 .job-card .job-actions .btn {
-  padding: 4px 14px;
-  border-color: transparent;
+  padding: 3px 12px;
+  border: 0;
   border-radius: 999px;
-  font-size: 0.84rem;
+  font-size: 0.8rem;
+  line-height: 1.3;
 }
 
 .job-card .job-actions .btn-ghost,
@@ -4361,25 +4410,73 @@ textarea {
   filter: brightness(1.06);
 }
 
+.job-title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.job-title:has(> .job-details-btn),
+.job-title:has(> .job-title-text) {
+  display: flex;
+}
+
 .job-details-btn {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  padding: 4px 6px 4px 0;
+  max-width: 100%;
+  padding: 0;
   border: 0;
   background: none;
-  color: var(--details-color, var(--accent));
-  font-size: 0.87rem;
-  font-weight: 600;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
   cursor: pointer;
 }
 
 .job-details-btn svg {
+  flex-shrink: 0;
+  color: inherit;
   transition: transform 0.15s;
 }
 
-.job-details-btn:hover svg {
+.job-details-btn:hover svg,
+.job-details-btn:focus-visible svg {
   transform: translateX(3px);
+}
+
+.job-card-top:has(> .job-new-tag) > .avatar {
+  grid-row: 1;
+}
+
+/* Shares the avatar's grid cell and is lifted so its middle sits on the card's top line */
+.job-new-tag {
+  --tone: var(--ring, var(--text));
+  grid-column: 1;
+  grid-row: 1;
+  align-self: start;
+  z-index: 1;
+  width: 0;
+  min-width: 100%;
+  padding: 3px 0 1px 0.15em;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card-bg) 82%, transparent);
+  box-shadow: inset 0 2px 0 color-mix(in srgb, #fff 15%, transparent);
+  -webkit-backdrop-filter: blur(8px) saturate(150%);
+  backdrop-filter: blur(8px) saturate(150%);
+  color: color-mix(in srgb, var(--tone, var(--text)) 80%, var(--text));
+  font-family: "Space Grotesk", var(--font-display);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.4;
+  text-align: center;
+  text-transform: uppercase;
+  transform: translateY(calc(-13px - 50%));
+  pointer-events: none;
 }
 
 /* Job details panel */
@@ -5808,7 +5905,7 @@ body.is-sorting * {
   }
 
   .job-card {
-    padding: 14px 14px 10px;
+    padding: 14px 14px 12px;
   }
 
   .job-card-top .avatar {
@@ -5827,6 +5924,57 @@ body.is-sorting * {
 
   .job-card-top > .job-card-side {
     grid-column: 2;
+  }
+
+  .job-card-grid {
+    row-gap: 8px;
+  }
+
+  .job-card-grid > .job-heading {
+    grid-column: 1;
+  }
+
+  .job-card-grid:has(.score-ring) > .job-heading,
+  .job-card-grid:has(.job-source) > .job-heading {
+    padding-right: 0;
+  }
+
+  /* With no avatar, a small inset lines the text up with the rounded tags and buttons */
+  .job-card-grid > .job-heading {
+    padding-left: 3px;
+  }
+
+  .job-card-grid > .job-card-side {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+
+  .job-card-grid > .job-skills,
+  .job-card-grid > .job-reason {
+    grid-column: 1;
+  }
+
+  .job-card-grid > .job-actions {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    justify-self: stretch;
+    margin-right: 0;
+  }
+
+  .job-card-grid > .job-actions-none {
+    display: none;
+  }
+
+  .job-card-grid .job-posting-link,
+  .job-card-grid .job-meta > .app-meta-item:not(.job-location) {
+    display: none;
+  }
+
+  .job-new-tag {
+    justify-self: start;
+    width: auto;
+    min-width: 0;
+    padding-inline: 10px 8px;
   }
 
   .drawer {
