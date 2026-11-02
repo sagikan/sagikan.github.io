@@ -28,6 +28,7 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 describe("CompanyAvatar", () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
+    vi.doUnmock("../../../utils/logos/edgeColor");
   });
 
   it("shows the company's first letter while the logo loads, then the logo", async () => {
@@ -105,5 +106,31 @@ describe("CompanyAvatar", () => {
     rerender(<CompanyAvatar company="Pinnacle" />);
 
     await waitFor(() => expect(container.querySelector("img")).toHaveAttribute("src", "blob:5"));
+  });
+
+  it("takes the color of the logo's edge once it loads", async () => {
+    vi.doMock("../../../utils/logos/edgeColor", () => ({ edgeColor: () => "rgb(36, 56, 214)" }));
+    mockFetch(logo());
+
+    const CompanyAvatar = await freshAvatar();
+    const { container } = render(<CompanyAvatar company="Orbit" />);
+
+    await waitFor(() => expect(container.querySelector("img")).not.toBeNull());
+    fireEvent.load(container.querySelector("img"));
+
+    expect(container.querySelector(".avatar-logo").style.background).toBe("rgb(36, 56, 214)");
+  });
+
+  it("keeps the default background when the logo's edge has no single color", async () => {
+    vi.doMock("../../../utils/logos/edgeColor", () => ({ edgeColor: () => null }));
+    mockFetch(logo());
+
+    const CompanyAvatar = await freshAvatar();
+    const { container } = render(<CompanyAvatar company="Orbit" />);
+
+    await waitFor(() => expect(container.querySelector("img")).not.toBeNull());
+    fireEvent.load(container.querySelector("img"));
+
+    expect(container.querySelector(".avatar-logo").style.background).toBe("");
   });
 });
