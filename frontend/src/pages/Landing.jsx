@@ -78,18 +78,10 @@ const PROJECTS = {
     </>
   )
 };
+const ORIGINAL_HOLD_MS = 2200;
+const TAILORED_HOLD_MS = 4800;
 const ORDER_BEFORE = ["weather", "email"];
 const ORDER_AFTER = ["email", "weather"];
-const SCISSORS = (
-  <svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true">
-    <path d="M7.1 13.1 14.75 3.25M12.9 13.1 5.25 3.25M5.5 17a2.25 2.25 0 1 0 0-4.5 2.25 2.25 0 0 0 0 4.5zM14.5 17a2.25 2.25 0 1 0 0-4.5 2.25 2.25 0 0 0 0 4.5z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-const UNDO = (
-  <svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true">
-    <path d="M4.5 9.5a5.75 5.75 0 1 1 1.7 4.1M4.5 4.75V9.5h4.75" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
 const DONE = (
   <svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true">
     <path d="M5 10.5l3.2 3.2L15 7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
@@ -149,11 +141,10 @@ function CountUp({ value, run }) {
 }
 
 // Preview window title bar
-function WindowBar({ step, children }) {
+function WindowBar({ step }) {
   return (
     <div className="preview-bar">
       {[1, 2, 3].map((dot) => <span key={dot} className={dot === step ? "is-on" : undefined} />)}
-      {children && <div className="preview-bar-tools">{children}</div>}
     </div>
   );
 }
@@ -258,6 +249,7 @@ function jobRow(job, active) {
   return (
     <li key={job.company} className={`job-card match-${level} preview-pop${job.fresh ? " is-new" : ""}`}>
       <div className="job-card-top">
+        {job.fresh && <span className="job-new-tag">New!</span>}
         <CompanyAvatar company={job.company} logo={false} />
         <div className="job-heading">
           <h3 className="job-title">{job.position}</h3>
@@ -291,7 +283,6 @@ function jobRow(job, active) {
 function JobsPreview({ active }) {
   const [jobs, setJobs] = useState(JOBS);
   const [syncing, setSyncing] = useState(false);
-  const [synced, setSynced] = useState(false);
   const timer = useRef(null);
 
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -302,7 +293,6 @@ function JobsPreview({ active }) {
     setSyncing(true);
     timer.current = setTimeout(() => {
       setSyncing(false);
-      setSynced(true);
       setJobs((current) => (current.includes(NEW_JOB) ? current : [NEW_JOB, ...current]));
     }, 1100);
   }
@@ -332,7 +322,6 @@ function JobsPreview({ active }) {
             onClick={sync}
           >
             {REFRESH}
-            <span className="btn-flex-label" aria-live="polite">{syncing ? "Searching…" : synced ? "Just now" : "5 min ago"}</span>
           </button>
         </div>
       </div>
@@ -373,7 +362,7 @@ function useGlide(order, delay) {
 
     const frame = requestAnimationFrame(() => {
       moved.forEach(([node]) => {
-        node.style.transition = `transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) ${delay}ms`;
+        node.style.transition = `transform 0.8s cubic-bezier(0.22, 1, 0.36, 1) ${delay}ms`;
         node.style.transform = "";
       });
     });
@@ -393,10 +382,15 @@ function DocBody({ tailored, order = tailored ? ORDER_AFTER : ORDER_BEFORE, dela
   return (
     <div className={`preview-doc-body${tailored ? " show-changes" : ""}`}>
       <p className="preview-doc-heading">Summary</p>
-      <p className="preview-doc-text">
-        CS graduate with hands-on experience building <del>web apps</del>
-        <ins>scalable backend services and REST APIs</ins> in Node.js and Python.
-      </p>
+      <div className="preview-doc-summary">
+        <p className="preview-doc-text is-before" aria-hidden={tailored}>
+          CS graduate with hands-on experience building end-to-end web apps in Node.js and Python.
+        </p>
+        <p className="preview-doc-text is-after" aria-hidden={!tailored}>
+          CS graduate with hands-on experience building end-to-end <del>web apps</del>{" "}
+          <ins>scalable backend services and REST APIs</ins> in Node.js and Python.
+        </p>
+      </div>
 
       <p className="preview-doc-heading">Projects</p>
       {order.map((key) => (
@@ -414,28 +408,35 @@ function DocBody({ tailored, order = tailored ? ORDER_AFTER : ORDER_BEFORE, dela
   );
 }
 
-// Tailored resume preview
-function TailorPreview() {
-  const [tailored, setTailored] = useState(false);
+// Tailored resume preview that flips between the original and the tailored resume on its own
+function TailorPreview({ active }) {
+  const [tailored, setTailored] = useState(REDUCED_MOTION);
+  const [paused, setPaused] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
   const timer = useRef(null);
 
   useEffect(() => () => clearTimeout(timer.current), []);
 
+  // Flips between the two versions while the preview is on screen and not being looked at closely
+  useEffect(() => {
+    if (!active || paused || REDUCED_MOTION) {
+      return undefined;
+    }
+
+    const flip = setTimeout(() => setTailored((value) => !value), tailored ? TAILORED_HOLD_MS : ORIGINAL_HOLD_MS);
+
+    return () => clearTimeout(flip);
+  }, [active, paused, tailored]);
+
   return (
-    <div className="preview-window showcase-window preview-doc">
-      <WindowBar step={3}>
-        <button
-          type="button"
-          className="preview-tailor"
-          aria-pressed={tailored}
-          aria-label={tailored ? "Undo tailoring" : "Tailor the resume"}
-          onClick={() => setTailored((value) => !value)}
-        >
-          <span className="preview-tailor-face is-tailor">{SCISSORS}Tailor</span>
-          <span className="preview-tailor-face is-undo">{UNDO}Undo</span>
-        </button>
-      </WindowBar>
+    <div
+      className="preview-window showcase-window preview-doc"
+      onPointerEnter={(event) => event.pointerType === "mouse" && setPaused(true)}
+      onPointerLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={() => setPaused(false)}
+    >
+      <WindowBar step={3} />
 
       <Stack ghost={<DocBody tailored />}>
         <DocBody tailored={tailored} />
@@ -769,7 +770,7 @@ function Landing({ authenticated }) {
               "Attach any additional PDF document (e.g. Gradesheet)",
               "Download the final ATS-approved PDF version"
             ]}
-            preview={() => <TailorPreview />}
+            preview={(inView) => <TailorPreview active={inView} />}
           />
         </div>
       </div>

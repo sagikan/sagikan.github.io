@@ -751,6 +751,14 @@ textarea {
   pointer-events: none;
 }
 
+/* On a short screen the pinned tabs would cover too much of the page */
+@media (max-height: 560px) {
+  .feature-tabs-dock {
+    display: none;
+    margin: 0;
+  }
+}
+
 .feature-tabs {
   position: relative;
   display: flex;
@@ -1052,8 +1060,8 @@ textarea {
 }
 
 .preview-bar > span {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background: var(--border-strong);
 }
@@ -1061,10 +1069,6 @@ textarea {
 .preview-bar > span.is-on {
   background: var(--offer);
   box-shadow: 0 0 6px color-mix(in srgb, var(--offer) 55%, transparent);
-}
-
-.preview-bar-tools {
-  margin-left: auto;
 }
 
 /* The previews reuse the real pages' components, scaled down to fit the window */
@@ -1141,8 +1145,8 @@ textarea {
 }
 
 .preview-window .app-card .avatar {
-  width: 38px;
-  height: 38px;
+  width: 42px;
+  height: 42px;
   font-size: 1.05rem;
 }
 
@@ -1183,6 +1187,11 @@ textarea {
 
 .preview-window .job-card-top {
   gap: 6px 12px;
+}
+
+/* The card's top padding is smaller here, so the tag is lifted less */
+.preview-window .job-new-tag {
+  transform: translateY(calc(-11px - 50%));
 }
 
 .preview-window .job-card .skill {
@@ -1236,7 +1245,7 @@ textarea {
 }
 
 @keyframes preview-new {
-  from { box-shadow: 0 0 0 2px var(--accent), var(--shadow-sm); }
+  from { box-shadow: 0 0 0 2px var(--accent); }
 }
 
 .preview-window .job-card.is-new {
@@ -1301,9 +1310,25 @@ textarea {
   margin-top: 0;
 }
 
+.preview-doc-summary {
+  display: grid;
+}
+
+/* Both versions share one cell and crossfade, so the wording changes without the text jumping */
 .preview-doc-text {
+  grid-area: 1 / 1;
   margin: 0;
   line-height: 1.65;
+  transition: opacity 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.preview-doc-text.is-after,
+.preview-doc-body.show-changes .preview-doc-text.is-before {
+  opacity: 0;
+}
+
+.preview-doc-body.show-changes .preview-doc-text.is-after {
+  opacity: 1;
 }
 
 .preview-doc ins,
@@ -1315,17 +1340,11 @@ textarea {
 }
 
 .preview-doc ins {
-  display: none;
-}
-
-.show-changes ins {
-  display: inline;
   background: var(--offer-soft);
   color: var(--offer);
 }
 
-.show-changes del {
-  display: inline;
+.preview-doc del {
   background: var(--rejected-soft);
   color: var(--rejected);
   text-decoration: line-through;
@@ -1344,13 +1363,21 @@ textarea {
   color: var(--text-muted);
 }
 
+/* The move arrows grow in beside the titles, which slide over to make room */
 .preview-doc-moved {
-  display: none;
+  display: inline-flex;
+  width: 0;
+  margin-right: -6px;
+  overflow: hidden;
   color: var(--interview);
+  opacity: 0;
+  transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1), margin 0.8s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.6s ease;
 }
 
 .show-changes .preview-doc-moved {
-  display: inline-flex;
+  width: 12px;
+  margin-right: 0;
+  opacity: 1;
 }
 
 .preview-doc-bullets {
@@ -1367,10 +1394,14 @@ textarea {
   margin-top: 6px;
 }
 
-.show-changes .preview-doc-cut {
-  display: list-item;
-  color: var(--text-muted);
+.preview-doc-cut {
   text-decoration: line-through;
+  text-decoration-color: transparent;
+  transition: color 0.8s ease, text-decoration-color 0.8s ease;
+}
+
+.show-changes .preview-doc-cut {
+  color: var(--text-muted);
   text-decoration-color: color-mix(in srgb, var(--rejected) 55%, transparent);
 }
 
@@ -1388,13 +1419,16 @@ textarea {
 }
 
 .preview-doc-skills .preview-doc-skill-new {
-  display: none;
+  background: var(--offer-soft);
+  color: var(--offer);
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 0.3s ease, transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .show-changes .preview-doc-skill-new {
-  display: inline-block;
-  background: var(--offer-soft);
-  color: var(--offer);
+  opacity: 1;
+  transform: none;
 }
 
 .preview-doc-actions {
@@ -1805,6 +1839,7 @@ textarea {
   overflow-y: auto;
 }
 
+.toolbar .dropdown-list,
 .app-actions .dropdown-list {
   right: 0;
   left: auto;
