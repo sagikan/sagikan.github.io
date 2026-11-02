@@ -2474,19 +2474,63 @@ textarea {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 10px 12px;
+  padding: 8px 12px 10px;
   background: color-mix(in srgb, var(--status-soft) 55%, var(--surface));
-  border: 1px solid color-mix(in srgb, var(--status) 22%, var(--border));
-  border-left: 4px solid var(--status);
+  border-top: 2px solid color-mix(in srgb, var(--text) 14%, transparent);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: box-shadow 0.15s;
 }
 
 .app-card:hover {
-  border-color: color-mix(in srgb, var(--status) 40%, var(--border));
-  border-left-color: var(--status);
   box-shadow: var(--shadow-card-hover);
+}
+
+/* With notes the card is a grid, so the avatar and the right side stay centered on the title and the
+   info line while the note spans the full width under them */
+@media (min-width: 641px) {
+  .app-card:has(.app-notes):has(> .app-actions) {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    column-gap: 16px;
+    row-gap: 2px;
+    align-items: center;
+  }
+
+  .app-card:has(.app-notes):has(> .app-actions) > .app-main {
+    display: contents;
+  }
+
+  .app-card:has(.app-notes):has(> .app-actions) > .avatar {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+
+  .app-card:has(.app-notes):has(> .app-actions) .app-title {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: end;
+  }
+
+  .app-card:has(.app-notes):has(> .app-actions) .app-meta {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: start;
+  }
+
+  .app-card:has(.app-notes):has(> .app-actions) .app-notes {
+    grid-column: 2 / -1;
+    grid-row: 3;
+  }
+
+  /* The trimmed note ends level with the right edge of the bin icon's strokes */
+  .app-card:has(.app-notes):has(> .app-actions) .app-notes:not(.is-open) {
+    margin-right: 8px;
+  }
+
+  .app-card:has(.app-notes):has(> .app-actions) > .app-actions {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
 }
 
 /* Status colours */
@@ -2506,19 +2550,20 @@ textarea {
   border-radius: 11px;
   background: linear-gradient(135deg, var(--accent-soft), color-mix(in srgb, var(--accent-2) 18%, var(--surface)));
   color: var(--accent);
-  font-weight: 700;
-  font-size: 1.05rem;
 }
 
 .avatar-initial {
   background: hsl(var(--hue) 70% 50% / 0.15);
   color: hsl(var(--hue) 55% 42%);
+  font-weight: 700;
+  font-size: 1.05rem;
 }
 
 .avatar-logo {
   overflow: hidden;
-  border: 1px solid var(--border);
+  /* White, unless the logo has a colored edge: the script sets that color so the soft edge blends in */
   background: #fff;
+  clip-path: inset(0 round 26%);
 }
 
 .avatar-logo img {
@@ -3751,7 +3796,7 @@ textarea {
   }
 
   .app-card .app-actions .status-select {
-    height: 34px;
+    height: 30px;
     padding: 0 28px 0 10px;
   }
 
@@ -3979,6 +4024,20 @@ textarea {
 
 .sync-btn.is-running svg {
   animation: spin 0.9s linear infinite;
+}
+
+/* The landing preview's refresh button has no box: its icon brightens on hover and spins while searching */
+.preview-window .sync-btn:hover:not(:disabled),
+.preview-window .sync-btn:active:not(:disabled),
+.preview-window .sync-btn.is-running {
+  background: none;
+  color: var(--text);
+}
+
+.preview-window .sync-btn svg,
+.preview-window .sync-btn:hover:not(:disabled) svg {
+  transform: none;
+  transition: none;
 }
 
 .clear-btn:disabled {
