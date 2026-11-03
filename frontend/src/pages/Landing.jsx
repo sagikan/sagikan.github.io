@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import CompanyAvatar from "../components/ui/CompanyAvatar";
 import { PixelDigit, PixelZero } from "../components/layout/Logo";
-import { PulseChart } from "../components/applications/StatCharts";
+import { PulseChart, WorkMix } from "../components/applications/StatCharts";
+import FitMeta from "../components/applications/FitMeta";
+import ChipRow from "../components/ui/ChipRow";
 import { FreshnessCalendar, PinIcon } from "../components/jobs/JobIcons";
 import { postingAge, scoreLevel } from "../components/jobs/jobInfo";
 import { localISO } from "../lib/api";
@@ -42,6 +44,7 @@ const STATUS_FILTERS = ["All", "Applied", "Interview", "Offer", "Rejected"];
 const PIPELINE = STATUS_FILTERS.slice(1);
 // Applications per day over the last month, oldest first: bursts and quiet days, a few reaching green
 const PULSE_DAILY = [1, 0, 3, 1, 0, 5, 2, 0, 1, 7, 4, 1, 0, 2, 9, 3, 1, 0, 4, 12, 6, 2, 1, 5, 8, 3, 0, 6, 13, 7];
+const MIX_SAMPLE = APPLICATIONS.map((item) => ({ workplace_model: item.workplace }));
 const PULSE_SAMPLE = PULSE_DAILY.flatMap((count, index) => {
   const day = new Date();
   day.setDate(day.getDate() - (PULSE_DAILY.length - 1 - index));
@@ -156,11 +159,13 @@ function applicationRow(item) {
       <CompanyAvatar company={item.company} logo={false} />
       <div className="app-main">
         <div className="app-title"><h3>{item.position}</h3></div>
-        <div className="app-meta">
+        <FitMeta>
           <span className="app-company">{item.company}</span>
-          {item.workplace !== "Remote" && <span className="app-meta-item"><PinIcon />{item.location}</span>}
-          <span className={`app-tag workplace-tag mix-${item.workplace.toLowerCase()}`}>{item.workplace}</span>
-        </div>
+          {item.workplace !== "Remote" && (
+            <span className="app-meta-item app-location-item"><PinIcon /><span className="app-location">{item.location}</span></span>
+          )}
+          <span className={`app-tag workplace-tag mix-${item.workplace.toLowerCase()}`} title={item.workplace}>{item.workplace}</span>
+        </FitMeta>
       </div>
       <span className="status-select preview-status" aria-hidden="true">{item.status}</span>
     </li>
@@ -203,26 +208,39 @@ function ApplicationsPreview({ active }) {
         <div className="stat-card preview-pulse">
           <PulseChart applications={PULSE_SAMPLE} bare />
         </div>
+        <WorkMix applications={MIX_SAMPLE} />
       </div>
       <div className="pipeline preview-pipeline" aria-hidden="true">
         {PIPELINE.map((status) => (
           <span key={status} className={`pipeline-segment seg-${status.toLowerCase()}`} style={{ flexGrow: count(status) }} />
         ))}
       </div>
-      <div className="chips" role="group" aria-label="Filter the example applications">
-        {STATUS_FILTERS.map((status) => (
-          <button
-            key={status}
-            type="button"
-            className={`chip${filter === status ? " active" : ""}`}
-            aria-pressed={filter === status}
-            onClick={() => setFilter(status)}
-          >
-            {status}
-            <span className="chip-count">{status === "All" ? total : count(status)}</span>
-          </button>
-        ))}
-      </div>
+      <ChipRow
+        role="group"
+        aria-label="Filter the example applications"
+        items={STATUS_FILTERS.map((status) => {
+          const number = status === "All" ? total : count(status);
+
+          return {
+            key: status,
+            active: filter === status,
+            onSelect: () => setFilter(status),
+            menuLabel: <>{status}<span className="chip-count">{number}</span></>,
+            node: (
+              <button
+                key={status}
+                type="button"
+                className={`chip${filter === status ? " active" : ""}`}
+                aria-pressed={filter === status}
+                onClick={() => setFilter(status)}
+              >
+                {status}
+                <span className="chip-count">{number}</span>
+              </button>
+            )
+          };
+        })}
+      />
       <Stack ghost={<ul className="app-list">{APPLICATIONS.map(applicationRow)}</ul>}>
         <ul className="app-list">{shown.map(applicationRow)}</ul>
       </Stack>
@@ -253,12 +271,14 @@ function jobRow(job, active) {
         <CompanyAvatar company={job.company} logo={false} />
         <div className="job-heading">
           <h3 className="job-title">{job.position}</h3>
-          <p className="job-meta">
+          <FitMeta as="p" className="job-meta">
             <span className="job-company">{job.company}</span>
-            {job.workplace !== "Remote" && <span className="app-meta-item"><PinIcon />{job.location}</span>}
-            <span className={`app-tag workplace-tag mix-${job.workplace.toLowerCase()}`}>{job.workplace}</span>
-            <span className={`app-meta-item posted-${age}`}><FreshnessCalendar level={age} />{shortDate(postedAt)}</span>
-          </p>
+            {job.workplace !== "Remote" && (
+              <span className="app-meta-item job-location"><PinIcon /><span className="job-location-text">{job.location}</span></span>
+            )}
+            <span className={`app-tag workplace-tag mix-${job.workplace.toLowerCase()}`} title={job.workplace}>{job.workplace}</span>
+            <span className={`app-meta-item app-date-item posted-${age}`}><FreshnessCalendar level={age} />{shortDate(postedAt)}</span>
+          </FitMeta>
         </div>
         <div className="job-card-side">
           <span className={`score-ring preview-ring match-${level}`} style={{ "--score": active ? job.score : 0 }}>
