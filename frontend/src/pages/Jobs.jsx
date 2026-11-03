@@ -9,6 +9,7 @@ import { CalendarIcon, ExternalIcon, FreshnessCalendar, PinIcon } from "../compo
 import { apiRequest, localISO, toDateInput } from "../lib/api";
 import { downloadSavedCv } from "../utils/resume/cvPdf";
 import Alert from "../components/ui/Alert";
+import FitMeta from "../components/applications/FitMeta";
 
 const POLL_MS = 5000;
 const DATE_RANGES = [
@@ -17,6 +18,7 @@ const DATE_RANGES = [
   { key: "week", label: "Last Week", days: 7 },
   { key: "month", label: "Last Month", days: 30 }
 ];
+const openSections = {};
 
 // Orders jobs the way the server lists them: unscored first, then best match, then newest
 function byListOrder(a, b) {
@@ -160,22 +162,13 @@ function SectionToggle({ title, jobs, count, open, onToggle, children }) {
   );
 }
 
-// Runs a localStorage action, ignoring storage errors
-function storage(action) {
-  try {
-    return action(localStorage);
-  } catch {
-    return null;
-  }
-}
-
-// Remembers whether a section is open
-function useRememberedOpen(key) {
-  const [open, setOpen] = useState(() => storage((store) => store.getItem(key)) !== "closed");
+// Remembers whether a section is open until the page is reloaded
+function useRememberedOpen(key, initial) {
+  const [open, setOpen] = useState(() => (key in openSections ? openSections[key] : initial));
 
   // Toggles the section and saves its state
   const toggle = () => setOpen((value) => {
-    storage((store) => store.setItem(key, value ? "closed" : "open"));
+    openSections[key] = !value;
 
     return !value;
   });
@@ -235,7 +228,7 @@ function JobCard({ job, onTailor, onApply, onDismiss, onDownload }) {
               <span className="job-title-text">{job.position}</span>
             )}
           </h3>
-          <p className="job-meta">
+          <FitMeta as="p" className="job-meta">
             <span className="job-company">{job.company}</span>
             {job.location && (
               <span className="app-meta-item job-location">
@@ -247,17 +240,17 @@ function JobCard({ job, onTailor, onApply, onDismiss, onDownload }) {
               <span className={`app-tag workplace-tag mix-${job.workplace_model.toLowerCase()}`}>{job.workplace_model}</span>
             )}
             {job.posted_at && (
-              <span className={`app-meta-item${applied ? "" : ` posted-${postingAge(job.posted_at).level}`}`}>
+              <span className={`app-meta-item app-date-item${applied ? "" : ` posted-${postingAge(job.posted_at).level}`}`}>
                 {applied ? <CalendarIcon /> : <FreshnessCalendar level={postingAge(job.posted_at).level} />}
                 <PostedDate postedAt={job.posted_at} />
               </span>
             )}
             {job.url && (
-              <a className="job-posting-link" href={job.url} target="_blank" rel="noreferrer">
-                View posting <ExternalIcon />
+              <a className="job-posting-link" href={job.url} target="_blank" rel="noreferrer" aria-label="View posting">
+                <span className="view-posting-text">View posting</span> <ExternalIcon />
               </a>
             )}
-          </p>
+          </FitMeta>
         </div>
 
         <div className="job-card-side">
@@ -523,9 +516,9 @@ function Jobs({ csrfToken, applications, onApplied, onUnauthorized }) {
     () => [...applications, ...jobs.filter((job) => job.source === "manual")],
     [applications, jobs]
   );
-  const [foundOpen, toggleFound] = useRememberedOpen("jobs.found");
+  const [foundOpen, toggleFound] = useRememberedOpen("found", true);
   const [dateRange, setDateRange] = useState("all");
-  const [appliedOpen, toggleApplied] = useRememberedOpen("jobs.applied");
+  const [appliedOpen, toggleApplied] = useRememberedOpen("applied", false);
   const openJobs = jobs.filter((job) => job.state !== "applied");
   const shownJobs = openJobs.filter((job) => inDateRange(job, dateRange));
   const appliedJobs = jobs.filter((job) => job.state === "applied").sort(byListOrder);

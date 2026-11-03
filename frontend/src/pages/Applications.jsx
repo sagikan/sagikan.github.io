@@ -3,8 +3,11 @@ import { downloadApplicationsCsv } from "../utils/applications/exportCsv";
 import { STATUSES, formatDate, jobDay, localISO, toDateInput } from "../lib/api";
 import { navigate } from "../lib/router";
 import AppNote from "../components/applications/AppNote";
+import FitMeta from "../components/applications/FitMeta";
+import ChipRow from "../components/ui/ChipRow";
 import ApplicationForm from "../components/applications/ApplicationForm";
 import JobPostForm from "../components/jobs/JobPostForm";
+import { ExternalIcon } from "../components/jobs/JobIcons";
 import CompanyAvatar from "../components/ui/CompanyAvatar";
 import Modal from "../components/ui/Modal";
 import SelectInput from "../components/ui/SelectInput";
@@ -109,11 +112,6 @@ function Chevron() {
       <path d="M5 8l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
-}
-
-// Shows an application status
-function StatusPill({ status }) {
-  return <span className={`status-pill status-${status.toLowerCase()}`}>{status}</span>;
 }
 
 // Applications page with filters, email updates and the list by day
@@ -406,6 +404,34 @@ function Applications({
     );
   }
 
+  // Opens the editor when a phone user taps a card away from its own controls
+  function openOnTap(event, job) {
+    if (!window.matchMedia("(max-width: 640px)").matches) {
+      return;
+    }
+
+    if (!event.target.closest("button, a, input, .dropdown, .app-notes.is-expandable")) {
+      setEditing(job);
+    }
+  }
+
+  // Renders the edit button of an application card
+  function renderEditButton(job) {
+    return (
+      <button
+        type="button"
+        className="icon-btn app-edit"
+        onClick={() => setEditing(job)}
+        aria-label={`Edit ${job.company} application`}
+        title="Edit"
+      >
+        <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+          <path d="M13.5 3.5l3 3L7 16H4v-3l9.5-9.5z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+        </svg>
+      </button>
+    );
+  }
+
   // Renders an application card
   function renderCard(job, hidden = false) {
     const update = pendingByApp.get(job.id);
@@ -415,29 +441,36 @@ function Applications({
           key={job.id}
           className={`app-card status-${job.status.toLowerCase()}${update ? " needs-review" : ""}`}
           hidden={hidden}
+          onClick={update ? undefined : (event) => openOnTap(event, job)}
         >
           <CompanyAvatar company={job.company} />
 
           <div className="app-main">
             <div className="app-title">
               <h3>{job.position}</h3>
+              {!update && renderEditButton(job)}
             </div>
-            <div className="app-meta">
+            <FitMeta>
               <span className="app-company">{job.company}</span>
               {job.location && (
-                <span className="app-meta-item">
+                <span className="app-meta-item app-location-item">
                   <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
                     <path d="M10 17.5s5.5-4.9 5.5-9.25a5.5 5.5 0 0 0-11 0C4.5 12.6 10 17.5 10 17.5z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
                     <circle cx="10" cy="8.25" r="2" fill="none" stroke="currentColor" strokeWidth="1.7" />
                   </svg>
-                  {job.location}
+                  <span className="app-location">{job.location}</span>
                 </span>
               )}
               {job.workplace_model && (
-                <span className={`app-tag workplace-tag mix-${job.workplace_model.toLowerCase()}`}>{job.workplace_model}</span>
+                <span
+                  className={`app-tag workplace-tag mix-${job.workplace_model.toLowerCase()}`}
+                  title={job.workplace_model}
+                >
+                  {job.workplace_model}
+                </span>
               )}
               {job.applied_at && (!hideCardDate || update) && (
-                <span className="app-meta-item">
+                <span className="app-meta-item app-date-item">
                   <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
                     <rect x="3.5" y="4.5" width="13" height="12" rx="2" fill="none" stroke="currentColor" strokeWidth="1.7" />
                     <path d="M3.5 8.5h13M7 2.75v3.5M13 2.75v3.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
@@ -446,15 +479,13 @@ function Applications({
                 </span>
               )}
               {job.job_url && (
-                <a href={job.job_url} target="_blank" rel="noreferrer">
-                  View posting ↗
+                <a className="job-posting-link" href={job.job_url} target="_blank" rel="noreferrer" aria-label="View posting">
+                  <span className="view-posting-text">View posting</span> <ExternalIcon />
                 </a>
               )}
-            </div>
+            </FitMeta>
             {job.notes && <AppNote notes={job.notes} />}
           </div>
-
-          {update && <StatusPill status={job.status} />}
 
           {update ? (
             <div
@@ -462,7 +493,6 @@ function Applications({
               role="group"
               aria-label={`${job.status} to ${update.suggested_status}`}
             >
-              <StatusPill status={update.suggested_status} />
               <MailHint update={update} />
               {renderDecision(update)}
             </div>
@@ -510,24 +540,13 @@ function Applications({
                 />
                 <button
                   type="button"
-                  className="icon-btn"
-                  onClick={() => setEditing(job)}
-                  aria-label={`Edit ${job.company} application`}
-                  title="Edit"
-                >
-                  <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
-                    <path d="M13.5 3.5l3 3L7 16H4v-3l9.5-9.5z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  className="icon-btn icon-btn-danger"
+                  className="icon-btn app-delete"
                   onClick={() => setConfirmDeleteId(job.id)}
                   aria-label={`Delete ${job.company} application`}
                   title="Delete"
                 >
-                  <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
-                    <path d="M4 6h12M8 6V4h4v2m-6 0l1 10h6l1-10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
+                    <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                   </svg>
                 </button>
               </>
@@ -620,7 +639,6 @@ function Applications({
                         role="group"
                         aria-label={`${update.suggested_status}`}
                       >
-                        <StatusPill status={update.suggested_status} />
                         <MailHint update={update} />
                         {update.candidate_ids.length > 0 && renderChoices(update)}
                         {renderDecision(update, { primary: update.candidate_ids.length > 0 ? null : "add" })}
@@ -678,10 +696,7 @@ function Applications({
                       </div>
                     </div>
 
-                    {update.previous_status && <StatusPill status={update.previous_status} />}
-
                     <div className={`app-suggestion status-${update.suggested_status.toLowerCase()}`} role="group" aria-label={`${update.previous_status ? `${update.previous_status} to ` : ""}${update.suggested_status}. ${how}`}>
-                      <StatusPill status={update.suggested_status} />
                       <MailHint update={update} />
                       {update.undoable ? (
                         <button
@@ -729,69 +744,100 @@ function Applications({
         />
       </section>
 
-      <div className="chips" role="tablist" aria-label="Filter by date">
-        {DATE_RANGES.map((range) => (
-          <button
-            key={range.key}
-            type="button"
-            role="tab"
-            aria-selected={dateRange === range.key}
-            className={`chip ${dateRange === range.key ? "active" : ""}`}
-            onClick={() => setDateRange(range.key)}
-          >
-            {range.label}
-          </button>
-        ))}
-        <button
-          type="button"
-          role="tab"
-          aria-selected={dateRange === "date"}
-          className={`chip chip-date ${dateRange === "date" ? "active" : ""}`}
-          onClick={openDatePicker}
-          aria-label="Pick a single date"
-          title="Pick a single date"
-        >
-          <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
-            <rect x="3.5" y="4.5" width="13" height="12" rx="2" fill="none" stroke="currentColor" strokeWidth="1.7" />
-            <path d="M3.5 8.5h13M7 2.75v3.5M13 2.75v3.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-          </svg>
-          {dateRange === "date" && formatDate(pickedDate)}
-          <input
-            ref={dateInput}
-            type="date"
-            className="chip-date-input"
-            value={pickedDate}
-            max={daysAgoISO(0)}
-            tabIndex={-1}
-            aria-label="Choose a single date"
-            onChange={(event) => {
-              const value = event.target.value;
+      <ChipRow
+        role="tablist"
+        aria-label="Filter by date"
+        items={[
+          ...DATE_RANGES.map((range) => ({
+            key: range.key,
+            active: dateRange === range.key,
+            onSelect: () => setDateRange(range.key),
+            menuLabel: range.label,
+            node: (
+              <button
+                key={range.key}
+                type="button"
+                role="tab"
+                aria-selected={dateRange === range.key}
+                className={`chip ${dateRange === range.key ? "active" : ""}`}
+                onClick={() => setDateRange(range.key)}
+              >
+                {range.label}
+              </button>
+            )
+          })),
+          {
+            key: "date",
+            active: dateRange === "date",
+            onSelect: openDatePicker,
+            menuLabel: dateRange === "date" ? formatDate(pickedDate) : "Pick a date",
+            node: (
+              <button
+                key="date"
+                type="button"
+                role="tab"
+                aria-selected={dateRange === "date"}
+                className={`chip chip-date ${dateRange === "date" ? "active" : ""}`}
+                onClick={openDatePicker}
+                aria-label="Pick a single date"
+                title="Pick a single date"
+              >
+                <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
+                  <rect x="3.5" y="4.5" width="13" height="12" rx="2" fill="none" stroke="currentColor" strokeWidth="1.7" />
+                  <path d="M3.5 8.5h13M7 2.75v3.5M13 2.75v3.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+                </svg>
+                {dateRange === "date" && formatDate(pickedDate)}
+                <input
+                  ref={dateInput}
+                  type="date"
+                  className="chip-date-input"
+                  value={pickedDate}
+                  max={daysAgoISO(0)}
+                  tabIndex={-1}
+                  aria-label="Choose a single date"
+                  onChange={(event) => {
+                    const value = event.target.value;
 
-              if (value) {
-                const isToday = value === daysAgoISO(0);
-                setPickedDate(isToday ? "" : value);
-                setDateRange(isToday ? "today" : "date");
-              }
-            }}
-          />
-        </button>
-      </div>
+                    if (value) {
+                      const isToday = value === daysAgoISO(0);
+                      setPickedDate(isToday ? "" : value);
+                      setDateRange(isToday ? "today" : "date");
+                    }
+                  }}
+                />
+              </button>
+            )
+          }
+        ]}
+      />
 
-      <div className="chips" role="tablist" aria-label="Filter by status">
-        {["All", ...STATUSES].map((status) => (
-          <button
-            key={status}
-            type="button"
-            role="tab"
-            aria-selected={statusFilter === status}
-            className={`chip ${statusFilter === status ? "active" : ""}`}
-            onClick={() => setStatusFilter(status)}
-          >
-            {status}
-            <span className="chip-count">{status === "All" ? searched.length : counts[status]}</span>
-          </button>
-        ))}
-      </div>
+      <ChipRow
+        role="tablist"
+        aria-label="Filter by status"
+        items={["All", ...STATUSES].map((status) => {
+          const number = status === "All" ? searched.length : counts[status];
+
+          return {
+            key: status,
+            active: statusFilter === status,
+            onSelect: () => setStatusFilter(status),
+            menuLabel: <>{status}<span className="chip-count">{number}</span></>,
+            node: (
+              <button
+                key={status}
+                type="button"
+                role="tab"
+                aria-selected={statusFilter === status}
+                className={`chip ${statusFilter === status ? "active" : ""}`}
+                onClick={() => setStatusFilter(status)}
+              >
+                {status}
+                <span className="chip-count">{number}</span>
+              </button>
+            )
+          };
+        })}
+      />
 
       {total === 0 ? (
         <div className="empty-state">

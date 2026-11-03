@@ -92,6 +92,8 @@ html {
   --zoom: 1;
   zoom: var(--zoom);
   scrollbar-gutter: stable;
+  --min-page-width: 320px;
+  min-width: var(--min-page-width);
 }
 
 @media (min-width: 1000px) {
@@ -100,7 +102,6 @@ html {
   }
 }
 
-/* No background: it would cover the side margin pattern (:root paints the page color) */
 body {
   margin: 0;
   min-height: calc(100vh / var(--zoom));
@@ -235,7 +236,6 @@ textarea {
   transition: background-color 0.15s, border-color 0.15s, transform 0.15s, box-shadow 0.15s;
 }
 
-/* Small button for a modal header, level with the close button */
 .btn-compact {
   gap: 6px;
   height: 30px;
@@ -421,7 +421,6 @@ textarea {
   pointer-events: none;
 }
 
-/* Starts fully behind the zero and slides out; only the transform animates, so the layout never changes */
 .brand-text {
   display: inline-block;
   vertical-align: middle;
@@ -496,7 +495,7 @@ textarea {
 }
 
 .nav-email {
-  max-width: 200px;
+  max-width: clamp(80px, 22vw, 200px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -583,14 +582,11 @@ textarea {
 
 /* Landing */
 
-/* clip, not hidden: it still stops sideways overflow, but lets the feature tabs stay pinned */
 .landing {
   flex: 1;
   overflow-x: clip;
 }
 
-/* Hero
-   Ends where the pinned tabs rest (above the footer), so scrolling lets them go right away */
 .hero {
   position: relative;
   max-width: 880px;
@@ -621,7 +617,6 @@ textarea {
   pointer-events: none;
 }
 
-/* Stays in Inter: the pixel zeros are sized to Inter's capitals */
 .hero h1 {
   font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
   font-size: clamp(3.2rem, 5.4vw, 3.6rem);
@@ -640,7 +635,6 @@ textarea {
   padding-right: 0.04em;
 }
 
-/* As tall as Inter's capitals (0.73em), on the baseline */
 .pixel-o {
   display: inline-block;
   position: relative;
@@ -751,7 +745,6 @@ textarea {
   pointer-events: none;
 }
 
-/* On a short screen the pinned tabs would cover too much of the page */
 @media (max-height: 560px) {
   .feature-tabs-dock {
     display: none;
@@ -855,7 +848,6 @@ textarea {
   color: #fff;
 }
 
-/* On the baseline and as tall as Sora's capitals (0.73em): centering would drift a pixel at some zooms */
 .feature-tab-num {
   display: inline-flex;
   flex-shrink: 0;
@@ -1013,7 +1005,7 @@ textarea {
 
 /* Preview windows */
 .preview-window {
-  container-type: inline-size;
+  container: preview / inline-size;
   padding: 14px;
   border: 1px solid var(--border);
   border-radius: 18px;
@@ -1071,25 +1063,68 @@ textarea {
   box-shadow: 0 0 6px color-mix(in srgb, var(--offer) 55%, transparent);
 }
 
-/* The previews reuse the real pages' components, scaled down to fit the window */
 .preview-stats {
   --stat-size: 76px;
   display: grid;
-  grid-template-columns: 1fr 1fr 2.4fr;
+  grid-template-columns: 1fr 1fr 1.4fr 1.3fr;
   gap: 10px;
   margin-bottom: 10px;
 }
 
+@container preview (max-width: 520px) {
+  .preview-stats {
+    grid-template-columns: 1fr 1fr 1.3fr;
+  }
+
+  .preview-stats > .preview-pulse {
+    display: none;
+  }
+}
+
 .preview-stats .stat-card {
+  container-type: inline-size;
   min-height: var(--stat-size);
   padding: 28px 10px 8px;
   border-radius: 12px;
 }
 
 .preview-stats .stat-label {
+  display: block;
+  max-width: calc(100% - 24px);
   height: 22px;
-  padding: 0 12px;
-  font-size: 0.72rem;
+  padding: 0 8px;
+  overflow: hidden;
+  font-size: clamp(0.56rem, 11cqi, 0.72rem);
+  line-height: 21px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview-stats .stat-card-mix {
+  padding: 28px 8px 8px;
+}
+
+.preview-stats .mix {
+  gap: clamp(6px, 5cqi, 10px);
+}
+
+.preview-stats .mix-ring {
+  width: clamp(30px, 23cqi, 40px);
+  height: clamp(30px, 23cqi, 40px);
+}
+
+.preview-stats .mix-legend {
+  flex: 0 0 auto;
+  gap: 1px;
+  font-size: 0.7rem;
+  line-height: 14px;
+}
+
+@container (max-width: 118px) {
+  .preview-stats .mix-legend strong {
+    display: none;
+  }
 }
 
 .preview-stats .stat-value {
@@ -1141,19 +1176,18 @@ textarea {
 
 .preview-window .app-card {
   gap: 12px;
-  padding: 8px 10px;
+  padding: 10px 10px 8px;
 }
 
 .preview-window .app-card .avatar {
-  width: 42px;
-  height: 42px;
-  font-size: 1.05rem;
+  width: 38px;
+  height: 38px;
 }
 
 .preview-window .job-card-top > .avatar {
   align-self: start;
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   aspect-ratio: auto;
   font-size: 0.95rem;
 }
@@ -1180,8 +1214,12 @@ textarea {
   pointer-events: none;
 }
 
+.status-select.preview-status {
+  font-size: 0.74rem;
+}
+
 .preview-window .job-card {
-  gap: 10px;
+  gap: 6px;
   padding: 10px 12px 8px;
 }
 
@@ -1189,7 +1227,6 @@ textarea {
   gap: 6px 12px;
 }
 
-/* The card's top padding is smaller here, so the tag is lifted less */
 .preview-window .job-new-tag {
   transform: translateY(calc(-11px - 50%));
 }
@@ -1199,13 +1236,6 @@ textarea {
   font-size: 0.75rem;
 }
 
-/* Keeps the line under the title on one row, so the avatar can match its height */
-@container (max-width: 470px) {
-  .job-meta > .app-meta-item:last-child {
-    display: none;
-  }
-}
-
 .preview-job-foot {
   display: flex;
   align-items: center;
@@ -1213,7 +1243,6 @@ textarea {
   gap: 8px;
 }
 
-/* Same height as the skill pills beside it */
 .preview-window .job-card .job-actions .btn {
   padding: 2px 12px;
   border-width: 0;
@@ -1269,7 +1298,6 @@ textarea {
 }
 
 .preview-doc-download {
-  /* A deeper shade of the accent keeps the white text readable in both themes */
   gap: 6px;
   min-width: 111px;
   padding: 2px 11px;
@@ -1314,7 +1342,6 @@ textarea {
   display: grid;
 }
 
-/* Both versions share one cell and crossfade, so the wording changes without the text jumping */
 .preview-doc-text {
   grid-area: 1 / 1;
   margin: 0;
@@ -1363,7 +1390,6 @@ textarea {
   color: var(--text-muted);
 }
 
-/* The move arrows grow in beside the titles, which slide over to make room */
 .preview-doc-moved {
   display: inline-flex;
   width: 0;
@@ -1535,7 +1561,11 @@ textarea {
 }
 
 .footer-copy {
+  min-width: 0;
+  overflow: hidden;
   text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .footer-links {
@@ -1580,6 +1610,7 @@ textarea {
 .auth-page {
   flex: 1;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
   padding: 48px 20px;
   background:
@@ -1686,7 +1717,6 @@ textarea {
   padding-left: 2px;
 }
 
-/* Label with a character count on its right */
 .field > .field-head {
   display: flex;
   align-items: baseline;
@@ -1722,12 +1752,10 @@ textarea {
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-/* Selects ignore line-height, so both get a set height (one line + padding + border) */
 .field :where(input:not([type="checkbox"], [type="radio"], [type="file"]), select, .select-trigger) {
   height: calc(1.55em + 22px);
 }
 
-/* The built-in arrow can't be moved, so it's swapped for an inset chevron */
 .field select,
 .field .select-trigger,
 .toolbar .select-trigger {
@@ -1816,7 +1844,6 @@ textarea {
   text-overflow: ellipsis;
 }
 
-/* Invisible input that lets a required select block form submission */
 .dropdown .select-required {
   position: absolute;
   top: 0;
@@ -1828,7 +1855,6 @@ textarea {
   pointer-events: none;
 }
 
-/* Lists in compact spots can be wider than their trigger and scroll when long */
 .toolbar .dropdown-list,
 .app-actions .dropdown-list,
 .month-field .dropdown-list {
@@ -1845,7 +1871,6 @@ textarea {
   left: auto;
 }
 
-/* Compact date lists: every month fits without scrolling and about 15 years show at once */
 .month-field .dropdown-list {
   max-height: 380px;
   padding: 3px;
@@ -1972,13 +1997,19 @@ textarea {
 
 .dashboard-actions {
   display: flex;
-  gap: 10px;
+  gap: clamp(8px, calc(8px + (100cqi - 400px) * 0.00667), 10px);
+  margin-bottom: clamp(0px, calc(8px - (100cqi - 400px) * 0.02667), 8px);
+}
+
+.dashboard-actions .btn {
+  padding: clamp(8px, calc(8px + (100cqi - 400px) * 0.00667), 10px) clamp(12px, calc(12px + (100cqi - 400px) * 0.02), 18px);
+  font-size: clamp(14.4px, calc(14.4px + (100cqi - 400px) * 0.00267), 15.2px);
 }
 
 .dashboard-header h1 {
   position: relative;
   width: fit-content;
-  font-size: 1.9rem;
+  font-size: clamp(19.2px, calc(19.2px + (100cqi - 280px) * 0.02667), 30.4px);
   margin-bottom: 8px;
   padding-bottom: 8px;
   padding-left: 2px;
@@ -1997,15 +2028,22 @@ textarea {
 }
 
 /* Stat cards and pipeline */
-.stat-card-pulse {
-  min-width: min(400px, 100%);
+.stats {
+  display: grid;
+  grid-template-columns:
+    repeat(3, minmax(138px, 1fr))
+    minmax(340px, 4fr)
+    minmax(170px, 1.4fr);
+  gap: 14px;
 }
 
-.stats {
-  --stat-size: 138px;
-  display: grid;
-  grid-template-columns: repeat(3, var(--stat-size)) 1fr auto;
-  gap: 14px;
+.stats > .stat-card {
+  min-height: clamp(100px, calc(100px + (100cqi - 700px) * 0.095), 138px);
+}
+
+.stats > .stat-card-pulse,
+.stats > .stat-card-mix {
+  container-type: inline-size;
 }
 
 .stat-card {
@@ -2047,6 +2085,16 @@ textarea {
 .stat-label {
   z-index: 2;
   gap: 6px;
+  max-width: calc(100% - 2 * var(--radius));
+  padding-inline: 10px;
+}
+
+.stat-label:not(:has(.info)) {
+  display: block;
+  overflow: hidden;
+  line-height: 23px;
+  text-align: center;
+  text-overflow: ellipsis;
 }
 
 .stat-card:has(.info:hover, .info:focus-within) {
@@ -2280,6 +2328,7 @@ textarea {
 }
 
 .mix-legend li {
+  white-space: nowrap;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -2318,7 +2367,6 @@ textarea {
 .seg-rejected { background: var(--rejected); }
 .seg-withdrawn { background: var(--withdrawn); }
 
-/* Section divider styled like the status breakdown bar, split by match score */
 .day-line.section-line {
   display: flex;
   gap: 3px;
@@ -2346,68 +2394,69 @@ textarea {
   opacity: 0.4;
 }
 
-/* Stats layout by page width */
-@container dashboard (max-width: 1067px) {
+@container dashboard (width < 980px) {
   .stats {
     grid-template-columns: repeat(3, 1fr);
   }
 
-  .stat-card {
-    min-height: 0;
-  }
-
-  .stat-card-pulse {
-    grid-column: 1 / 3;
+  .stats > .stat-card-pulse {
+    grid-column: span 2;
   }
 }
 
-@container dashboard (max-width: 679px) {
-  .stat-card-pulse {
-    grid-column: 1 / -1;
-  }
-
-  .stat-card-mix {
+@container dashboard (width < 517px) {
+  .stats > .stat-card-pulse,
+  .stats > .stat-card-mix {
     grid-column: 1 / -1;
   }
 }
 
-@container dashboard (max-width: 459px) {
+@container dashboard (width < 442px) {
   .stats {
     grid-template-columns: repeat(2, 1fr);
   }
 
-    .range-tabs {
+  .stats .stat-label {
+    padding-inline: 8px;
+    font-size: 0.74rem;
+  }
+
+  .stats > .stat-card-pulse {
+    order: 1;
+  }
+
+  .stats > .stat-card-mix {
+    grid-column: auto;
+  }
+}
+
+@container (width < 370px) {
+  .range-tabs {
     position: static;
     align-self: center;
     padding: 3px;
     border-radius: 999px;
   }
+}
 
-    .stat-card-pulse {
-    order: 1;
-    grid-column: 1 / -1;
-  }
+.stats .stat-card-mix {
+  padding-inline: clamp(8px, 2.2cqi, 18px);
+}
 
-  .stat-card-mix {
-    grid-column: auto;
-    padding-inline: 12px;
-  }
+.stats .mix {
+  gap: clamp(8px, calc(100cqi - 124px), 14px);
+}
 
-  .mix {
-    gap: 8px;
-  }
+.stats .mix-ring {
+  flex: 0 1 52px;
+  width: 52px;
+  min-width: 34px;
+  height: auto;
+  aspect-ratio: 1;
+}
 
-    .mix-ring {
-    width: 48px;
-    height: 48px;
-  }
-
-  .mix-legend {
-    flex: 0 1 auto;
-    gap: 3px;
-    font-size: 0.75rem;
-    line-height: 14px;
-  }
+.stats .mix-legend {
+  flex: 0 0 auto;
 }
 
 /* Toolbar */
@@ -2438,11 +2487,45 @@ textarea {
   width: auto;
 }
 
+@container dashboard (max-width: 440px) {
+  .toolbar {
+    flex-direction: column;
+  }
+
+  .toolbar .dropdown,
+  .toolbar .select-trigger {
+    width: 100%;
+  }
+}
+
+@container dashboard (max-width: 460px) {
+  .export-btn {
+    display: none;
+  }
+}
+
 /* Filter chips */
 .chips {
+  position: relative;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  min-width: 0;
   gap: 8px;
+}
+
+.chips > .chip[data-overflow] {
+  position: absolute;
+  left: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.chips[aria-label="Filter by date"] {
+  gap: clamp(6px, calc(6px + (100cqi - 400px) * 0.00667), 8px);
+}
+
+.chips[aria-label="Filter by date"] .chip {
+  padding-inline: clamp(9px, calc(9px + (100cqi - 400px) * 0.01), 12px);
 }
 
 .chips + .chips {
@@ -2455,17 +2538,19 @@ textarea {
 
 .chip {
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 8px;
+  white-space: nowrap;
   padding: 6px 12px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text-muted);
-  font-size: 0.87rem;
+  font-size: clamp(12.8px, calc(12.8px + (100cqi - 400px) * 0.00373), 13.92px);
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
 }
 
 .chip:hover {
@@ -2479,7 +2564,68 @@ textarea {
   color: var(--bg);
 }
 
+.chip-more-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.chip-more-wrap[data-idle="true"] {
+  position: absolute;
+  right: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.chip-more {
+  padding-inline: 10px;
+}
+
+.chip-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: 150px;
+  padding: 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+.chip-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.87rem;
+  white-space: nowrap;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chip-menu-item:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.chip-menu-item.active {
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 600;
+}
+
 .chip-count {
+  white-space: nowrap;
   font-size: 0.75rem;
   padding: 0 7px;
   border-radius: 999px;
@@ -2504,25 +2650,25 @@ textarea {
 }
 
 .app-card {
+  position: relative;
   --status: var(--border-strong);
   --status-soft: var(--surface);
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 8px 12px 10px;
-  background: color-mix(in srgb, var(--status-soft) 55%, var(--surface));
-  border-top: 2px solid color-mix(in srgb, var(--text) 14%, transparent);
+  padding: 10px 12px;
+  --top-line: inset 0 2px 0 color-mix(in srgb, var(--text) 14%, transparent);
+  background-color: color-mix(in srgb, var(--status-soft) 55%, var(--surface));
+  box-shadow: var(--top-line);
   border-radius: var(--radius);
   transition: box-shadow 0.15s;
 }
 
 .app-card:hover {
-  box-shadow: var(--shadow-card-hover);
+  box-shadow: var(--top-line), var(--shadow-card-hover);
 }
 
-/* With notes the card is a grid, so the avatar and the right side stay centered on the title and the
-   info line while the note spans the full width under them */
-@media (min-width: 641px) {
+@media (width > 640px) {
   .app-card:has(.app-notes):has(> .app-actions) {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
@@ -2557,7 +2703,6 @@ textarea {
     grid-row: 3;
   }
 
-  /* The trimmed note ends level with the right edge of the bin icon's strokes */
   .app-card:has(.app-notes):has(> .app-actions) .app-notes:not(.is-open) {
     margin-right: 8px;
   }
@@ -2596,7 +2741,6 @@ textarea {
 
 .avatar-logo {
   overflow: hidden;
-  /* White, unless the logo has a colored edge: the script sets that color so the soft edge blends in */
   background: #fff;
   clip-path: inset(0 round 26%);
 }
@@ -2686,20 +2830,12 @@ textarea {
   color: var(--text);
 }
 
-.mail-icon {
-  flex-shrink: 0;
+.review + .review {
+  margin-top: -6px;
 }
 
-.status-pill {
+.mail-icon {
   flex-shrink: 0;
-  padding: 1px 9px;
-  border: 1px solid color-mix(in srgb, var(--status) 25%, transparent);
-  border-radius: 999px;
-  background: var(--status-soft);
-  color: var(--status);
-  font-size: 0.76rem;
-  font-weight: 600;
-  line-height: 1.5;
 }
 
 /* Email review: suggestion panel on a card */
@@ -2710,13 +2846,17 @@ textarea {
   align-self: stretch;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: flex-end;
   box-sizing: border-box;
-  width: 200px;
+  width: 104px;
   gap: 8px;
   flex-shrink: 0;
-  margin: -11px -13px -11px 0;
+  margin: -10px -12px -10px 0;
   padding: 0 15px 0 calc(var(--slant) + 10px);
+}
+
+.unmatched-card .app-suggestion {
+  margin: -11px -13px -11px 0;
 }
 
 .app-suggestion::before {
@@ -2724,25 +2864,18 @@ textarea {
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: color-mix(in srgb, var(--status) 16%, var(--surface));
+  background-color: color-mix(in srgb, var(--status) 16%, var(--surface));
+  box-shadow: inset 0 2px 0 color-mix(in srgb, var(--status) 30%, transparent);
   box-sizing: border-box;
-  border: 1px solid color-mix(in srgb, var(--status) 22%, var(--border));
-  border-left: 0;
+  border: 0;
   border-radius: 0 var(--radius) var(--radius) 0;
   clip-path: polygon(var(--slant) 0, 100% 0, 100% 100%, 0 100%);
-  transition: border-color 0.15s;
 }
 
-.app-card:hover .app-suggestion::before {
-  border-color: color-mix(in srgb, var(--status) 40%, var(--border));
-}
-
-.app-suggestion .status-pill {
-  margin-right: auto;
-}
-
-.app-card > .status-pill {
-  margin-right: -6px;
+.unmatched-card .app-suggestion::before {
+  box-shadow: none;
+  border: 1px solid color-mix(in srgb, var(--status) 22%, var(--border));
+  border-left: 0;
 }
 
 .app-suggestion:hover,
@@ -2756,12 +2889,17 @@ textarea {
   top: 0;
   right: 0;
   transform: translate(25%, -25%);
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   border: 1.5px solid var(--status);
   background: color-mix(in srgb, var(--status) 16%, var(--surface));
   box-shadow: var(--shadow-sm);
   color: var(--status);
+}
+
+.app-suggestion .mail-hint .mail-icon {
+  width: 13px;
+  height: 13px;
 }
 
 .app-suggestion .mail-hint:hover,
@@ -2833,35 +2971,47 @@ textarea {
   display: grid;
   place-items: center;
   box-sizing: border-box;
-  flex: 0 0 30px;
-  width: 30px;
-  height: 30px;
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
   min-width: 0;
   min-height: 0;
   padding: 0;
   line-height: 0;
-  border: 1px solid var(--border-strong);
-  border-radius: 50%;
-  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 8%, transparent);
   color: var(--text-muted);
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.decision-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 11%, transparent);
+  color: var(--text);
+}
+
+.decision-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .decision-btn.accept {
-  border-color: var(--accent);
-  background: var(--accent);
+  border-color: color-mix(in srgb, #fff 22%, transparent);
+  background: linear-gradient(140deg, color-mix(in srgb, var(--accent) 88%, #fff), color-mix(in srgb, var(--accent) 70%, var(--accent-2)));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 35%, transparent);
   color: #fff;
 }
 
 .decision-btn.accept:hover:not(:disabled) {
-  border-color: var(--accent-hover);
-  background: var(--accent-hover);
+  background: linear-gradient(140deg, color-mix(in srgb, var(--accent) 84%, #fff), color-mix(in srgb, var(--accent) 66%, var(--accent-2)));
+  color: #fff;
 }
 
 .decision-btn.dismiss:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
-  background: var(--danger-soft);
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
   color: var(--danger);
 }
 
@@ -3006,6 +3156,37 @@ textarea {
   flex-shrink: 0;
 }
 
+.app-meta > .app-location-item {
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.app-location {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+:is(.app-meta, .job-meta)[data-fit="1"] .workplace-tag,
+:is(.app-meta, .job-meta)[data-fit="2"] .workplace-tag,
+:is(.app-meta, .job-meta)[data-fit="3"] .workplace-tag {
+  display: block;
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--mix);
+  font-size: 0;
+}
+
+:is(.app-meta, .job-meta)[data-fit="2"] .view-posting-text,
+:is(.app-meta, .job-meta)[data-fit="3"] .view-posting-text,
+:is(.app-meta, .job-meta)[data-fit="3"] .app-date-item {
+  display: none;
+}
+
 .app-tag {
   padding: 1px 8px;
   border-radius: 999px;
@@ -3059,6 +3240,66 @@ textarea {
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
+}
+
+.app-card .app-edit {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  margin: -5px 0 -5px -4px;
+}
+
+@media (hover: hover) and (width > 640px) {
+  .app-card .app-edit {
+    opacity: 0;
+    transition: opacity 0.15s, background-color 0.15s, color 0.15s;
+  }
+
+  .app-card:hover .app-edit,
+  .app-card:focus-within .app-edit {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-card .app-edit:not(:focus-visible) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+
+.app-card > .app-actions {
+  margin-right: 20px;
+}
+
+.app-card > .app-actions > .app-delete.icon-btn {
+  position: absolute;
+  top: 4px;
+  right: 7px;
+  z-index: 1;
+  width: 20px;
+  height: 20px;
+  color: color-mix(in srgb, var(--text-muted) 45%, transparent);
+}
+
+.app-card > .app-actions > .app-delete.icon-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+.app-card:hover > .app-actions > .app-delete.icon-btn,
+.app-card > .app-actions > .app-delete.icon-btn:focus-visible {
+  color: var(--text-muted);
+}
+
+.app-card > .app-actions > .app-delete.icon-btn:hover {
+  color: var(--rejected);
 }
 
 .status-select {
@@ -3190,7 +3431,6 @@ textarea {
   box-shadow: var(--shadow-lg);
 }
 
-/* Slim scrollbars for windows and panels. Firefox only supports a thin, colored one */
 .modal,
 .drawer-body {
   --scroll-thumb: color-mix(in srgb, var(--text-muted) 32%, transparent);
@@ -3247,7 +3487,12 @@ textarea {
   from { opacity: 0; transform: translateY(8px) scale(0.98); }
 }
 
+.modal {
+  overflow-x: auto;
+}
+
 .modal-body {
+  min-width: calc(var(--min-page-width) - 44px);
   padding: 22px 24px 24px;
 }
 
@@ -3263,7 +3508,6 @@ textarea {
   font-size: 1.25rem;
 }
 
-/* The X sits about 10px inside its 30px button, so the button is pulled right to line the X up with the content */
 .modal-header-end {
   display: flex;
   align-items: center;
@@ -3634,7 +3878,7 @@ textarea {
 
 /* Responsive */
 
-@media (max-width: 960px) {
+@media (width < 1000px) {
   /* Landing */
   .hero {
     padding: 32px 16px;
@@ -3675,8 +3919,53 @@ textarea {
   .hero-actions .btn-lg {
     white-space: normal;
   }
+}
 
-  /* Feature tabs aren't shrunk here, or their names would fit again and flip back from numbers */
+@media (max-width: 640px) {
+  .preview-window .app-card {
+    flex-wrap: nowrap;
+  }
+
+  .preview-window .app-main {
+    flex: 1;
+    flex-basis: 0;
+    min-width: 0;
+  }
+
+  .preview-status {
+    width: 92px;
+  }
+
+  .preview-job-foot .job-skills {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .preview-job-foot .job-actions {
+    width: auto;
+    flex-shrink: 0;
+  }
+
+  .preview-window .job-card .job-actions .btn {
+    flex: none;
+  }
+}
+
+@container (max-width: 420px) {
+  .preview-job-foot {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .preview-job-foot .job-actions {
+    width: 100%;
+  }
+
+  .preview-window .job-card .job-actions .btn {
+    display: flex;
+    flex: 1;
+    justify-content: center;
+  }
 }
 
 @media (max-width: 380px) {
@@ -3707,16 +3996,16 @@ textarea {
 @media (max-width: 640px) {
   /* Navbar */
   .navbar-inner {
-    padding: 0 20px;
-    gap: 8px;
+    padding: 0 clamp(12px, calc(12px + (100vw - 320px) / 5), 20px);
+    gap: clamp(4px, calc(4px + (100vw - 320px) / 10), 8px);
   }
 
   .navbar-links {
-    gap: 4px;
+    gap: clamp(2px, calc(2px + (100vw - 320px) / 20), 4px);
   }
 
   .nav-link {
-    padding: 0 6px;
+    padding: 0 clamp(4px, calc(4px + (100vw - 320px) / 20), 6px);
   }
 
   .nav-divider {
@@ -3724,7 +4013,17 @@ textarea {
   }
 
   .nav-email {
-    max-width: 100px;
+    display: inline-flex;
+    align-items: center;
+    max-width: none;
+  }
+
+  .nav-account-icon {
+    display: block;
+  }
+
+  .nav-email-text {
+    display: none;
   }
 
   .api-pill {
@@ -3762,44 +4061,7 @@ textarea {
   }
 
   .dashboard-header h1 {
-    font-size: 1.4rem;
     white-space: nowrap;
-  }
-
-  .export-btn {
-    display: none;
-  }
-
-  .dashboard-actions {
-    gap: 8px;
-    margin-bottom: 8px;
-  }
-
-  .dashboard-actions .btn {
-    padding: 8px 12px;
-    font-size: 0.9rem;
-  }
-
-  .toolbar {
-    flex-direction: column;
-  }
-
-  .toolbar .dropdown,
-  .toolbar .select-trigger {
-    width: 100%;
-  }
-
-  .chips[aria-label="Filter by date"] {
-    flex-wrap: nowrap;
-    gap: 6px;
-  }
-
-  .chip {
-    font-size: 0.8rem;
-  }
-
-  .chips[aria-label="Filter by date"] .chip {
-    padding-inline: 9px;
   }
 
   /* Application cards */
@@ -3821,62 +4083,137 @@ textarea {
     gap: 8px;
   }
 
-  .app-card .app-actions {
-    padding-top: 6px;
-  }
-
-  .app-card .app-actions .icon-btn {
-    width: 34px;
-    height: 34px;
-  }
-
-  .app-card .app-actions .status-select {
-    height: 30px;
-    padding: 0 28px 0 10px;
-  }
-
   .app-card .app-actions .btn-sm {
     height: 34px;
     padding: 0 14px;
   }
 
-  .app-actions,
-  .app-suggestion {
-    width: 100%;
-    justify-content: flex-end;
-    padding-top: 8px;
-    border-top: 1px solid var(--border);
+  .app-card:has(> .app-actions) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 10px;
+    row-gap: 2px;
+    align-items: center;
+    padding: 10px 12px;
+    cursor: pointer;
   }
 
-  .app-suggestion {
+  .app-card:has(> .app-actions) > .app-main {
+    display: contents;
+  }
+
+  .app-card:has(> .app-actions) .app-title {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: end;
+  }
+
+  .app-card:has(> .app-actions) .app-meta {
+    grid-column: 1;
+    grid-row: 2;
+    align-self: start;
+  }
+
+  .app-card:has(> .app-actions) .app-notes {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+
+  .app-card:has(> .app-actions) > .app-actions {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
+    gap: 8px;
+    margin-right: 14px;
+  }
+
+  .app-card > .app-actions .dropdown {
+    margin-right: 0;
+  }
+
+  .app-card > .app-actions .status-select {
+    width: 98px;
+    height: 28px;
+    padding: 0 22px 0 8px;
+    background-position: right 7px center;
+  }
+
+  .app-card > .app-actions .icon-btn:not(.app-delete),
+  .app-card > .app-actions .app-cv-btn {
+    width: 28px;
+    height: 28px;
     margin: 0;
-    padding: 8px 10px;
-    border-top: 0;
-    border-radius: var(--radius-sm);
+  }
+
+  :is(.app-meta, .job-meta)[data-fit] .workplace-tag {
+    display: block;
+    flex-shrink: 0;
+    width: 9px;
+    height: 9px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: var(--mix);
+    font-size: 0;
   }
 
   .app-suggestion::before {
-    border: 0;
-    border-radius: var(--radius-sm);
-    clip-path: none;
+    display: none;
   }
 
-  .app-suggestion .mail-hint {
+  .app-card:has(.app-suggestion),
+  .unmatched-card {
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
+  .app-card:has(.app-suggestion) > .app-main,
+  .unmatched-card > .app-main {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .app-card:has(.app-suggestion) .job-posting-link {
+    display: none;
+  }
+
+  .app-card .app-suggestion,
+  .unmatched-card .app-suggestion {
+    flex: none;
+    width: auto;
+    margin: 0;
+    padding: 0;
+  }
+
+  .app-suggestion .mail-hint,
+  .app-suggestion .mail-hint:hover,
+  .app-suggestion .mail-hint:focus-visible {
     position: relative;
     transform: none;
+    width: 30px;
+    height: 30px;
+    border: 0;
+    background: none;
+    box-shadow: none;
   }
 
-  .unmatched-card {
-    flex-wrap: wrap;
+  .app-suggestion .mail-hint .mail-icon {
+    width: 20px;
+    height: 20px;
   }
 
   /* Account page */
   .settings-row {
     flex-direction: column;
+    gap: 14px;
   }
 
   .settings-row > div:first-child {
     align-self: stretch;
+  }
+
+  .settings-row > .btn {
+    align-self: flex-end;
   }
 
   .settings-card {
@@ -3890,20 +4227,6 @@ textarea {
   .brand-name {
     display: none;
   }
-
-  .nav-email {
-    display: inline-flex;
-    align-items: center;
-    max-width: none;
-  }
-
-  .nav-account-icon {
-    display: block;
-  }
-
-  .nav-email-text {
-    display: none;
-  }
 }
 
 /* Touch screens */
@@ -3911,12 +4234,6 @@ textarea {
   .icon-btn {
     width: 40px;
     height: 40px;
-  }
-
-  .decision-btn {
-    flex-basis: 38px;
-    width: 38px;
-    height: 38px;
   }
 
   .chip {
@@ -3951,8 +4268,6 @@ textarea {
   font-size: 0.9rem;
 }
 
-/* The line, chevron and buttons are 15px apart between their visible edges:
-   the margins cancel the spacing built into the chevron (4px) and button (7px padding, 2.6px icon) */
 .jobs-section-head {
   display: flex;
   align-items: center;
@@ -3975,7 +4290,6 @@ textarea {
   min-width: 0;
 }
 
-/* Ghost icon buttons that tint and expand to show their text on hover */
 .btn-group {
   display: inline-flex;
   flex-shrink: 0;
@@ -4061,7 +4375,6 @@ textarea {
   animation: spin 0.9s linear infinite;
 }
 
-/* The landing preview's refresh button has no box: its icon brightens on hover and spins while searching */
 .preview-window .sync-btn:hover:not(:disabled),
 .preview-window .sync-btn:active:not(:disabled),
 .preview-window .sync-btn.is-running {
@@ -4103,13 +4416,11 @@ textarea {
   padding: 12px 14px 12px;
   --card-bg: var(--surface);
   background: var(--card-bg);
-  /* A thin frosted top edge on every card; the new tag sits on it */
   border-top: 2px solid color-mix(in srgb, var(--text) 14%, transparent);
   border-radius: var(--radius);
   transition: box-shadow 0.15s;
 }
 
-/* Soft hue of the card's match score */
 .job-card.match-high,
 .job-card.match-mid,
 .job-card.match-low {
@@ -4122,12 +4433,10 @@ textarea {
   background: var(--card-bg);
 }
 
-/* Card content picks up the card's hue */
 .job-card:is(.match-high, .match-mid, .match-low) .job-meta {
   color: color-mix(in srgb, var(--ring) 25%, var(--text-muted));
 }
 
-/* Green is the strongest hue, so it gets a lighter touch */
 .job-card.match-high .job-meta {
   color: color-mix(in srgb, var(--ring) 10%, var(--text-muted));
 }
@@ -4143,7 +4452,6 @@ textarea {
   white-space: nowrap;
 }
 
-/* The chip that counts the tags that didn't fit */
 .skill-more {
   background: color-mix(in srgb, var(--text) 8%, transparent);
   color: var(--text-muted);
@@ -4169,7 +4477,6 @@ textarea {
   gap: 8px 14px;
 }
 
-/* Square, as tall as the title and the line under it (capped, in case that line wraps) */
 .job-card-top > .avatar {
   grid-column: 1;
   align-self: stretch;
@@ -4219,8 +4526,6 @@ textarea {
   flex-shrink: 0;
   display: grid;
   place-items: center;
-  width: 46px;
-  height: 46px;
   border-radius: 50%;
   background: conic-gradient(var(--ring) calc(var(--score) * 1%), color-mix(in srgb, var(--ring) 14%, var(--surface-2)) 0);
 }
@@ -4244,9 +4549,19 @@ textarea {
   height: 44px;
 }
 
+.drawer-panel .score-ring {
+  width: 48px;
+  height: 48px;
+}
+
 .job-card .score-ring span {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
+}
+
+.drawer-panel .score-ring span {
+  width: 38px;
+  height: 38px;
 }
 
 .score-ring span::after {
@@ -4282,8 +4597,6 @@ textarea {
   margin-block: auto;
 }
 
-/* A glass pill like the new tag, centered on the card's top line above the score ring */
-/* A plain close button at the top right, centered over the refresh button's column and clear of the score */
 .job-card .job-dismiss {
   position: absolute;
   top: 4px;
@@ -4308,7 +4621,6 @@ textarea {
   color: var(--rejected);
 }
 
-/* The tags sit under the heading and the avatar */
 .job-card-top > .job-skills,
 .job-card-top > .job-reason {
   grid-column: 1 / span 2;
@@ -4351,7 +4663,7 @@ textarea {
   align-items: center;
   padding: 3px 9px;
   border-radius: 999px;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   font-weight: 500;
   line-height: 1.3;
 }
@@ -4371,12 +4683,10 @@ textarea {
   color: var(--text-muted);
 }
 
-/* The score sits beside the heading and the buttons beside the tags */
 .job-card-grid {
   row-gap: 10px;
 }
 
-/* A fixed size, centered against the title and the info line */
 .job-card-grid > .avatar {
   align-self: center;
   width: 42px;
@@ -4384,7 +4694,6 @@ textarea {
   max-height: none;
 }
 
-/* As tall as the avatar, with the title's cap height at its top and the info line's lowest edge at its bottom */
 .job-card-grid > .job-heading {
   display: flex;
   flex-direction: column;
@@ -4400,35 +4709,39 @@ textarea {
   padding-right: 15px;
 }
 
-/* The workplace pill is the row's lowest part, so its bottom is what meets the avatar's bottom */
 .job-card-grid .job-meta:has(> .workplace-tag) {
   margin-bottom: -0.9px;
 }
 
-/* The line under the title never wraps: the location, then the company name, give way first */
-.job-card-grid .job-meta {
+.job-card-grid .job-meta,
+.preview-window .job-meta {
   flex-wrap: nowrap;
   min-width: 0;
   margin: 2px 0;
   font-size: 0.92rem;
 }
 
-.job-card-grid .job-meta > * {
+.job-card-grid .job-meta > *,
+.preview-window .job-meta > * {
   flex-shrink: 0;
   white-space: nowrap;
 }
 
 .job-card-grid .job-meta > .job-company,
-.job-card-grid .job-meta > .job-location {
+.job-card-grid .job-meta > .job-location,
+.preview-window .job-meta > .job-company,
+.preview-window .job-meta > .job-location {
   flex-shrink: 1;
   min-width: 0;
 }
 
-.job-card-grid .job-meta > .job-location {
+.job-card-grid .job-meta > .job-location,
+.preview-window .job-meta > .job-location {
   flex-shrink: 4;
 }
 
 .job-card-grid .job-company,
+.preview-window .job-company,
 .job-location-text {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4450,7 +4763,6 @@ textarea {
   margin-right: 12px;
 }
 
-/* With no buttons, the score is centered against both rows */
 .job-card-grid:has(> .job-actions-none) > .job-card-side {
   grid-row: 1 / span 2;
 }
@@ -4469,13 +4781,11 @@ textarea {
   margin-right: 12px;
 }
 
-/* An invisible button that keeps the row as tall as when there are buttons */
 .job-actions-spacer {
   visibility: hidden;
   pointer-events: none;
 }
 
-/* Card buttons: soft pills in the card's hue, a tonal one and a solid one */
 .job-card .job-actions {
   --tone: var(--ring, var(--accent));
 }
@@ -4484,7 +4794,7 @@ textarea {
   padding: 3px 12px;
   border: 0;
   border-radius: 999px;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   line-height: 1.3;
 }
 
@@ -4547,7 +4857,6 @@ textarea {
   grid-row: 1;
 }
 
-/* Shares the avatar's grid cell and is lifted so its middle sits on the card's top line */
 .job-new-tag {
   --tone: var(--ring, var(--text));
   grid-column: 1;
@@ -4589,6 +4898,7 @@ textarea {
   background: var(--surface);
   color: var(--text);
   box-shadow: var(--shadow-lg);
+  overflow: hidden;
 }
 
 .drawer[open] {
@@ -4637,9 +4947,10 @@ textarea {
 .drawer-header .job-heading {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 11px;
+  justify-content: flex-start;
+  gap: 12px;
   min-height: 48px;
+  padding-top: 6px;
 }
 
 .drawer-header .job-title,
@@ -4662,7 +4973,7 @@ textarea {
 
 .drawer-company .job-posting-link {
   margin-left: 12px;
-  font-size: 0.88rem;
+  font-size: 0.98rem;
   font-weight: 400;
   vertical-align: baseline;
 }
@@ -4691,16 +5002,17 @@ textarea {
 .drawer-facts {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 12px;
 }
 
 .drawer-facts dl {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
-  gap: 6px 8px;
+  gap: 4px 8px;
   margin: 0;
   font-size: 0.88rem;
+  color: var(--text-muted);
 }
 
 .drawer-facts dt {
@@ -4718,7 +5030,7 @@ textarea {
 }
 
 .drawer-section-title {
-  margin: 0 0 8px;
+  margin: 4px 0 8px;
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -4775,7 +5087,6 @@ textarea {
   gap: 12px;
 }
 
-/* Line between the profile's blocks and between the resume editor's sections */
 .profile-block + .profile-block,
 .cv-section + .cv-section {
   padding-top: 16px;
@@ -4813,7 +5124,6 @@ textarea {
   font-size: 0.9rem;
 }
 
-/* Required-fields note on the left of the action bar */
 .required-note {
   align-self: center;
   margin: 0 auto 0 0;
@@ -4878,7 +5188,7 @@ textarea {
 }
 
 .cv-fields > .field-compact {
-  flex: 0 0 auto;
+  flex: 0 0 150px;
 }
 
 .cv-fields > .field-gpa {
@@ -4892,11 +5202,10 @@ textarea {
   vertical-align: 1px;
 }
 
-/* Segmented button bars (Seniority, Workplace) that fill their field evenly */
 .choice-group {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-columns: minmax(min-content, 1fr);
   gap: 2px;
   height: 36px;
   padding: 3px;
@@ -4959,7 +5268,6 @@ textarea {
   cursor: not-allowed;
 }
 
-/* Added tags, with the tag count on the right */
 .tag-row {
   display: flex;
   align-items: flex-start;
@@ -5032,7 +5340,6 @@ textarea {
   font-weight: 700;
 }
 
-/* Skills in the tailored editor can be dragged within their group */
 .tag-sortable {
   cursor: grab;
   touch-action: none;
@@ -5062,7 +5369,7 @@ textarea {
 .month-field {
   display: flex;
   gap: 4px;
-  width: fit-content;
+  width: 100%;
 }
 
 .month-field .dropdown {
@@ -5070,17 +5377,18 @@ textarea {
   min-width: 0;
 }
 
-/* Month and year are sized to fit "MM" and "YYYY"; a lone month field also fits "Present" */
 .month-field .dropdown:first-child:not(:only-child) {
-  flex: 0 0 65px;
+  flex: 1 1 0;
+  min-width: 56px;
 }
 
 .month-field .dropdown:last-child:not(:only-child) {
-  flex: 0 0 80px;
+  flex: 1.35 1 0;
+  min-width: 66px;
 }
 
 .month-field .dropdown:only-child {
-  flex: 0 0 96px;
+  flex: 1 1 0;
 }
 
 .month-sep {
@@ -5150,7 +5458,6 @@ textarea {
   padding-right: 50px;
 }
 
-/* A little more room above an open entry's fields (not education); its buttons stay where they are */
 .cv-entry-experience.cv-entry-open,
 .cv-entry-projects.cv-entry-open,
 .cv-entry-extras.cv-entry-open {
@@ -5393,7 +5700,6 @@ textarea {
   color: var(--accent-2);
 }
 
-/* Added in the tailored resume: green, with a plus */
 .cv-skill-mark.cv-skill-mark-added {
   color: var(--offer);
 }
@@ -5547,8 +5853,6 @@ textarea {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
-/* Character count inside a field without a label row. The wrapper draws the field's box and
-   the text box sits beside the count inside it, so text can't run under the count */
 .inset-count {
   display: flex;
   align-items: center;
@@ -5582,7 +5886,6 @@ textarea {
   box-shadow: none;
 }
 
-/* The wrapper's border adds 2px, so the text box gives them back to keep the editor's 36px fields */
 .cv-editor .inset-count > input,
 .profile-form .inset-count > input {
   height: 34px;
@@ -5600,7 +5903,6 @@ textarea {
   padding: 0;
 }
 
-/* In multi-line fields the count sits on the first line, level with the X button beside the field */
 .inset-count-multiline {
   align-items: flex-start;
 }
@@ -5610,7 +5912,6 @@ textarea {
   margin-top: 7px;
 }
 
-/* A tailored bullet's word changes, and a flagged bullet, keep the wrapper's box */
 .inset-count > .cv-text {
   flex: 1;
   min-width: 0;
@@ -5628,7 +5929,6 @@ textarea {
   background: color-mix(in srgb, var(--interview-soft) 60%, var(--surface));
 }
 
-/* Project cards in the tailored editor are dragged by any spot that isn't a field or button */
 .cv-entry-sortable {
   cursor: grab;
   touch-action: pan-y;
@@ -5645,7 +5945,6 @@ body.is-sorting * {
   user-select: none;
 }
 
-/* The dragged item follows the pointer above its neighbours */
 .is-dragging {
   position: relative;
   z-index: 3;
@@ -5663,8 +5962,6 @@ body.is-sorting * {
   box-shadow: var(--shadow-md);
 }
 
-
-/* A moved skill group shows its arrow inside the start of its name field */
 .cv-skill-category {
   position: relative;
 }
@@ -5697,13 +5994,11 @@ body.is-sorting * {
   min-width: 0;
 }
 
-/* The document's outline starts about 3px into its icon, so the icon is pulled left to line it up with the content */
 .tailor-details-btn {
   flex-shrink: 0;
   margin-left: -3px;
 }
 
-/* The header is at the top of the window, so its button's label shows below it */
 .toolbar-btn.tailor-details-btn::after {
   top: calc(100% + 6px);
   bottom: auto;
@@ -5711,7 +6006,6 @@ body.is-sorting * {
   transform: translateY(-2px);
 }
 
-/* Starts at the button's left edge instead of centering, which would run past the window's edge */
 .toolbar-btn.tailor-details-btn:hover::after,
 .toolbar-btn.tailor-details-btn:focus-visible::after {
   transform: none;
@@ -5733,7 +6027,6 @@ body.is-sorting * {
   margin-right: auto;
 }
 
-/* Just the icon: the button is exactly the icon's size, so only the icon can be pressed */
 .toolbar-btn {
   position: relative;
   display: grid;
@@ -5766,7 +6059,6 @@ body.is-sorting * {
   cursor: not-allowed;
 }
 
-/* Name shown above a toolbar button while it's hovered or focused */
 .toolbar-btn::after {
   content: attr(data-tip);
   position: absolute;
@@ -5792,7 +6084,6 @@ body.is-sorting * {
   transform: translate(-50%, 0);
 }
 
-/* The footer icons' labels start at the button's left edge too */
 .tailor-tools .toolbar-btn::after {
   left: 0;
   transform: translateY(2px);
@@ -6017,6 +6308,20 @@ body.is-sorting * {
     grid-column: 1;
   }
 
+  .job-card-top > .job-heading {
+    grid-row: 1;
+  }
+
+  .preview-window .job-card-top > .job-heading {
+    padding-left: 4px;
+  }
+
+  .preview-window .job-new-tag {
+    width: 36px;
+    min-width: 36px;
+    padding: 3px 0 1px 0.15em;
+  }
+
   .job-card-top > .job-card-side {
     grid-column: 2;
   }
@@ -6034,7 +6339,6 @@ body.is-sorting * {
     padding-right: 0;
   }
 
-  /* With no avatar, a small inset lines the text up with the rounded tags and buttons */
   .job-card-grid > .job-heading {
     padding-left: 3px;
   }
@@ -6087,7 +6391,7 @@ body.is-sorting * {
   }
 
   .drawer-panel {
-    max-height: calc(90dvh / var(--zoom));
+    max-height: calc(90dvh / var(--zoom) - 1px);
   }
 
   .drawer-header,
@@ -6102,7 +6406,18 @@ body.is-sorting * {
 
   .profile-block-header {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .profile-block-header > .btn,
+  .profile-block-header > .button-row,
+  .profile-block-header > .spinner {
+    align-self: flex-end;
+  }
+
+  .button-row {
+    justify-content: flex-end;
   }
 
   .cv-fields > .field,
@@ -6110,14 +6425,30 @@ body.is-sorting * {
     flex: 1 1 100%;
   }
 
-  .cv-fields > .field-compact,
   .cv-fields > .field-gpa {
     flex: 1 1 auto;
   }
 
+  .cv-fields > .field-compact {
+    flex: 1 1 140px;
+  }
 
   .month-field {
     width: 100%;
+  }
+
+  .month-field .dropdown:first-child:not(:only-child) {
+    flex: 1 1 0;
+    min-width: 56px;
+  }
+
+  .month-field .dropdown:last-child:not(:only-child) {
+    flex: 1.35 1 0;
+    min-width: 66px;
+  }
+
+  .month-field .dropdown:only-child {
+    flex: 1 1 0;
   }
 
   .cv-skill-row {
@@ -6138,7 +6469,6 @@ body.is-sorting * {
     grid-column: 1 / 3;
     grid-row: 2;
   }
-
 
   .cv-entry {
     padding: 12px 10px 10px;
@@ -6174,7 +6504,6 @@ body.is-sorting * {
   white-space: nowrap;
 }
 
-/* New application / job post picker in the modal title, styled like the title text */
 .modal-title-row {
   display: flex;
   align-items: center;
@@ -6210,12 +6539,10 @@ body.is-sorting * {
   font-weight: 400;
 }
 
-/* Tall enough that the job post form is as high as the application form, wherever it opens */
 .field textarea.job-description {
   min-height: 177px;
 }
 
-/* Both new-entry forms share one grid cell, so the modal is as tall as the taller form and the shorter one's last field stretches */
 .form-stack {
   display: grid;
 }
@@ -6241,6 +6568,120 @@ body.is-sorting * {
 
 .form-stack .form-grid > :last-child textarea {
   flex: 1;
+}
+
+@media (max-width: 640px) {
+  .modal:has(.app-form) {
+    width: 100%;
+    max-width: none;
+    max-height: calc(92dvh / var(--zoom));
+    margin: auto 0 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .modal[open]:has(.app-form) {
+    animation-name: sheet-in;
+  }
+
+  .modal:has(.app-form) .modal-body {
+    min-width: calc(var(--min-page-width) - 12px);
+    padding: 16px 16px calc(20px + env(safe-area-inset-bottom));
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    border-radius: 18px 18px 0 0;
+    box-shadow: var(--shadow-lg);
+  }
+
+  .modal:has(.app-form) .sticky-actions {
+    margin: 0 -16px -20px;
+    padding-inline: 16px;
+  }
+
+  .modal:has(.app-form) .modal-header {
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .modal:has(.app-form) .modal-header h2 {
+    font-size: 1.1rem;
+    white-space: nowrap;
+  }
+
+  .modal:has(.app-form) .modal-header h2:not(:has(.modal-title-row)) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  @media (max-width: 400px) {
+    .modal:has(.app-form) .modal-header h2 {
+      font-size: 1rem;
+    }
+
+    .modal:has(.app-form) .modal-actions .btn {
+      padding-inline: 12px;
+      font-size: 0.85rem;
+    }
+  }
+
+  .app-form {
+    gap: 12px;
+  }
+
+  .app-form .form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 10px;
+  }
+
+  .app-form .form-grid > .field:nth-child(-n+2) {
+    grid-column: 1 / -1;
+  }
+
+  .form-stack .form-grid {
+    grid-template-rows: repeat(calc(var(--fixed-rows) + 1), auto) 1fr;
+  }
+
+  .app-form .field {
+    gap: 5px;
+  }
+
+  .app-form .field :where(input:not([type="checkbox"], [type="radio"], [type="file"]), select, .select-trigger) {
+    height: calc(1.55em + 18px);
+  }
+
+  .app-form .field input,
+  .app-form .field .select-trigger,
+  .app-form .field textarea {
+    padding-block: 8px;
+  }
+
+  .app-form .field textarea {
+    min-height: 76px;
+    resize: none;
+  }
+
+  .field textarea.job-description {
+    min-height: 130px;
+  }
+}
+
+@media (max-width: 400px) {
+  .app-form .form-grid > .field:not(.field-full) > span {
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+
+  .app-form .form-grid > .field:not(.field-full) .optional {
+    font-size: 0.72rem;
+  }
+}
+
+@media (max-width: 340px) {
+  .app-form .form-grid > .field:not(.field-full) .optional {
+    display: none;
+  }
 }
 
 /* Privacy policy */
