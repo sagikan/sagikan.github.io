@@ -105,6 +105,25 @@ function MailHint({ update }) {
   );
 }
 
+// Email details as an expandable line under a card, shown on small screens
+function MailLine({ update }) {
+  return (
+    <details className={`mail-line status-${update.suggested_status.toLowerCase()}`}>
+      <summary>
+        <MailIcon />
+        <span className="mail-line-subject">{update.subject}</span>
+        <svg className="mail-line-chevron" viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
+          <path d="M5 8l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </summary>
+      <div className="mail-line-detail">
+        <span>From: {update.sender}</span>
+        <time>{formatDate(localISO(new Date(update.received_at)))}</time>
+      </div>
+    </details>
+  );
+}
+
 // Chevron icon for collapsible days
 function Chevron() {
   return (
@@ -301,7 +320,7 @@ function Applications({
         {primary === "accept" && (
           <button
             type="button"
-            className="decision-btn accept"
+            className="btn btn-primary btn-compact btn-round"
             disabled={busy}
             onClick={() => resolveUpdate(update.id, "accept")}
             aria-label="Accept"
@@ -315,7 +334,7 @@ function Applications({
         {primary === "add" && (
           <button
             type="button"
-            className="decision-btn accept"
+            className="btn btn-primary btn-compact btn-round"
             disabled={busy}
             onClick={() => addFromUpdate(update)}
             aria-label="Add as a new application"
@@ -328,7 +347,7 @@ function Applications({
         )}
         <button
           type="button"
-          className="decision-btn dismiss"
+          className="btn btn-ghost btn-compact btn-round"
           disabled={busy}
           onClick={() => resolveUpdate(update.id, "dismiss")}
           aria-label="Dismiss"
@@ -366,7 +385,7 @@ function Applications({
       >
         <button
           type="button"
-          className="decision-btn accept"
+          className="btn btn-primary btn-compact btn-round"
           disabled={busy}
           aria-expanded={moreOpenId === update.id}
           aria-haspopup="menu"
@@ -426,7 +445,9 @@ function Applications({
         title="Edit"
       >
         <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
-          <path d="M13.5 3.5l3 3L7 16H4v-3l9.5-9.5z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+          <path d="M3 6h6.5M14.5 6H17M3 14h2.5M10.5 14H17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <circle cx="12" cy="6" r="2.3" fill="none" stroke="currentColor" strokeWidth="1.8" />
+          <circle cx="8" cy="14" r="2.3" fill="none" stroke="currentColor" strokeWidth="1.8" />
         </svg>
       </button>
     );
@@ -553,6 +574,8 @@ function Applications({
             )}
           </div>
           )}
+
+          {update && <MailLine update={update} />}
         </li>
     );
   }
@@ -643,6 +666,8 @@ function Applications({
                         {update.candidate_ids.length > 0 && renderChoices(update)}
                         {renderDecision(update, { primary: update.candidate_ids.length > 0 ? null : "add" })}
                       </div>
+
+                      <MailLine update={update} />
                     </li>
                   ))}
                 </ul>
@@ -701,7 +726,7 @@ function Applications({
                       {update.undoable ? (
                         <button
                           type="button"
-                          className="decision-btn dismiss"
+                          className="btn btn-ghost btn-compact btn-round"
                           disabled={resolvingId === update.id}
                           onClick={() => resolveUpdate(update.id, "undo")}
                           aria-label="Undo"
@@ -713,6 +738,8 @@ function Applications({
                         </button>
                       ) : null}
                     </div>
+
+                    <MailLine update={update} />
                   </li>
                 );
               })}
