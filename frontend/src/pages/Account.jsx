@@ -385,7 +385,7 @@ function GmailSyncSetupPanel({ request, replacing, onCancel, onDone }) {
       <div className="settings-panel">
         <ol className="setup-steps">
           <li>
-            Open <a href="https://script.google.com/home/projects/create" target="_blank" rel="noreferrer">script.google.com</a>{" "}
+            Open <a href="https://script.google.com/home/projects/create" className="text-link" target="_blank" rel="noreferrer">script.google.com</a>{" "}
             (signed in to the Gmail account you apply with) and create a new project.
           </li>
           <li>

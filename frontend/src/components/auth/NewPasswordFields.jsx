@@ -22,19 +22,21 @@ function NewPasswordFields({ email, password, onPasswordChange, confirmPassword,
         />
       </label>
 
-      <button
-        type="button"
-        className="rules-toggle"
-        aria-expanded={rulesOpen}
-        aria-controls="password-rules"
-        onClick={() => setShowRules(!rulesOpen)}
-      >
-        Password requirements
+      <div className="rules-head">
+        <button
+          type="button"
+          className="rules-toggle"
+          aria-expanded={rulesOpen}
+          aria-controls="password-rules"
+          onClick={() => setShowRules(!rulesOpen)}
+        >
+          Password requirements
+          <svg className="rules-chevron" viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
+            <path d="M5 8l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
         <span className={`rules-count${metCount === rules.length ? " met" : ""}`}>{metCount}/{rules.length}</span>
-        <svg className="rules-chevron" viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
-          <path d="M5 8l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
+      </div>
 
       {rulesOpen && (
         <ul id="password-rules" className="password-rules" aria-label="Password requirements">

@@ -42,7 +42,8 @@ const STEP_HEADERS = {
     text: (email) => `Enter the code we sent to ${email} and pick a new password.`
   }
 };
-const SIGNUPS_OPEN = import.meta.env.VITE_SIGNUPS_OPEN === "true";
+// Vite swaps DEV for a constant false in production builds, so the sign-up form is dropped from them
+const SIGNUPS_OPEN = import.meta.env.DEV;
 const BACK_ICON = (
   <svg viewBox="0 0 20 15" width="16" height="16" aria-hidden="true">
     <path d="M16 10H4m5-5l-5 5 5 5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -311,8 +312,8 @@ function Login({ mode, onAuthenticated, apiStatus }) {
             )}
 
             {!isLogin && (
-              <p className="auth-switch">
-                By creating an account you agree to our <b><a href="#/privacy">Privacy Policy</a></b>.
+              <p className="auth-switch auth-privacy">
+                By creating an account you agree to our <b><a href="#/privacy" className="text-link">Privacy Policy</a></b>.
               </p>
             )}
 
