@@ -145,7 +145,7 @@ function JobPostForm({ csrfToken, pastEntries, applications, onAdded, onUnauthor
         </label>
       </div>
 
-      <ModalSubmit formId={formId} active={active} label="Add job post" busy={saving} plus>
+      <ModalSubmit formId={formId} active={active} label="Add job post" busy={saving} icon="plus">
         Add
       </ModalSubmit>
     </form>

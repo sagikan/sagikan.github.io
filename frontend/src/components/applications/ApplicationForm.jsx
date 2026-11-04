@@ -185,8 +185,8 @@ function ApplicationForm({ job, applications, onSubmit, active = true }) {
         </label>
       </div>
 
-      <ModalSubmit formId={formId} active={active} label={job?.id ? "Save changes" : "Add application"} busy={saving} plus={!job?.id}>
-        {job?.id ? (saving ? "Saving…" : "Save changes") : "Add"}
+      <ModalSubmit formId={formId} active={active} label={job?.id ? "Save changes" : "Add application"} busy={saving} icon={job?.id ? "check" : "plus"}>
+        {job?.id ? (saving ? "Saving…" : "Save") : "Add"}
       </ModalSubmit>
     </form>
   );

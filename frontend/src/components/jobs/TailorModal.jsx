@@ -6,6 +6,7 @@ import { apiRequest, apiUpload } from "../../lib/api";
 import { downloadBlob, makeTailoredPdf } from "../../utils/resume/cvPdf";
 import { renderFirstPage } from "../../utils/resume/pdfPreview";
 import Alert from "../ui/Alert";
+import ButtonIcon from "../ui/ButtonIcon";
 import { MAX_GRADES_MB, checkPdf } from "../../utils/resume/pdfFiles";
 import { useDismiss } from "../../hooks/useDismiss";
 
@@ -510,17 +511,9 @@ function TailorModal({ job, csrfToken, baseCv, gradeSheet, onGradeSheetChange, o
                 getPdf={getPdf}
                 onClick={download}
               />
-              <button type="button" className="btn btn-ghost" disabled={Boolean(busy) || !dirty} onClick={() => run("save", save)}>
-                {dirty ? (
-                  <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true">
-                    <path d="M4.5 4.5a1 1 0 0 1 1-1h7.6l2.4 2.4v8.6a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z M7 3.5v3.5h5V3.5M7 15.5v-4h6v4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true">
-                    <path d="M5 10.5l3.2 3.2L15 7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                )}
-                {busy === "save" ? "Saving…" : dirty ? "Save" : "Saved"}
+              <button type="button" className="btn btn-ghost" disabled={Boolean(busy) || !dirty} onClick={() => run("save", save)} aria-label="Save changes" title="Save changes">
+                <ButtonIcon name="check" busy={busy === "save"} />
+                {busy === "save" ? "Saving…" : "Save"}
               </button>
               {!applied && (
                 <button

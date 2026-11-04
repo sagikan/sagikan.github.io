@@ -1,6 +1,6 @@
 const STROKE = {
   fill: "none",
-  stroke: "#fff",
+  stroke: "var(--bg)",
   strokeWidth: 2,
   strokeLinecap: "round",
   strokeLinejoin: "round"
@@ -49,16 +49,16 @@ const ICONS = {
       <rect x="9" y="14" width="14" height="10.5" rx="2.5" {...STROKE} />
       <path d="M12 14v-2.5a4 4 0 0 1 8 0V14" {...STROKE} />
       <path d="M14.6 17.6a1.5 1.5 0 1 1 2.1 1.4c-.5.25-.7.6-.7 1.1" {...STROKE} strokeWidth={1.7} />
-      <circle cx="16" cy="22.3" r="0.95" fill="#fff" />
+      <circle cx="16" cy="22.3" r="0.95" fill="var(--bg)" />
     </>
   ),
   reset_password: (
     <>
       <rect x="8.5" y="14" width="15" height="10.5" rx="2.5" {...STROKE} />
       <path d="M12 14v-2.5a4 4 0 0 1 8 0V14" {...STROKE} />
-      <circle cx="12.6" cy="19.25" r="1.2" fill="#fff" />
-      <circle cx="16" cy="19.25" r="1.2" fill="#fff" />
-      <circle cx="19.4" cy="19.25" r="1.2" fill="#fff" />
+      <circle cx="12.6" cy="19.25" r="1.2" fill="var(--bg)" />
+      <circle cx="16" cy="19.25" r="1.2" fill="var(--bg)" />
+      <circle cx="19.4" cy="19.25" r="1.2" fill="var(--bg)" />
     </>
   )
 };
@@ -76,7 +76,7 @@ function StepIcon({ name, size = 40 }) {
       aria-hidden="true"
       className="logo step-icon"
     >
-      <rect width="32" height="32" rx="9" fill="var(--accent)" />
+      <rect width="32" height="32" rx="9" fill="var(--text)" />
       {ICONS[name] || ICONS.login}
     </svg>
   );

@@ -5,6 +5,7 @@ import TagInput from "./TagInput";
 import { WORKPLACE_MODELS, apiRequest, apiUpload } from "../../lib/api";
 import { LIMITS, formatResume, resumeProblems } from "../../utils/resume/resumeRules";
 import Alert from "../ui/Alert";
+import ButtonIcon from "../ui/ButtonIcon";
 import { MAX_CV_MB, MAX_GRADES_MB, checkPdf } from "../../utils/resume/pdfFiles";
 
 const SENIORITIES = ["Any", "Student", "Junior", "Mid", "Senior"];
@@ -347,8 +348,9 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
           <button type="button" className="btn btn-ghost" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className="btn btn-primary" disabled={!cv || reading || saving}>
-            {saving ? "Saving…" : "Save profile"}
+          <button type="submit" className="btn btn-primary" disabled={!cv || reading || saving} aria-label="Save profile" title="Save profile">
+            <ButtonIcon name="check" busy={saving} />
+            {saving ? "Saving…" : "Save"}
           </button>
         </div>
       </form>

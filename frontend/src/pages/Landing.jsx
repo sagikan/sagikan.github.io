@@ -29,11 +29,6 @@ const ARROW_DOWN = (
     <path d="M10 5v10M5.5 10.5L10 15l4.5-4.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
-const DOWNLOAD = (
-  <svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true">
-    <path d="M10 3.5v9M6 8.75l4 4 4-4M4 15.5h12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
 const APPLICATIONS = [
   { company: "Northwind", position: "Frontend Engineer", status: "Interview", location: "Tel Aviv", workplace: "Hybrid" },
   { company: "Globex", position: "Full-stack Developer", status: "Applied", location: "Remote", workplace: "Remote" },
@@ -85,11 +80,6 @@ const ORIGINAL_HOLD_MS = 2200;
 const TAILORED_HOLD_MS = 4800;
 const ORDER_BEFORE = ["weather", "email"];
 const ORDER_AFTER = ["email", "weather"];
-const DONE = (
-  <svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true">
-    <path d="M5 10.5l3.2 3.2L15 7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
 const FEATURE_TABS = [
   { id: "story-track", label: "Applications" },
   { id: "story-find", label: "Job Posts" },
@@ -432,10 +422,6 @@ function DocBody({ tailored, order = tailored ? ORDER_AFTER : ORDER_BEFORE, dela
 function TailorPreview({ active }) {
   const [tailored, setTailored] = useState(REDUCED_MOTION);
   const [paused, setPaused] = useState(false);
-  const [downloaded, setDownloaded] = useState(false);
-  const timer = useRef(null);
-
-  useEffect(() => () => clearTimeout(timer.current), []);
 
   // Flips between the two versions while the preview is on screen and not being looked at closely
   useEffect(() => {
@@ -461,21 +447,6 @@ function TailorPreview({ active }) {
       <Stack ghost={<DocBody tailored />}>
         <DocBody tailored={tailored} />
       </Stack>
-
-      <div className="preview-doc-actions">
-        <button
-          type="button"
-          className="btn btn-primary btn-sm preview-doc-download"
-          onClick={() => {
-            setDownloaded(true);
-            clearTimeout(timer.current);
-            timer.current = setTimeout(() => setDownloaded(false), 1600);
-          }}
-        >
-          {downloaded ? DONE : DOWNLOAD}
-          {downloaded ? "Downloaded" : "Resume.pdf"}
-        </button>
-      </div>
     </div>
   );
 }
@@ -705,12 +676,12 @@ function FeatureTabs() {
 }
 
 /* Pixel zero that stands in for the letter "o"
-   Gradient text has no color of its own, so `accent` gives the gradient's mix (% of --accent) at
+   Gradient text has no color of its own, so `start` gives the gradient's mix (% of its start color) at
    that spot. The hidden "o" keeps the word whole for screen readers and copy-paste */
-function O({ accent }) {
-  const color = accent === undefined
+function O({ start }) {
+  const color = start === undefined
     ? undefined
-    : `color-mix(in srgb, var(--accent) ${accent}%, var(--accent-2))`;
+    : `color-mix(in srgb, var(--gradient-start) ${start}%, var(--gradient-end))`;
 
   return (
     <span className="pixel-o">
@@ -733,7 +704,7 @@ function Landing({ authenticated }) {
             {/* Words with a pixel zero are kept whole, or the line could break inside them */}
             Keep track <span className="nowrap"><O />f</span> <i>every</i> <span className="nowrap">applicati<O />n</span>{" "}
             <span className="gradient-text">
-              until <span className="nowrap">y<O accent={75} />u</span> get the <span className="nowrap"><O accent={30} />ffer.</span>
+              until <span className="nowrap">y<O start={75} />u</span> get the <span className="nowrap"><O start={30} />ffer.</span>
             </span>
           </h1>
           <div className="hero-actions hero-rise">
@@ -759,7 +730,7 @@ function Landing({ authenticated }) {
         <div className="showcase">
           <Story
             id="story-track"
-            title="Every application, one place"
+            title={<><span className="title-mark">Every</span> application, <span className="title-mark">one</span> place</>}
             points={[
               "See where your search stands with advanced stats",
               "Filter your applications and search across everything",
@@ -772,7 +743,7 @@ function Landing({ authenticated }) {
           <Story
             id="story-find"
             flip
-            title="Openings picked for you"
+            title={<>Openings picked <span className="title-mark">for you</span></>}
             points={[
               "Automated search across the most popular job boards",
               "AI-powered, profile-based score and analysis for each post",
@@ -784,7 +755,7 @@ function Landing({ authenticated }) {
 
           <Story
             id="story-tailor"
-            title="Resume tailored for each opening"
+            title={<>Resume tailored <span className="title-mark">for each</span> opening</>}
             points={[
               "Observe changes: rewording, reordering, additions, removals",
               "Attach any additional PDF document (e.g. Gradesheet)",
@@ -802,7 +773,7 @@ function Landing({ authenticated }) {
             ? "Find your next job posts and tailor your resume to them."
             : "Create a free account, upload your resume and get your first matches in minutes."}
         </p>
-        <a href={authenticated ? "#/jobs" : ctaHref} className="btn btn-light btn-lg">
+        <a href={authenticated ? "#/jobs" : ctaHref} className="btn btn-glass btn-lg">
           {authenticated ? "Browse Job Posts" : "Sign Up"}
           <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
             <path d="M4 10h12m-5-5l5 5-5 5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
