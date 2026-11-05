@@ -1,4 +1,5 @@
 const { rateLimit } = require("express-rate-limit");
+const dev = require("../services/shared/devMode");
 
 // Creates a rate limiter with a JSON error message
 function limiter(limit, minutes, error, options = {}) {
@@ -29,7 +30,7 @@ function userLimiter(limit, minutes, error) {
 module.exports = {
   apiLimiter: limiter(1000, 15, "Too many requests."),
   loginLimiter: limiter(20, 15, "Too many login attempts."),
-  registerLimiter: limiter(5, 60, "Too many accounts created from this network."),
+  registerLimiter: limiter(5, 60, "Too many accounts created from this network.", { skip: () => dev.development }),
   passwordResetLimiter: limiter(10, 15, "Too many password reset attempts."),
   codeLimiter: limiter(30, 15, "Too many attempts."),
   userLimiter,

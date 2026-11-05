@@ -12,6 +12,10 @@ const port = process.env.PORT || 3000;
 app.listen(port, "0.0.0.0", () => {
   console.log(`API listening on port ${port}`);
 
+  if (process.env.NODE_ENV === "development" && !devMode.development) {
+    console.warn("[dev] NODE_ENV=development but FRONTEND_ORIGIN is not a local address: the dev sign-up shortcuts stay off.");
+  }
+
   if (devMode.offline) {
     console.log("[dev] Paid and optional outside services are off: Claude, JSearch, posting checks and emails use local stand-ins. Set USE_REAL_APIS=true to use them.");
   }

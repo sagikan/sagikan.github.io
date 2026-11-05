@@ -5,6 +5,7 @@ const requireAuth = require("../middleware/auth");
 const { requireCsrf } = require("../middleware/csrf");
 const mfa = require("../services/auth/mfa");
 const auth = require("../services/auth/authService");
+const dev = require("../services/shared/devMode");
 const { readPolicyVersion } = require("../services/auth/policy");
 const { loginLimiter, registerLimiter, passwordResetLimiter, codeLimiter } = require("../middleware/rateLimit");
 
@@ -45,7 +46,7 @@ router.get("/me", requireAuth, async (req, res) => {
 
 // Creates an account and sends the verification code
 router.post("/register", registerLimiter, async (req, res) => {
-  if (process.env.SIGNUPS_OPEN !== "true") {
+  if (process.env.SIGNUPS_OPEN !== "true" && !dev.development) {
     return res.status(403).json({ error: SIGNUPS_CLOSED_MESSAGE });
   }
 
@@ -148,6 +149,12 @@ router.post("/login", loginLimiter, async (req, res) => {
       }
     }
 
+    if (next === "mfa") {
+      const full = await auth.getUser(user.id);
+
+      auth.logDevTotp(user.email, mfa.decryptSecret(full.totp_secret));
+    }
+
     res.json({ next, email: user.email, emailSent });
   } catch (err) {
     console.error(err);
@@ -224,6 +231,8 @@ router.post("/mfa/setup", codeLimiter, auth.requirePending("mfa_setup"), async (
     );
 
     res.set("Cache-Control", "no-store");
+
+    auth.logDevTotp(user.email, secret);
 
     res.json(await auth.mfaSetupPayload(secret, user.email));
   } catch (err) {

@@ -4,6 +4,7 @@ const QRCode = require("qrcode");
 const db = require("../../config/db");
 const { sendCodeEmail, sendSecurityNotice } = require("../email/mailer");
 const mfa = require("./mfa");
+const dev = require("../shared/devMode");
 
 const isProduction = process.env.NODE_ENV === "production";
 const baseCookieOptions = {
@@ -418,6 +419,13 @@ async function mfaSetupPayload(secret, email) {
   };
 }
 
+// Logs the current authenticator code in development, in place of an authenticator app
+function logDevTotp(email, secret) {
+  if (dev.development) {
+    console.log(`[auth] authenticator code for ${email}: ${mfa.currentTotp(secret)} (shown in development only)`);
+  }
+}
+
 // Emails a security notice without waiting for it
 function notifySecurityChange(email, kind) {
   sendSecurityNotice(email, kind).catch((err) => console.error(`Could not send the ${kind} notice:`, err.message));
@@ -449,4 +457,5 @@ module.exports = {
   countRecoveryCodes,
   replaceRecoveryCodes,
   mfaSetupPayload,
+  logDevTotp,
 };

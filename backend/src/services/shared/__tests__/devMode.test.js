@@ -25,6 +25,25 @@ describe("offline", () => {
   });
 });
 
+describe("development", () => {
+  it.each([
+    ["development", undefined, true],
+    ["development", "http://localhost:5173", true],
+    ["development", "http://127.0.0.1:5173", true],
+    ["development", "https://app.example.com", false],
+    ["development", "not a url", false],
+    ["production", undefined, false],
+    ["production", "http://localhost:5173", false],
+    ["test", undefined, false],
+    [undefined, undefined, false]
+  ])("with NODE_ENV %s and FRONTEND_ORIGIN %s returns %s", (env, origin, expected) => {
+    vi.stubEnv("NODE_ENV", env ?? "");
+    vi.stubEnv("FRONTEND_ORIGIN", origin ?? "");
+
+    expect(dev.development).toBe(expected);
+  });
+});
+
 describe("sampleResume", () => {
   it("returns a resume with the sections the app expects, and preferences", () => {
     const { cv, preferences } = dev.sampleResume();

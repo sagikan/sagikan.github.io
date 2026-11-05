@@ -12,6 +12,25 @@ function isOffline() {
   return process.env.NODE_ENV === "development" && process.env.USE_REAL_APIS !== "true";
 }
 
+// Checks whether the server runs in development
+function isDevelopment() {
+  if (process.env.NODE_ENV !== "development") {
+    return false;
+  }
+
+  const origin = process.env.FRONTEND_ORIGIN;
+
+  if (!origin) {
+    return true;
+  }
+
+  try {
+    return ["localhost", "127.0.0.1", "[::1]"].includes(new URL(origin).hostname);
+  } catch {
+    return false;
+  }
+}
+
 // Returns a sample resume in place of reading a PDF
 function sampleResume() {
   return {
@@ -174,6 +193,9 @@ function classify({ from, subject, body }) {
 module.exports = {
   get offline() {
     return isOffline();
+  },
+  get development() {
+    return isDevelopment();
   },
   sampleResume,
   scores,

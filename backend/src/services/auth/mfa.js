@@ -131,6 +131,11 @@ function verifyTotp(secret, token, lastStep) {
   return null;
 }
 
+// Returns the code an authenticator app shows right now
+function currentTotp(secret) {
+  return hotp(base32Decode(secret), Math.floor(Date.now() / 1000 / TOTP_PERIOD_SECONDS));
+}
+
 // Encrypts a secret with AES-256-GCM
 function encryptSecret(plaintext) {
   const iv = crypto.randomBytes(12);
@@ -177,6 +182,7 @@ module.exports = {
   generateTotpSecret,
   totpUri,
   verifyTotp,
+  currentTotp,
   encryptSecret,
   decryptSecret,
   hashCode,
