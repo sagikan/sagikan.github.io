@@ -361,6 +361,70 @@ a {
   padding-bottom: calc(0.2em + 0.8px);
 }
 
+/* Pill groups: the marker slides to the hovered option and rests on the active one(s) */
+.pill-group {
+  position: relative;
+}
+
+.pill-item {
+  position: relative;
+  z-index: 1;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  cursor: pointer;
+  transition: color 0.25s;
+}
+
+.pill-item.is-lit {
+  color: var(--text);
+}
+
+.pill-marker {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pill-marker.is-shown {
+  opacity: 1;
+}
+
+.pill-marker-hover {
+  box-shadow: none;
+}
+
+/* Active neighbours in a multiple group fuse into one marker */
+.pill-group .pill-marker.join-next {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.pill-group .pill-marker.join-prev {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+/* A hidden marker jumps to its place unseen and fades in, a shown one slides */
+.pill-group.is-ready .pill-marker {
+  will-change: transform, width;
+  transition: opacity 0.25s, border-radius 0.3s;
+}
+
+.pill-group.is-ready .pill-marker.is-shown {
+  transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), width 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.25s, border-radius 0.3s;
+}
+
+.pill-group.is-ready .pill-marker.is-shown.jump {
+  transition: opacity 0.25s, border-radius 0.3s;
+}
+
 /* Buttons: glass */
 @property --glass-mid {
   syntax: "<color>";
@@ -886,6 +950,13 @@ a {
 .feature-tabs-pill.is-shown {
   opacity: 1;
 }
+
+/* A highlight that was hidden jumps to its tab and fades in, a shown one slides */
+.feature-tabs-pill:not(.is-shown),
+.feature-tabs-pill.is-jump {
+  transition: opacity 0.25s;
+}
+
 .feature-tab {
   position: relative;
   z-index: 1;
@@ -913,8 +984,8 @@ a {
   color: var(--text);
 }
 
-.feature-tab[aria-current="true"],
-.feature-tab[aria-current="true"]:hover {
+.feature-tab.is-lit,
+.feature-tab.is-lit:hover {
   color: var(--bg);
 }
 
@@ -1709,21 +1780,14 @@ a {
   border-radius: 12px;
 }
 
-.segmented button {
-  border: 0;
-  background: transparent;
+.segmented .pill-item {
   padding: 8px;
   border-radius: 9px;
   font-weight: 600;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: background-color 0.15s, color 0.15s;
 }
 
-.segmented button.active {
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: var(--shadow-sm);
+.segmented .pill-marker {
+  border-radius: 9px;
 }
 
 .auth-form {
@@ -2200,28 +2264,23 @@ a {
   background: var(--surface-2);
 }
 
-.range-tabs button {
-  border: 0;
+.range-tabs .pill-marker {
   border-radius: 999px;
-  background: transparent;
-  color: var(--text-muted);
-  font: inherit;
+}
+
+.range-tabs .pill-item {
+  border-radius: 999px;
   font-size: 0.7rem;
   font-weight: 600;
   padding: 2px 9px;
-  cursor: pointer;
-}
-
-.range-tabs button[aria-pressed="true"] {
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: var(--shadow-sm);
 }
 
 .pulse-wrap {
   position: relative;
   flex: 1;
   min-height: 44px;
+  outline: none;
+  touch-action: pan-y;
 }
 
 .pulse {
@@ -2230,6 +2289,7 @@ a {
   width: 100%;
   height: 100%;
   overflow: visible;
+  --pulse-fill: 0.6;
 }
 
 .pulse polyline {
@@ -2241,31 +2301,27 @@ a {
   vector-effect: non-scaling-stroke;
 }
 
-.pulse-lead {
-  position: absolute;
-  width: 18px;
-  height: 0;
-  border-top: 2px dotted var(--lead);
-  transform: translateY(-1px);
+@media (prefers-color-scheme: dark) {
+  .pulse {
+    --pulse-fill: 0.95;
+  }
 }
 
-.pulse-fill {
-  position: absolute;
-  width: 18px;
+.pulse-fade-top {
+  stop-opacity: var(--pulse-fill);
 }
 
-.pulse-lead-start,
-.pulse-fill-start {
-  right: 100%;
-  -webkit-mask-image: linear-gradient(to right, rgb(0 0 0 / 0.15), #000);
-  mask-image: linear-gradient(to right, rgb(0 0 0 / 0.15), #000);
+.pulse-fade-mid {
+  stop-opacity: calc(var(--pulse-fill) * 0.4);
 }
 
-.pulse-lead-end,
-.pulse-fill-end {
-  left: 100%;
-  -webkit-mask-image: linear-gradient(to left, rgb(0 0 0 / 0.15), #000);
-  mask-image: linear-gradient(to left, rgb(0 0 0 / 0.15), #000);
+.pulse .pulse-run-in {
+  fill: none;
+  stroke: url(#pulse-gradient);
+  stroke-width: 2;
+  stroke-dasharray: 0 4;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
 }
 
 .pulse-area {
@@ -2273,53 +2329,69 @@ a {
   stroke: none;
 }
 
-.pulse-point {
+/* One strip per point instead of pointer coordinates, which the page's zoom can skew */
+.pulse-hit {
   position: absolute;
-  width: 18px;
-  height: 18px;
-  margin: -9px 0 0 -9px;
-  border-radius: 50%;
-  outline: none;
+  inset: 0;
+  z-index: 1;
+  display: flex;
 }
 
-.pulse-point::before {
-  content: "";
+.pulse-hit span {
+  flex: 1;
+}
+
+.pulse-wrap.is-morphing .pulse-cursor {
+  display: none;
+}
+
+.pulse-wrap:focus-visible {
+  border-radius: 6px;
+  outline: 2px solid var(--text);
+  outline-offset: 4px;
+}
+
+.pulse-cursor {
   position: absolute;
-  inset: 5px;
+  inset: 0;
+  pointer-events: none;
+}
+
+.pulse-guide {
+  position: absolute;
+  left: 0;
+  width: 0;
+  border-left: 1px dashed color-mix(in srgb, var(--text) 35%, transparent);
+}
+
+.pulse-dot {
+  position: absolute;
+  left: 0;
+  width: 11px;
+  height: 11px;
+  margin: -5.5px 0 0 -5.5px;
   border-radius: 50%;
   background: var(--point);
-  box-shadow: 0 0 0 3px var(--surface), 0 0 8px color-mix(in srgb, var(--point) 60%, transparent);
-  opacity: 0;
-  transition: opacity 0.12s;
+  box-shadow: 0 0 0 3px var(--surface), 0 0 10px color-mix(in srgb, var(--point) 60%, transparent);
 }
 
 .pulse-tip {
   position: absolute;
-  bottom: calc(100% + 2px);
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
+  margin-top: -14px;
+  transform: translate(-50%, -100%);
   z-index: 5;
-  padding: 4px 8px;
-  border-radius: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
   background: var(--text);
-  color: var(--surface);
-  font-size: 0.75rem;
-  font-weight: 500;
+  color: var(--bg);
+  font-size: 0.72rem;
+  font-weight: 600;
   white-space: nowrap;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.12s;
 }
 
-.pulse-point.tip-left .pulse-tip { left: 0; transform: none; }
-.pulse-point.tip-right .pulse-tip { left: auto; right: 0; transform: none; }
-
-.pulse-point:hover::before,
-.pulse-point:focus-visible::before,
-.pulse-point:hover .pulse-tip,
-.pulse-point:focus-visible .pulse-tip {
-  opacity: 1;
-}
+.pulse-tip.tip-left { transform: translate(-12px, -100%); }
+.pulse-tip.tip-right { transform: translate(calc(-100% + 12px), -100%); }
 
 .mix {
   display: flex;
@@ -5176,31 +5248,24 @@ a {
   border-radius: var(--radius-sm);
 }
 
-.choice-group button {
+.choice-group .pill-item {
   min-width: 0;
   padding: 0 4px;
-  border: 0;
   border-radius: 6px;
-  background: transparent;
-  color: var(--text-muted);
   font-size: 0.84rem;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  cursor: pointer;
-  transition: background-color 0.15s, color 0.15s;
 }
 
-.choice-group button:hover {
-  color: var(--text);
-}
-
-.choice-group button[aria-checked="true"],
-.choice-group button[aria-pressed="true"] {
+.choice-group .pill-marker {
+  border-radius: 6px;
   background: var(--text);
+}
+
+.choice-group .pill-item.is-lit {
   color: var(--bg);
-  box-shadow: var(--shadow-sm);
 }
 
 /* Tag fields */

@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import Modal from "../ui/Modal";
+import PillGroup from "../ui/PillGroup";
 import CvEditor, { Required } from "./CvEditor";
 import TagInput from "./TagInput";
 import { WORKPLACE_MODELS, apiRequest, apiUpload } from "../../lib/api";
@@ -9,6 +10,8 @@ import ButtonIcon from "../ui/ButtonIcon";
 import { MAX_CV_MB, MAX_GRADES_MB, checkPdf } from "../../utils/resume/pdfFiles";
 
 const SENIORITIES = ["Any", "Student", "Junior", "Mid", "Senior"];
+const SENIORITY_OPTIONS = SENIORITIES.map((level) => ({ key: level, label: level }));
+const WORKPLACE_OPTIONS = WORKPLACE_MODELS.map((model) => ({ key: model, label: model }));
 
 // Turns saved preferences into form values
 function toForm(preferences) {
@@ -274,43 +277,30 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
               <div className="cv-fields">
                 <div className="field">
                   <span id="seniority-label">Seniority<Required /></span>
-                  <div className="choice-group" role="radiogroup" aria-labelledby="seniority-label">
-                    {SENIORITIES.map((level) => (
-                      <button
-                        type="button"
-                        key={level}
-                        role="radio"
-                        aria-checked={prefs.seniority === level}
-                        onClick={() => setPrefs((current) => ({ ...current, seniority: level }))}
-                      >
-                        {level}
-                      </button>
-                    ))}
-                  </div>
+                  <PillGroup
+                    className="choice-group"
+                    mode="radio"
+                    aria-labelledby="seniority-label"
+                    options={SENIORITY_OPTIONS}
+                    value={prefs.seniority}
+                    onChange={(seniority) => setPrefs((current) => ({ ...current, seniority }))}
+                  />
                 </div>
                 <div className="field">
                   <span id="workplace-label">Workplace<Required /></span>
-                  <div className="choice-group" role="group" aria-labelledby="workplace-label">
-                    {WORKPLACE_MODELS.map((model) => {
-                      const on = prefs.workplace_models.includes(model);
-
-                      return (
-                        <button
-                          type="button"
-                          key={model}
-                          aria-pressed={on}
-                          onClick={() => setPrefs((current) => ({
-                            ...current,
-                            workplace_models: on
-                              ? current.workplace_models.filter((item) => item !== model)
-                              : WORKPLACE_MODELS.filter((item) => item === model || current.workplace_models.includes(item))
-                          }))}
-                        >
-                          {model}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <PillGroup
+                    className="choice-group"
+                    multiple
+                    aria-labelledby="workplace-label"
+                    options={WORKPLACE_OPTIONS}
+                    value={prefs.workplace_models}
+                    onChange={(model) => setPrefs((current) => ({
+                      ...current,
+                      workplace_models: current.workplace_models.includes(model)
+                        ? current.workplace_models.filter((item) => item !== model)
+                        : WORKPLACE_MODELS.filter((item) => item === model || current.workplace_models.includes(item))
+                    }))}
+                  />
                 </div>
               </div>
             </section>

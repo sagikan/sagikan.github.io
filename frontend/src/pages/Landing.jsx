@@ -523,6 +523,7 @@ function labelsOverflow(tabs, labels) {
 // Sticky tabs that follow and jump between feature sections
 function FeatureTabs() {
   const [active, setActive] = useState(null);
+  const [hovered, setHovered] = useState(null);
   const [pill, setPill] = useState(null);
   const [compact, setCompact] = useState(false);
   const dock = useRef(null);
@@ -531,6 +532,8 @@ function FeatureTabs() {
   const tabs = useRef({});
   const heading = useRef(null);
   const release = useRef(null);
+  const hoverFromKeys = useRef(false);
+  const lit = hovered ?? active;
 
   // Stops following a tab click's scroll
   const stopHeading = useCallback(() => {
@@ -587,13 +590,14 @@ function FeatureTabs() {
     };
   }, [stopHeading]);
 
-  // Moves the highlight under the active tab
+  // Moves the highlight under the hovered tab, or the active one when none is hovered
   const place = useCallback(() => {
-    const tab = active && tabs.current[active];
-    setPill(tab ? { left: tab.offsetLeft, width: tab.offsetWidth } : null);
-  }, [active]);
+    const tab = lit && tabs.current[lit];
+    setPill((current) => (tab ? { left: tab.offsetLeft, width: tab.offsetWidth, jump: !current } : null));
+  }, [lit]);
 
-  useLayoutEffect(place, [place]);
+  // Also runs when the labels hide or show, since the tabs change width
+  useLayoutEffect(place, [place, compact]);
 
   useLayoutEffect(() => {
     // Hides the tab labels when they don't fit
@@ -639,9 +643,9 @@ function FeatureTabs() {
 
   return (
     <div ref={dock} className="feature-tabs-dock">
-      <nav ref={bar} className={`feature-tabs hero-rise${compact ? " is-compact" : ""}`} aria-label="Features">
+      <nav ref={bar} className={`feature-tabs hero-rise${compact ? " is-compact" : ""}`} aria-label="Features" onPointerLeave={() => setHovered(null)}>
         <span
-          className={`feature-tabs-pill${pill ? " is-shown" : ""}`}
+          className={`feature-tabs-pill${pill ? " is-shown" : ""}${pill?.jump ? " is-jump" : ""}`}
           style={pill ? { transform: `translateX(${pill.left}px)`, width: pill.width } : undefined}
           aria-hidden="true"
         />
@@ -650,8 +654,19 @@ function FeatureTabs() {
             key={tab.id}
             ref={(node) => { tabs.current[tab.id] = node; }}
             type="button"
-            className="feature-tab"
+            className={`feature-tab${lit === tab.id ? " is-lit" : ""}`}
             aria-current={active === tab.id ? "true" : undefined}
+            onPointerEnter={() => {
+              hoverFromKeys.current = false;
+              setHovered(tab.id);
+            }}
+            onFocus={(event) => {
+              if (event.target.matches(":focus-visible")) {
+                hoverFromKeys.current = true;
+                setHovered(tab.id);
+              }
+            }}
+            onBlur={() => hoverFromKeys.current && setHovered(null)}
             title={compact ? tab.label : undefined}
             onClick={() => {
               setActive(tab.id);
