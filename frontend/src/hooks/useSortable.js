@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 
 const INTERACTIVE = "input, textarea, select, button, a, label, .cv-diff-field";
 const DRAG_SLOP = 6;
+const HOLD_MS = 300;
 const STEPS = { ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, ArrowRight: 1 };
 
 /* Lets the user reorder a list by dragging items, or with the arrow keys. "flow" is for items laid
@@ -166,9 +167,19 @@ export function useSortable(items, onReorder, { flow = false } = {}) {
       setDragging(null);
     };
 
+    // Keeps the page from scrolling under the finger while an item is dragged
+    const blockScroll = (touchEvent) => touchEvent.preventDefault();
+
+    // Ends the drag and lets the page scroll again
+    const end = () => {
+      window.removeEventListener("touchmove", blockScroll);
+      onUp();
+    };
+
+    window.addEventListener("touchmove", blockScroll, { passive: false });
     window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    window.addEventListener("pointercancel", onUp);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
   }
 
   /* Starts a drag once a press in a text field moves mostly up or down. Moving sideways selects text
@@ -201,6 +212,42 @@ export function useSortable(items, onReorder, { flow = false } = {}) {
     window.addEventListener("pointercancel", cancel);
   }
 
+  /* Starts a drag after a touch is held in place for a moment, so a quick swipe still scrolls the page.
+     Moving before the hold ends (the browser is then scrolling) cancels it */
+  function beginOnHold(event, index) {
+    const startX = event.clientX;
+    const startY = event.clientY;
+    let lastX = startX;
+    let lastY = startY;
+
+    // Stops watching the press
+    const cancel = () => {
+      clearTimeout(timer);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", cancel);
+      window.removeEventListener("pointercancel", cancel);
+    };
+
+    // Gives up on the hold when the finger moves away
+    const onMove = (moveEvent) => {
+      lastX = moveEvent.clientX;
+      lastY = moveEvent.clientY;
+      if (Math.abs(lastX - startX) >= DRAG_SLOP || Math.abs(lastY - startY) >= DRAG_SLOP) cancel();
+    };
+
+    const timer = setTimeout(() => {
+      cancel();
+      document.activeElement?.blur();
+      window.getSelection()?.removeAllRanges();
+      navigator.vibrate?.(10);
+      begin(index, lastX, lastY);
+    }, HOLD_MS);
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", cancel);
+    window.addEventListener("pointercancel", cancel);
+  }
+
   // Returns the ref callback for the item at a position
   function itemRef(index) {
     return (node) => {
@@ -215,6 +262,12 @@ export function useSortable(items, onReorder, { flow = false } = {}) {
       onPointerDown: (event) => {
         if (event.button !== 0) return;
         if (skipInteractive && event.target.closest(INTERACTIVE)) return;
+
+        if (event.pointerType === "touch" && !flow) {
+          beginOnHold(event, index);
+
+          return;
+        }
 
         if (textField) {
           beginOnVerticalMove(event, index);
