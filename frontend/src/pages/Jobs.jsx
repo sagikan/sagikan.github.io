@@ -539,7 +539,7 @@ function Jobs({ csrfToken, applications, onApplied, onUnauthorized }) {
           {hasProfile && (
             <button
               type="button"
-              className="btn btn-ghost profile-btn"
+              className="btn btn-ghost"
               aria-label="Your profile"
               title="Your profile"
               onClick={() => setModal({ type: "profile" })}
@@ -551,12 +551,14 @@ function Jobs({ csrfToken, applications, onApplied, onUnauthorized }) {
               <span className="btn-label">Your Profile</span>
             </button>
           )}
-          <button type="button" className="btn btn-primary" onClick={() => setModal({ type: "add" })}>
-            <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
-              <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            New
-          </button>
+          {hasProfile && (
+            <button type="button" className="btn btn-primary" aria-label="New job post" onClick={() => setModal({ type: "add" })}>
+              <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
+                <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              <span className="btn-label">New</span>
+            </button>
+          )}
         </div>
       </div>
 

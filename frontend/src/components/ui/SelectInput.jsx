@@ -2,7 +2,7 @@ import { useCallback, useId, useRef, useState } from "react";
 import { useDismiss } from "../../hooks/useDismiss";
 
 // Dropdown for picking one of the given options, styled like the site's other menus
-function SelectInput({ value, onChange, options, className = "", required = false, openUp = false, ...props }) {
+function SelectInput({ value, onChange, options, className = "", required = false, openUp = false, fitWidest = false, ...props }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const ref = useRef(null);
@@ -66,7 +66,10 @@ function SelectInput({ value, onChange, options, className = "", required = fals
         aria-controls={listId}
         aria-activedescendant={open ? `${listId}-${active}` : undefined}
       >
-        <span className="select-value">{options[selected]?.label}</span>
+        <span className="select-value">
+          {options[selected]?.label}
+          {fitWidest && options.map((option) => <span key={option.value} className="select-sizer" aria-hidden="true">{option.label}</span>)}
+        </span>
       </button>
       {required && <input className="select-required" tabIndex={-1} aria-hidden="true" value={value} onChange={() => {}} required />}
       {open && (

@@ -73,6 +73,8 @@ function DownloadButton({ primary, busy, disabled, pdfKey, getPdf, onClick }) {
         type="button"
         className={`btn ${primary ? "btn-primary" : "btn-ghost"}`}
         disabled={disabled}
+        aria-label="Download PDF"
+        title="Download PDF"
         onClick={() => {
           hide();
           onClick();
@@ -81,7 +83,7 @@ function DownloadButton({ primary, busy, disabled, pdfKey, getPdf, onClick }) {
         <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true">
           <path d="M10 3.5v9M6 8.75l4 4 4-4M4 15.5h12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        {busy ? "Preparing…" : "Download PDF"}
+        <span className="btn-label">{busy ? "Preparing…" : "Download PDF"}</span>
       </button>
 
       {shown && preview && (

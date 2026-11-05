@@ -7,6 +7,11 @@ const PULSE_RANGES = [
   { key: "month", label: "Month", days: 30, bucket: 1, greenAt: 12 },
   { key: "year", label: "Year", days: 364, bucket: 7, greenAt: 48 }
 ];
+// The range buttons carry their one-letter form, which the stylesheet swaps in when the card is narrow
+const RANGE_OPTIONS = PULSE_RANGES.map(({ key, label }) => ({
+  key,
+  label: <span className="range-label" data-short={label[0]}>{label}</span>
+}));
 const PULSE_WIDTH = 300;
 const PULSE_HEIGHT = 56;
 const PULSE_BASELINE = 50;
@@ -266,7 +271,7 @@ export function PulseChart({ applications, bare = false }) {
         <PillGroup
           className="range-tabs"
           aria-label="Pulse time range"
-          options={PULSE_RANGES}
+          options={RANGE_OPTIONS}
           value={rangeKey}
           onChange={setRangeKey}
           onHoverChange={setHoverKey}

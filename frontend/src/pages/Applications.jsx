@@ -554,6 +554,7 @@ function Applications({
                 )}
                 <SelectInput
                   className="status-select"
+                  fitWidest
                   value={job.status}
                   onChange={(value) => onQuickStatus(job.id, value)}
                   options={STATUSES.map((status) => ({ value: status, label: status }))}
@@ -587,17 +588,17 @@ function Applications({
           <h1>Your Applications</h1>
         </div>
         <div className="dashboard-actions">
-          <button type="button" className="btn btn-ghost export-btn" disabled={applications.length === 0} onClick={() => downloadApplicationsCsv(applications)}>
+          <button type="button" className="btn btn-ghost export-btn" aria-label="Export" title="Export" disabled={applications.length === 0} onClick={() => downloadApplicationsCsv(applications)}>
             <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
               <path d="M10 3v9M6.5 8.5 10 12l3.5-3.5M4 14v1.5A1.5 1.5 0 0 0 5.5 17h9a1.5 1.5 0 0 0 1.5-1.5V14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            Export
+            <span className="btn-label">Export</span>
           </button>
-          <button type="button" className="btn btn-primary" onClick={() => setEditing("new")}>
+          <button type="button" className="btn btn-primary" aria-label="New application" onClick={() => setEditing("new")}>
             <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
               <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
-            New
+            <span className="btn-label">New</span>
           </button>
         </div>
       </div>

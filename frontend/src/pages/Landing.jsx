@@ -6,7 +6,7 @@ import FitMeta from "../components/applications/FitMeta";
 import ChipRow from "../components/ui/ChipRow";
 import { FreshnessCalendar, PinIcon } from "../components/jobs/JobIcons";
 import { postingAge, scoreLevel } from "../components/jobs/jobInfo";
-import { localISO } from "../lib/api";
+import { STATUSES, localISO } from "../lib/api";
 
 const REDUCED_MOTION = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 const CHECK = (
@@ -157,7 +157,12 @@ function applicationRow(item) {
           <span className={`app-tag workplace-tag mix-${item.workplace.toLowerCase()}`} title={item.workplace}>{item.workplace}</span>
         </FitMeta>
       </div>
-      <span className="status-select preview-status" aria-hidden="true">{item.status}</span>
+      <span className="select-trigger status-select preview-status" aria-hidden="true">
+        <span className="select-value">
+          {item.status}
+          {STATUSES.map((status) => <span key={status} className="select-sizer" aria-hidden="true">{status}</span>)}
+        </span>
+      </span>
     </li>
   );
 }
