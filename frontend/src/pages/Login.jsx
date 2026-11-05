@@ -156,7 +156,7 @@ function Login({ mode, onAuthenticated, apiStatus }) {
             Home
           </a>
         ) : step !== "recovery_codes" && (
-          <button type="button" className="back-link link-reset" onClick={() => restart()}>
+          <button type="button" className="back-link back-link-icon link-reset" aria-label="Back" onClick={() => restart()}>
             {BACK_ICON}
           </button>
         )}

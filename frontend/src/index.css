@@ -1678,6 +1678,12 @@ a {
   background-size: 100% 1.5px;
 }
 
+/* Icon only: no underline animation */
+.back-link-icon,
+.back-link-icon:hover {
+  background: none;
+}
+
 .auth-header {
   text-align: center;
   display: flex;
