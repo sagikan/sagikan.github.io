@@ -245,9 +245,49 @@ describe("saveProblem", () => {
     ["an experience that ends before it starts", (cv) => { cv.experience[0].start = "Dec 2021"; cv.experience[0].end = "Jan 2021"; }, {}, "An end date can't be before its start date."],
     ["an education that ends before it starts", (cv) => { cv.education[0].start = "2022"; cv.education[0].end = "2019"; }, {}, "An education end year can't be before its start year."],
     ["16 skills in a group", (cv) => { cv.skills = [{ items: Array.from({ length: 16 }, String) }]; }, {}, "Each skill group can have up to 15 skills."],
-    ["6 items in another section", (cv) => { cv.extras = [{ items: Array.from({ length: 6 }, String) }]; }, {}, "Each other section can have up to 5 items."]
+    ["6 items in another section", (cv) => { cv.extras = [{ items: Array.from({ length: 6 }, String) }]; }, {}, "Each other section can have up to 5 items."],
+    ["a long name", (cv) => { cv.name = "n".repeat(51); }, {}, "Keep your name to 50 characters."],
+    ["a long headline", (cv) => { cv.headline = "h".repeat(101); }, {}, "Keep the headline to 100 characters."],
+    ["a long email", (cv) => { cv.email = "e".repeat(101); }, {}, "Keep your email and location to 100 characters."],
+    ["a long location", (cv) => { cv.location = "l".repeat(101); }, {}, "Keep your email and location to 100 characters."],
+    ["a long experience title", (cv) => { cv.experience[0].title = "t".repeat(101); }, {}, "Keep each experience title, company and location to 100 characters."],
+    ["a long experience company", (cv) => { cv.experience[0].company = "c".repeat(101); }, {}, "Keep each experience title, company and location to 100 characters."],
+    ["a long experience location", (cv) => { cv.experience[0].location = "l".repeat(101); }, {}, "Keep each experience title, company and location to 100 characters."],
+    ["a long school", (cv) => { cv.education[0].school = "s".repeat(101); }, {}, "Keep each degree, field, school and location to 100 characters."],
+    ["a long degree", (cv) => { cv.education[0].degree = "d".repeat(101); }, {}, "Keep each degree, field, school and location to 100 characters."],
+    ["a long project name", (cv) => { cv.projects = [{ name: "p".repeat(151), start: "", end: "", bullets: [] }]; }, {}, "Keep each project name to 150 characters."],
+    ["a long experience bullet", (cv) => { cv.experience[0].bullets = [{ id: "x1.b1", text: "b".repeat(251) }]; }, {}, "Keep each bullet to 250 characters."],
+    ["a long project bullet", (cv) => { cv.projects = [{ name: "P", start: "", end: "", bullets: [{ id: "p1.b1", text: "b".repeat(251) }] }]; }, {}, "Keep each bullet to 250 characters."],
+    ["a long item in another section", (cv) => { cv.extras = [{ title: "Awards", items: ["i".repeat(251)] }]; }, {}, "Keep each item in another section to 250 characters."],
+    ["a long section title", (cv) => { cv.extras = [{ title: "t".repeat(51), items: ["x"] }]; }, {}, "Keep each section title to 50 characters."],
+    ["a long skill group name", (cv) => { cv.skills = [{ category: "c".repeat(51), items: ["x"] }]; }, {}, "Keep each skill group name to 50 characters."],
+    ["a long skill", (cv) => { cv.skills = [{ category: "Languages", items: ["s".repeat(51)] }]; }, {}, "Keep each skill to 50 characters."]
   ])("reports %s", (_title, change, prefsChange, message) => {
     expect(problemWith(change, prefsChange)).toBe(message);
+  });
+
+  it.each([
+    ["a long role", { roles: ["r".repeat(61)] }],
+    ["a long location", { locations: ["l".repeat(61)] }]
+  ])("reports %s in the preferences", (_title, prefsChange) => {
+    expect(problemWith(() => {}, prefsChange)).toBe("Keep each role and location to 60 characters.");
+  });
+
+  it("accepts text exactly at each limit", () => {
+    const cv = validCv();
+    const bullet = { id: "x1.b1", text: "b".repeat(250) };
+
+    cv.name = "n".repeat(50);
+    cv.headline = "h".repeat(100);
+    cv.email = "e".repeat(100);
+    cv.location = "l".repeat(100);
+    cv.experience[0] = { ...cv.experience[0], title: "t".repeat(100), company: "c".repeat(100), location: "l".repeat(100), bullets: [bullet] };
+    cv.education[0] = { ...cv.education[0], degree: "d".repeat(100), major: "m".repeat(100), school: "s".repeat(100), location: "l".repeat(100) };
+    cv.projects = [{ name: "p".repeat(150), start: "", end: "", bullets: [bullet] }];
+    cv.extras = [{ title: "t".repeat(50), items: ["i".repeat(250)] }];
+    cv.skills = [{ category: "c".repeat(50), items: ["s".repeat(50)] }];
+
+    expect(profile.saveProblem(cv, { ...validPrefs(), roles: ["r".repeat(60)], locations: ["l".repeat(60)] })).toBeNull();
   });
 
   it.each([

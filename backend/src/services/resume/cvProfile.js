@@ -18,7 +18,15 @@ const SAVE_LIMITS = {
   extraItems: 5,
   summary: 600,
   roles: 5,
-  locations: 3
+  locations: 3,
+  headline: 100,
+  bullet: 250,
+  name: 50,
+  text: 100,
+  groupName: 50,
+  projectName: 150,
+  skill: 50,
+  preference: 60
 };
 const LIMITS = {
   short: 200,
@@ -294,6 +302,11 @@ function endsBeforeStartYear(entry) {
   return Boolean(entry.start && entry.end) && Math.floor(monthNumber(entry.end) / 12) < Math.floor(monthNumber(entry.start) / 12);
 }
 
+// Checks whether any of the values is longer than the limit
+function tooLong(values, max) {
+  return values.some((value) => value?.length > max);
+}
+
 // Returns the first reason the profile can't be saved, or null
 function saveProblem(cv, prefs) {
   const L = SAVE_LIMITS;
@@ -323,7 +336,22 @@ function saveProblem(cv, prefs) {
     [cv.extras.some((group) => group.items.length > L.extraItems), `Each other section can have up to ${L.extraItems} items.`],
     [prefs.roles.length === 0 || prefs.roles.length > L.roles, `Add 1 to ${L.roles} roles.`],
     [prefs.locations.length === 0 || prefs.locations.length > L.locations, `Add 1 to ${L.locations} locations.`],
-    [prefs.workplace_models.length === 0, "Choose at least one workplace type."]
+    [prefs.workplace_models.length === 0, "Choose at least one workplace type."],
+    [tooLong([cv.name], L.name), `Keep your name to ${L.name} characters.`],
+    [tooLong([cv.headline], L.headline), `Keep the headline to ${L.headline} characters.`],
+    [tooLong([cv.email, cv.location], L.text), `Keep your email and location to ${L.text} characters.`],
+    [cv.experience.some((entry) => tooLong([entry.title, entry.company, entry.location], L.text)),
+      `Keep each experience title, company and location to ${L.text} characters.`],
+    [cv.education.some((entry) => tooLong([entry.degree, entry.major, entry.school, entry.location], L.text)),
+      `Keep each degree, field, school and location to ${L.text} characters.`],
+    [cv.projects.some((entry) => tooLong([entry.name], L.projectName)), `Keep each project name to ${L.projectName} characters.`],
+    [[...cv.experience, ...cv.projects].some((entry) => entry.bullets.some((bullet) => tooLong([bullet.text], L.bullet))),
+      `Keep each bullet to ${L.bullet} characters.`],
+    [cv.extras.some((group) => tooLong(group.items, L.bullet)), `Keep each item in another section to ${L.bullet} characters.`],
+    [cv.extras.some((group) => tooLong([group.title], L.groupName)), `Keep each section title to ${L.groupName} characters.`],
+    [cv.skills.some((group) => tooLong([group.category], L.groupName)), `Keep each skill group name to ${L.groupName} characters.`],
+    [cv.skills.some((group) => tooLong(group.items, L.skill)), `Keep each skill to ${L.skill} characters.`],
+    [tooLong([...prefs.roles, ...prefs.locations], L.preference), `Keep each role and location to ${L.preference} characters.`]
   ];
 
   return checks.find(([failed]) => failed)?.[1] ?? null;
@@ -475,6 +503,7 @@ function cvToText(cv) {
 
 module.exports = {
   WORKPLACE_MODELS,
+  SAVE_LIMITS,
   normalizeCv,
   normalizePreferences,
   hasContent,

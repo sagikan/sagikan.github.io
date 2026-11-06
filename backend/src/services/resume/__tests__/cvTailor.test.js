@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 const require = createRequire(import.meta.url);
 const claude = require("../../ai/anthropic");
-const { applyEdits, fetchPosting, tailor } = require("../cvTailor");
+const { applyEdits, fetchPosting, tailor, tailoringProblem } = require("../cvTailor");
 
 const BASE = {
   name: "Dana Levi",
@@ -100,6 +100,25 @@ describe("tailor", () => {
       expect(cv.summary).toBe("First paragraph\nSecond paragraph");
     });
 
+    it.each([
+      ["a headline over 100 characters", { headline: "h".repeat(101) }],
+      ["a summary over 600 characters", { summary: "s".repeat(601) }]
+    ])("keeps the resume's own text when Claude gives %s", async (_title, parts) => {
+      mockTailoring(parts);
+      const { cv } = await tailor(BASE, JOB);
+
+      expect(cv.headline).toBe(BASE.headline);
+      expect(cv.summary).toBe(BASE.summary);
+    });
+
+    it("accepts a headline of 100 characters and a summary of 600", async () => {
+      mockTailoring({ headline: "h".repeat(100), summary: "s".repeat(600) });
+      const { cv } = await tailor(BASE, JOB);
+
+      expect(cv.headline).toHaveLength(100);
+      expect(cv.summary).toHaveLength(600);
+    });
+
     it("flags a summary that adds a number the resume doesn't have", async () => {
       mockTailoring({ summary: "Built 7 services." });
 
@@ -121,6 +140,16 @@ describe("tailor", () => {
       expect(cv.experience[0].bullets).toEqual([
         { id: "x1.b2", text: "Built APIs for payments", original: "Wrote APIs" },
         { id: "x1.b1", text: "Cut latency by 40%", original: "Cut latency by 40%" }
+      ]);
+    });
+
+    it("keeps the original text of a bullet Claude rewrote to more than 250 characters", async () => {
+      mockTailoring({ experience: [{ id: "x1", bullets: [{ source_id: "x1.b2", text: "b".repeat(251) }, { source_id: "x1.b1", text: "b".repeat(250) }] }] });
+      const { cv } = await tailor(BASE, JOB);
+
+      expect(cv.experience[0].bullets).toEqual([
+        { id: "x1.b2", text: "Wrote APIs", original: "Wrote APIs" },
+        { id: "x1.b1", text: "b".repeat(250), original: "Cut latency by 40%" }
       ]);
     });
 
@@ -194,6 +223,12 @@ describe("tailor", () => {
       mockTailoring({ skills: [{ category: " Backend ", items: ["sql", " JAVASCRIPT ", "Kubernetes"] }] });
 
       expect((await tailor(BASE, JOB)).cv.skills).toEqual([{ category: "Backend", items: ["SQL", "JavaScript"] }]);
+    });
+
+    it("cuts a skill group name to 50 characters", async () => {
+      mockTailoring({ skills: [{ category: "c".repeat(60), items: ["Docker"] }] });
+
+      expect((await tailor(BASE, JOB)).cv.skills[0].category).toBe("c".repeat(50));
     });
 
     it("lists each skill once and drops groups left empty", async () => {
@@ -276,6 +311,59 @@ describe("fetchPosting", () => {
 
     expect(await fetchPosting("https://example.com/job")).toBeNull();
     expect(send).not.toHaveBeenCalled();
+  });
+});
+
+describe("tailoringProblem", () => {
+  // Builds a saved tailoring, then applies a change to a copy of it
+  function edited(change) {
+    const saved = copyBase();
+    const cv = structuredClone(saved);
+
+    change(cv);
+
+    return { saved, cv };
+  }
+
+  it("finds nothing wrong with a resume that fits every limit", () => {
+    const { saved, cv } = edited((copy) => {
+      copy.headline = "h".repeat(100);
+      copy.summary = "s".repeat(600);
+      copy.experience[0].bullets[0].text = "b".repeat(250);
+      copy.skills[0] = { category: "c".repeat(50), items: ["s".repeat(50)] };
+    });
+
+    expect(tailoringProblem(cv, saved)).toBeNull();
+  });
+
+  it.each([
+    ["a headline over 100 characters", (cv) => { cv.headline = "h".repeat(101); }, "Keep the headline to 100 characters."],
+    ["a summary over 600 characters", (cv) => { cv.summary = "s".repeat(601); }, "Keep the summary to 600 characters."],
+    ["an experience bullet over 250 characters", (cv) => { cv.experience[0].bullets[0].text = "b".repeat(251); }, "Keep each bullet to 250 characters."],
+    ["a project bullet over 250 characters", (cv) => { cv.projects[0].bullets[0].text = "b".repeat(251); }, "Keep each bullet to 250 characters."],
+    ["a skill group name over 50 characters", (cv) => { cv.skills[0].category = "c".repeat(51); }, "Keep each skill group name to 50 characters."],
+    ["a skill over 50 characters", (cv) => { cv.skills[0].items.push("s".repeat(51)); }, "Keep each skill to 50 characters."]
+  ])("reports %s", (_title, change, message) => {
+    const { saved, cv } = edited(change);
+
+    expect(tailoringProblem(cv, saved)).toBe(message);
+  });
+
+  it("leaves alone a long text that the saved resume already had", () => {
+    const saved = copyBase();
+
+    saved.headline = "h".repeat(150);
+    saved.summary = "s".repeat(900);
+    saved.experience[0].bullets[0].text = "b".repeat(400);
+
+    expect(tailoringProblem(structuredClone(saved), saved)).toBeNull();
+  });
+
+  it("still reports a long text that was edited, even if the saved one was long too", () => {
+    const saved = { ...copyBase(), summary: "s".repeat(900) };
+    const cv = { ...saved, summary: "t".repeat(700) };
+
+    expect(tailoringProblem(cv, saved)).toBe("Keep the summary to 600 characters.");
   });
 });
 

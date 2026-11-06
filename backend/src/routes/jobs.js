@@ -478,6 +478,12 @@ router.put("/:id/tailoring", async (req, res) => {
       ? await db.query(`SELECT cv FROM cv_profiles WHERE user_id = $1`, [req.user.id])
       : null;
     const cv = req.body?.cv ? cvTailor.applyEdits(current.rows[0].cv, req.body.cv, base?.rows[0]?.cv) : current.rows[0].cv;
+    const problem = req.body?.cv ? cvTailor.tailoringProblem(cv, current.rows[0].cv) : null;
+
+    if (problem) {
+      return res.status(400).json({ error: problem });
+    }
+
     const includeGradeSheet = typeof req.body?.include_grade_sheet === "boolean"
       ? req.body.include_grade_sheet
       : current.rows[0].include_grade_sheet;
