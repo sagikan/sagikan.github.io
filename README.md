@@ -34,6 +34,7 @@
 │       ├── app.js           # builds the Express app: middleware and routes
 │       ├── server.js        # entry point: starts the app, daily cleanup
 │       ├── config/          # database connection and SSL
+│       ├── mcp/             # local MCP server for dev sessions
 │       ├── middleware/      # auth, CSRF, rate limits, security headers
 │       ├── routes/          # one file per API area
 │       └── services/        # business logic by domain
