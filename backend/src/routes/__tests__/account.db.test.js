@@ -182,6 +182,30 @@ describe("POST /api/account/recovery-codes", () => {
 
     expect(res.status).toBe(429);
   });
+
+  it("leaves another user's recovery codes alone", async () => {
+    const { client, user } = await signedInClient();
+    const other = await createUser({ email: "noa@example.com" });
+
+    await auth.replaceRecoveryCodes(db, other.id);
+
+    const before = (await db.query("SELECT code_hash FROM recovery_codes WHERE user_id = $1 ORDER BY id", [other.id])).rows;
+    const res = await client.post("/api/account/recovery-codes").send({ code: totp(user.totpSecret) });
+
+    expect(res.status).toBe(200);
+    expect((await db.query("SELECT code_hash FROM recovery_codes WHERE user_id = $1 ORDER BY id", [other.id])).rows).toEqual(before);
+    expect((await db.query("SELECT 1 FROM recovery_codes WHERE user_id = $1", [user.id])).rowCount).toBe(10);
+  });
+
+  it("refuses another user's recovery code and leaves it unused", async () => {
+    const { client } = await signedInClient();
+    const other = await createUser({ email: "noa@example.com" });
+    const [theirs] = await auth.replaceRecoveryCodes(db, other.id);
+    const res = await client.post("/api/account/recovery-codes").send({ recoveryCode: theirs });
+
+    expect(res.status).toBe(400);
+    expect((await db.query("SELECT 1 FROM recovery_codes WHERE user_id = $1 AND used_at IS NULL", [other.id])).rowCount).toBe(10);
+  });
 });
 
 describe("changing the authenticator", () => {
@@ -228,6 +252,27 @@ describe("changing the authenticator", () => {
 
       expect(res.status).toBe(429);
     });
+
+    it("leaves another user's authenticator alone", async () => {
+      const { client, user } = await signedInClient();
+      const other = await createUser({ email: "noa@example.com" });
+      const res = await client.post("/api/account/mfa/reset/start").send({ password: PASSWORD, code: totp(user.totpSecret) });
+      const theirs = await userRow("noa@example.com");
+
+      expect(res.status).toBe(200);
+      expect(theirs.totp_pending_secret).toBeNull();
+      expect(mfa.decryptSecret(theirs.totp_secret)).toBe(other.totpSecret);
+    });
+
+    it("refuses another user's authenticator code", async () => {
+      const { client } = await signedInClient();
+      const other = await createUser({ email: "noa@example.com" });
+      const res = await client.post("/api/account/mfa/reset/start").send({ password: PASSWORD, code: totp(other.totpSecret) });
+
+      expect(res.status).toBe(400);
+      expect((await userRow()).totp_pending_secret).toBeNull();
+      expect((await userRow("noa@example.com")).totp_pending_secret).toBeNull();
+    });
   });
 
   describe("POST /api/account/mfa/reset/confirm", () => {
@@ -253,6 +298,23 @@ describe("changing the authenticator", () => {
         res.body.recoveryCodes.map((code) => mfa.hashCode(mfa.normalizeRecoveryCode(code))).sort()
       );
       await vi.waitFor(() => expect(mail.notices()).toEqual(["mfa_reset dana@example.com"]));
+    });
+
+    it("leaves another user's authenticator, session and recovery codes alone", async () => {
+      const { client, user } = await signedInClient();
+      const other = await signedInClient({ email: "noa@example.com" });
+
+      await auth.replaceRecoveryCodes(db, other.user.id);
+
+      const newSecret = await startReset(client, user);
+      const res = await client.post("/api/account/mfa/reset/confirm").send({ code: totp(newSecret) });
+      const theirs = await userRow("noa@example.com");
+
+      expect(res.status).toBe(200);
+      expect(mfa.decryptSecret(theirs.totp_secret)).toBe(other.user.totpSecret);
+      expect(theirs).toMatchObject({ totp_pending_secret: null, token_version: 0 });
+      expect((await other.client.get("/api/auth/me")).status).toBe(200);
+      expect((await db.query("SELECT 1 FROM recovery_codes WHERE user_id = $1", [other.user.id])).rowCount).toBe(10);
     });
 
     it("signs out every other session, and keeps the one that made the change signed in", async () => {

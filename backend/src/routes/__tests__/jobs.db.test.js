@@ -138,6 +138,8 @@ describe("the profile", () => {
     ["a resume with no entries", { cv: { name: "Dana", email: "d@x.com" } }, "Add at least one experience, education or project entry."],
     ["no email", { cv: { ...CV, email: "" } }, "Add your name and email."],
     ["an experience entry without dates", { cv: { ...CV, experience: [{ title: "Dev", company: "Acme", bullets: [] }] } }, "Every experience entry needs a start and end month."],
+    ["a name over 50 characters", { cv: { ...CV, name: "n".repeat(51) } }, "Keep your name to 50 characters."],
+    ["a role over 60 characters", { preferences: { ...PREFS, roles: ["r".repeat(61)] } }, "Keep each role and location to 60 characters."],
     ["no roles", { preferences: { ...PREFS, roles: [] } }, "Add 1 to 5 roles."],
     ["no workplace type", { preferences: { ...PREFS, workplace_models: [] } }, "Choose at least one workplace type."]
   ])("refuses %s", async (_title, parts, message) => {
@@ -802,6 +804,16 @@ describe("tailoring a resume", () => {
       expect(res.body.tailoring.cv.experience[0].bullets).toEqual([{ id: "x1.b1", text: "Built internal APIs", original: "Built APIs" }]);
     });
 
+    it("refuses an edited bullet over 250 characters and keeps the saved one", async () => {
+      const { client, user } = await signedInClient();
+      const id = await tailoredJob(client, user);
+      const res = await client.put(`/api/jobs/${id}/tailoring`).send({ cv: { experience: [{ id: "x1", bullets: [{ id: "x1.b1", text: "b".repeat(251) }] }] } });
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ error: "Keep each bullet to 250 characters." });
+      expect((await client.get(`/api/jobs/${id}/tailoring`)).body.tailoring.cv.experience[0].bullets[0].text).toBe("Built APIs");
+    });
+
     it("brings back a bullet that was left out, from the saved resume", async () => {
       const { client, user } = await signedInClient();
       const id = await tailoredJob(client, user);
@@ -993,6 +1005,27 @@ describe("POST /api/jobs/search", () => {
     await db.query("INSERT INTO job_searches (user_id, status) VALUES ($1, 'running')", [user.id]);
 
     expect((await client.post("/api/jobs/search").send({})).body.started).toBe(false);
+  });
+
+  it("isn't blocked by another user's running search, and leaves it running", async () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "test-key");
+    vi.spyOn(feeds, "ensureFresh").mockResolvedValue();
+
+    const { client, user } = await signedInClient();
+    const other = await signedInClient({ email: "noa@example.com" });
+
+    await saveProfile(client);
+    await db.query("INSERT INTO job_searches (user_id, status) VALUES ($1, 'running')", [other.user.id]);
+
+    const res = await client.post("/api/jobs/search").send({});
+
+    expect(res.body.started).toBe(true);
+
+    await vi.waitFor(async () => {
+      expect((await db.query("SELECT 1 FROM job_searches WHERE user_id = $1 AND status = 'running'", [user.id])).rowCount).toBe(0);
+    });
+
+    expect((await db.query("SELECT status FROM job_searches WHERE user_id = $1", [other.user.id])).rows).toEqual([{ status: "running" }]);
   });
 
   it("records a failed search with a message the user can read", async () => {
