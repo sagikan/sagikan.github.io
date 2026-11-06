@@ -790,7 +790,7 @@ function CvEditor({ cv, onChange, mode = "base", showChanges = false, original =
                 rows={3}
                 aria-label="Summary"
                 value={cv.summary}
-                maxLength={base ? LIMITS.summary : undefined}
+                maxLength={LIMITS.summary}
                 onChange={(event) => set("summary", event.target.value)}
                 {...fieldProps}
               />
