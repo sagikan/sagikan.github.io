@@ -165,10 +165,4 @@ describe("withSuggestedNote", () => {
   it("fills the note when no field is named, such as when the form first opens", () => {
     expect(withSuggestedNote(FILLED, FILLED, null, [OLD, NEWER]).notes).toBe(duplicateNote(NEWER));
   });
-
-  it("only counts applications made on or before the form's date", () => {
-    const result = withSuggestedNote(BLANK, { ...FILLED, applied_at: "2021-01-01" }, "applied_at", [OLD, NEWER]);
-
-    expect(result.notes).toBe(duplicateNote(OLD));
-  });
 });

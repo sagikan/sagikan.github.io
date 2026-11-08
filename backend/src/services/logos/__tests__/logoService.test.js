@@ -328,24 +328,6 @@ describe("getLogo", () => {
     const OLD = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000);
     const NEW_PNG = Buffer.from([137, 80, 78, 71, 1]);
 
-    it("stops looking up new companies for a user after the daily allowance", async () => {
-      const fetchMock = mockFetch(() => jsonResponse({ data: [] }));
-
-      mockChoice(0);
-      mockCache(null);
-
-      for (let number = 0; number < 150; number++) {
-        await getLogo(`Company ${number}`, { userId: 99 });
-      }
-
-      const callsBefore = fetchMock.mock.calls.length;
-
-      expect(await getLogo("One more", { userId: 99 })).toBeNull();
-      expect(fetchMock.mock.calls.length).toBe(callsBefore);
-      expect(await getLogo("Another user's", { userId: 100 })).toBeNull();
-      expect(fetchMock.mock.calls.length).toBeGreaterThan(callsBefore);
-    });
-
     it("looks a logo up again after it is 180 days old and saves the new one", async () => {
       mockChoice(0);
 
@@ -524,22 +506,6 @@ describe("downloadImage", () => {
 
     expect(await downloadImage("orbit.com")).toBeNull();
     expect(chunks).toBeLessThan(10);
-  });
-
-  it("stops after the daily allowance, which is a 31st of the free month, and starts again the next day", async () => {
-    useLogoService();
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2031-01-01T10:00:00Z"));
-    mockFetch(image());
-
-    for (let number = 0; number < USER_IMAGES_PER_DAY; number++) {
-      await downloadImage("orbit.com");
-    }
-
-    await expect(downloadImage("orbit.com")).rejects.toBeInstanceOf(DailyLimitError);
-    vi.setSystemTime(new Date("2031-01-02T00:00:01Z"));
-
-    expect(await downloadImage("orbit.com")).toEqual({ image: PNG, contentType: "image/png" });
   });
 
   it("splits the day's allowance, a 31st of the free month, between the users' lookups and the job feed's", () => {
@@ -904,7 +870,7 @@ describe("getLogo edge cases", () => {
   });
 
   describe("the limits", () => {
-    it("allows a user 150 new lookups a day, then none, and starts again the next day", async () => {
+    it("allows a user 150 new lookups a day, then none, without stopping other users, and starts again the next day", async () => {
       vi.useFakeTimers({ toFake: ["Date"] });
       vi.setSystemTime(new Date("2032-03-01T10:00:00Z"));
       mockChoice(0);
@@ -922,10 +888,16 @@ describe("getLogo edge cases", () => {
 
       expect(MAX_LOOKUPS_PER_DAY).toBe(150);
       expect(fetchMock.mock.calls.length).toBe(callsAfterLimit);
+      await getLogo("Another user's", { userId: 78 });
+
+      expect(fetchMock.mock.calls.length).toBeGreaterThan(callsAfterLimit);
+
+      const callsBeforeNextDay = fetchMock.mock.calls.length;
+
       vi.setSystemTime(new Date("2032-03-02T00:00:01Z"));
       await getLogo("One more", { userId: 77 });
 
-      expect(fetchMock.mock.calls.length).toBeGreaterThan(callsAfterLimit);
+      expect(fetchMock.mock.calls.length).toBeGreaterThan(callsBeforeNextDay);
     });
 
     it("does not count cached logos against the allowance", async () => {

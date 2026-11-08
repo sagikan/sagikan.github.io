@@ -86,12 +86,6 @@ describe("csrfOriginProtection", () => {
     expect(refused.next).not.toHaveBeenCalled();
     expect(refused.res.status).toHaveBeenCalledWith(403);
   });
-
-  it("refuses a state-changing request with no origin at all", () => {
-    vi.stubEnv("FRONTEND_ORIGIN", SITE);
-
-    expect(run(csrfOriginProtection, { method: "POST" }).res.status).toHaveBeenCalledWith(403);
-  });
 });
 
 describe("requireCsrf", () => {

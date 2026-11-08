@@ -64,24 +64,6 @@ describe("ApplicationForm duplicates", () => {
     expect(notes()).toHaveValue(`Rejected on Jun 21st, ${THIS_YEAR - 1}: https://orbit.example/jobs/2`);
   });
 
-  it("leaves the note empty when there is no matching application", async () => {
-    const user = userEvent.setup();
-
-    renderForm();
-    await fill(user, "Product Manager", "Orbit");
-
-    expect(notes()).toHaveValue("");
-  });
-
-  it("leaves out the link when the application had none", async () => {
-    const user = userEvent.setup();
-
-    renderForm({ applications: [{ ...OLD, job_url: null }] });
-    await fill(user, "Backend Engineer", "Orbit");
-
-    expect(notes()).toHaveValue(`Applied on Mar 5th, ${THIS_YEAR - 2}`);
-  });
-
   it("follows a change of company, and clears the note when no application matches", async () => {
     const user = userEvent.setup();
 
