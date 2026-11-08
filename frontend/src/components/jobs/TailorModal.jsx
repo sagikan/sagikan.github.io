@@ -9,6 +9,8 @@ import Alert from "../ui/Alert";
 import ButtonIcon from "../ui/ButtonIcon";
 import { MAX_GRADES_MB, checkPdf } from "../../utils/resume/pdfFiles";
 import { useDismiss } from "../../hooks/useDismiss";
+import { useMachine } from "../../hooks/useMachine";
+import { TAILOR } from "../../utils/resume/resumeMachines";
 
 const PREVIEW_WIDTH = 220;
 const PREVIEW_DELAY_MS = 300;
@@ -266,7 +268,7 @@ function TailorModal({ job, csrfToken, baseCv, gradeSheet, onGradeSheetChange, o
   const [tailoring, setTailoring] = useState(null);
   const [cv, setCv] = useState(null);
   const [includeGrades, setIncludeGrades] = useState(false);
-  const [status, setStatus] = useState("loading");
+  const [status, sendStatus] = useMachine(TAILOR);
   const [error, setError] = useState("");
   const [showChanges, setShowChanges] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
@@ -282,12 +284,12 @@ function TailorModal({ job, csrfToken, baseCv, gradeSheet, onGradeSheetChange, o
     setCv(saved.cv);
     setIncludeGrades(saved.include_grade_sheet && hasGradeSheet);
     setDirty(false);
-    setStatus("ready");
-  }, [hasGradeSheet]);
+    sendStatus("loaded");
+  }, [hasGradeSheet, sendStatus]);
 
   // Asks the server to tailor the resume
   const generate = useCallback(async () => {
-    setStatus("tailoring");
+    sendStatus("generate");
     setError("");
 
     try {
@@ -295,7 +297,7 @@ function TailorModal({ job, csrfToken, baseCv, gradeSheet, onGradeSheetChange, o
 
       if (!response.ok) {
         setError(data.error || "Could not tailor your resume.");
-        setStatus(tailoring ? "ready" : "failed");
+        sendStatus("fail", tailoring ? "ready" : "failed");
 
         return;
       }
@@ -304,9 +306,9 @@ function TailorModal({ job, csrfToken, baseCv, gradeSheet, onGradeSheetChange, o
       onTailored(job.id, data.description);
     } catch {
       setError("Could not reach the server. Please try again.");
-      setStatus(tailoring ? "ready" : "failed");
+      sendStatus("fail", tailoring ? "ready" : "failed");
     }
-  }, [job.id, csrfToken, tailoring, accept, onTailored, request]);
+  }, [job.id, csrfToken, tailoring, accept, onTailored, request, sendStatus]);
 
   useEffect(() => {
     if (started.current) {
@@ -325,14 +327,14 @@ function TailorModal({ job, csrfToken, baseCv, gradeSheet, onGradeSheetChange, o
           generate();
         } else {
           setError(data.error || "Could not load the tailored resume.");
-          setStatus("failed");
+          sendStatus("fail");
         }
       } catch {
         setError("Could not reach the server. Please try again.");
-        setStatus("failed");
+        sendStatus("fail");
       }
     })();
-  }, [job.id, accept, generate, request]);
+  }, [job.id, accept, generate, request, sendStatus]);
 
   // Saves the edited tailoring
   async function save() {
