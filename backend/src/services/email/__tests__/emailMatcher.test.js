@@ -86,6 +86,21 @@ describe("matchApplication", () => {
     expect(result).toMatchObject({ kind: "match", application: BACKEND });
   });
 
+  it("offers the one application with the same title when no company matches", () => {
+    const result = matchApplication({ company: "Engineering", position: "frontend developer" }, [BACKEND, FRONTEND], "2026-04-01");
+
+    expect(result).toEqual({ kind: "ambiguous", candidates: [FRONTEND] });
+  });
+
+  it.each([
+    ["the email names no position", { company: "Engineering", position: "" }, "2026-04-01"],
+    ["the title only partly fits", { company: "Engineering", position: "Senior Frontend Developer" }, "2026-04-01"],
+    ["several applications share the title", { company: "Engineering", position: "Backend Engineer" }, "2026-04-01"],
+    ["the only fitting application was made after the email", { company: "Engineering", position: "Frontend Developer" }, "2026-03-05"]
+  ])("finds no match by title when %s", (_title, event, receivedDay) => {
+    expect(matchApplication(event, [BACKEND, FRONTEND, OTHER], receivedDay)).toEqual({ kind: "none" });
+  });
+
   it("treats an application without a date as already made", () => {
     const undated = { ...BACKEND, applied_at: null };
 

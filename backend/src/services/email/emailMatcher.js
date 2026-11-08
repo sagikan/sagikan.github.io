@@ -71,6 +71,22 @@ function positionScore(a, b) {
   return jaccard(tokens(a, POSITION_NOISE), tokens(b, POSITION_NOISE));
 }
 
+// Checks whether an application was made by the day the email arrived
+function appliedBy(application, receivedDay) {
+  return !application.applied_at || !receivedDay || application.applied_at <= receivedDay;
+}
+
+/* Offers the one application with the exact same title when no company matches, since some emails don't
+   name the company. It goes to review as a choice, never as a match */
+function matchByPosition(event, applications, receivedDay) {
+  const fits = applications.filter(
+    (application) =>
+      event.position && appliedBy(application, receivedDay) && positionScore(event.position, application.position) === 1
+  );
+
+  return fits.length === 1 ? { kind: "ambiguous", candidates: fits } : { kind: "none" };
+}
+
 // Finds the application an email is about
 function matchApplication(event, applications, receivedDay) {
   const candidates = applications
@@ -82,12 +98,10 @@ function matchApplication(event, applications, receivedDay) {
     .filter((candidate) => candidate.company >= COMPANY_MATCH_MIN);
 
   if (candidates.length === 0) {
-    return { kind: "none" };
+    return matchByPosition(event, applications, receivedDay);
   }
 
-  const existing = candidates.filter(
-    ({ application }) => !application.applied_at || !receivedDay || application.applied_at <= receivedDay
-  );
+  const existing = candidates.filter(({ application }) => appliedBy(application, receivedDay));
 
   if (existing.length === 0) {
     return { kind: "predates" };
