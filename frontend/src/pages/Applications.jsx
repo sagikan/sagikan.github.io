@@ -328,12 +328,13 @@ function Applications({
     return message;
   }
 
-  // Renders the accept and dismiss buttons for an update
+  // Renders the update's main button (accept, add, or choose the application) and its dismiss button
   function renderDecision(update, { primary = "accept" } = {}) {
     const busy = resolvingId === update.id;
 
     return (
       <div className="decision">
+        {primary === "choose" && renderChoices(update)}
         {primary === "accept" && (
           <button
             type="button"
@@ -681,8 +682,7 @@ function Applications({
                         aria-label={`${update.suggested_status}`}
                       >
                         <MailHint update={update} />
-                        {update.candidate_ids.length > 0 && renderChoices(update)}
-                        {renderDecision(update, { primary: update.candidate_ids.length > 0 ? null : "add" })}
+                        {renderDecision(update, { primary: update.candidate_ids.length > 0 ? "choose" : "add" })}
                       </div>
 
                       <MailLine update={update} />
