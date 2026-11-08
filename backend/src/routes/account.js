@@ -109,6 +109,8 @@ router.post("/mfa/reset/start", async (req, res) => {
 
     res.set("Cache-Control", "no-store");
 
+    auth.logDevTotp(user.email, secret);
+
     res.json(await auth.mfaSetupPayload(secret, user.email));
   } catch (err) {
     console.error(err);
