@@ -9,6 +9,8 @@ import RecoveryCodesStep from "../components/auth/RecoveryCodesStep";
 import ResetPasswordStep from "../components/auth/ResetPasswordStep";
 import VerifyEmailStep from "../components/auth/VerifyEmailStep";
 import { apiRequest } from "../lib/api";
+import { useMachine } from "../hooks/useMachine";
+import { SIGN_IN_STEPS } from "../utils/auth/authMachines";
 import { newPasswordError } from "../utils/auth/authForms";
 import { redirect } from "../lib/router";
 import { POLICY_VERSION } from "../utils/policy/policy";
@@ -57,7 +59,7 @@ const BACK_ICON = (
 
 // Sign-in and sign-up page with all their steps
 function Login({ mode, onAuthenticated, apiStatus }) {
-  const [step, setStep] = useState("credentials");
+  const [step, sendStep] = useMachine(SIGN_IN_STEPS);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -79,14 +81,14 @@ function Login({ mode, onAuthenticated, apiStatus }) {
 
   // Returns to the first step with a message
   const restart = useCallback((message = "", successNotice = "") => {
-    setStep("credentials");
+    sendStep("restart");
     setPassword("");
     setConfirmPassword("");
     setSubmitted(false);
     setUsingRecoveryCode(false);
     setError(message);
     setNotice(successNotice);
-  }, []);
+  }, [sendStep]);
 
   // Sends a request, restarting when the sign-in expired
   const request = useCallback(async (path, body = {}) => {
@@ -140,7 +142,7 @@ function Login({ mode, onAuthenticated, apiStatus }) {
     setPassword("");
     setConfirmPassword("");
     setEmailSent(result.data.emailSent !== false);
-    setStep(result.data.next);
+    sendStep("submitted", result.data.next);
   }
 
   const header = STEP_HEADERS[step];
@@ -179,7 +181,7 @@ function Login({ mode, onAuthenticated, apiStatus }) {
         </div>
 
         {step === "verify_email" && (
-          <VerifyEmailStep request={request} emailSent={emailSent} onNext={setStep} />
+          <VerifyEmailStep request={request} emailSent={emailSent} onNext={(next) => sendStep("verified", next)} />
         )}
 
         {step === "mfa_setup" && (
@@ -188,7 +190,7 @@ function Login({ mode, onAuthenticated, apiStatus }) {
             onConfirmed={(data) => {
               setRecoveryCodes(data.recoveryCodes);
               setVerifiedEmail(data.user.email);
-              setStep("recovery_codes");
+              sendStep("confirmed");
             }}
           />
         )}
@@ -212,7 +214,7 @@ function Login({ mode, onAuthenticated, apiStatus }) {
             onSent={(sentTo, message) => {
               setEmail(sentTo);
               setResetMessage(message);
-              setStep("reset_password");
+              sendStep("codeSent");
             }}
           />
         )}
@@ -273,7 +275,7 @@ function Login({ mode, onAuthenticated, apiStatus }) {
                         onClick={() => {
                           setError("");
                           setNotice("");
-                          setStep("forgot_password");
+                          sendStep("forgotPassword");
                         }}
                       >
                         Forgot password?

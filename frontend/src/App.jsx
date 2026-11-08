@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { apiRequest, checkHealth } from "./lib/api";
+import { apiRequest, checkHealth, onReachability } from "./lib/api";
 import { navigate, redirect, useHashRoute } from "./lib/router";
+import { useMachine } from "./hooks/useMachine";
+import { API_HEALTH, SESSION } from "./utils/auth/authMachines";
 import Footer from "./components/layout/Footer";
 import Navbar from "./components/layout/Navbar";
 import Alert from "./components/ui/Alert";
@@ -20,10 +22,10 @@ const EMAIL_REFRESH_MS = 2 * 60 * 1000;
 // Root component: checks the session and routes between pages
 function App() {
   const route = useHashRoute();
-  const [apiStatus, setApiStatus] = useState("checking");
-  const [booting, setBooting] = useState(true);
+  const [apiStatus, sendHealth] = useMachine(API_HEALTH);
+  const [session, sendSession] = useMachine(SESSION);
   const [csrfToken, setCsrfToken] = useState("");
-  const [authenticated, setAuthenticated] = useState(false);
+  const authenticated = session === "signed_in";
   const [email, setEmail] = useState("");
   const [seenPolicy, setSeenPolicy] = useState(undefined);
   const [applications, setApplications] = useState([]);
@@ -33,12 +35,12 @@ function App() {
 
   // Clears all signed-in state
   const clearSession = useCallback(() => {
-    setAuthenticated(false);
+    sendSession("signOut");
     setApplications([]);
     setEmailUpdates(NO_EMAIL_UPDATES);
     setSeenPolicy(undefined);
     setCsrfToken("");
-  }, []);
+  }, [sendSession]);
 
   // Loads pending and recent email updates
   const loadEmailUpdates = useCallback(async () => {
@@ -90,46 +92,46 @@ function App() {
       }
 
       setApplications(data);
-      setAuthenticated(true);
+      sendSession("signIn");
       setError("");
       loadEmailUpdates();
     } catch (err) {
       setError(err.message);
     }
-  }, [clearSession, loadEmailUpdates]);
+  }, [clearSession, loadEmailUpdates, sendSession]);
+
+  useEffect(() => onReachability((reached) => sendHealth(reached ? "online" : "offline")), [sendHealth]);
 
   useEffect(() => {
     // Checks the API and restores the session on first load
     async function initialize() {
       try {
         const result = await checkHealth();
-        setApiStatus(result.status === "ok" ? "online" : "offline");
+        sendHealth(result.status === "ok" ? "online" : "offline");
       } catch {
-        setApiStatus("offline");
-        setBooting(false);
+        sendHealth("offline");
+        sendSession("signOut");
 
         return;
       }
 
       try {
         if (await refreshCsrfToken()) {
-          setAuthenticated(true);
           await Promise.all([loadUser(), loadApps()]);
+          sendSession("restore");
         } else {
-          setAuthenticated(false);
+          sendSession("signOut");
         }
       } catch {
-        setAuthenticated(false);
-      } finally {
-        setBooting(false);
+        sendSession("signOut");
       }
     }
 
     initialize();
-  }, [refreshCsrfToken, loadUser, loadApps]);
+  }, [refreshCsrfToken, loadUser, loadApps, sendHealth, sendSession]);
 
   useEffect(() => {
-    if (booting) {
+    if (session === "restoring") {
       return;
     }
 
@@ -138,7 +140,7 @@ function App() {
     } else if ((route === "/login" || route === "/signup") && authenticated) {
       redirect("/applications");
     }
-  }, [route, authenticated, booting]);
+  }, [route, authenticated, session]);
 
   useEffect(() => {
     if (!authenticated || route !== "/applications") {
@@ -177,7 +179,7 @@ function App() {
 
     try {
       if (await refreshCsrfToken()) {
-        setAuthenticated(true);
+        sendSession("signIn");
       }
 
       await Promise.all([loadUser(), loadApps()]);
@@ -315,7 +317,7 @@ function App() {
         apiStatus={apiStatus}
       />
     );
-  } else if (PROTECTED_ROUTES.includes(route) && (booting || !authenticated)) {
+  } else if (PROTECTED_ROUTES.includes(route) && !authenticated) {
     page = (
       <div className="page-loader" aria-live="polite">
         <span className="spinner" aria-hidden="true" />

@@ -1,6 +1,36 @@
 export const API_URL = import.meta.env.VITE_API_URL;
 export const STATUSES = ["Applied", "Interview", "Offer", "Rejected", "Withdrawn"];
 export const WORKPLACE_MODELS = ["On-site", "Hybrid", "Remote"];
+// Answers from the host in front of the server when the server itself is down
+const SERVER_DOWN_STATUSES = [502, 503, 504];
+const reachabilityListeners = new Set();
+
+// Calls the listener with true each time the server answers and false each time it can't be reached; returns a function that stops it
+export function onReachability(listener) {
+  reachabilityListeners.add(listener);
+
+  return () => {
+    reachabilityListeners.delete(listener);
+  };
+}
+
+// Fetches from the API and tells the listeners whether the server could be reached
+async function apiFetch(path, options) {
+  let response;
+
+  try {
+    response = await fetch(`${API_URL}${path}`, options);
+  } catch (err) {
+    reachabilityListeners.forEach((listener) => listener(false));
+    throw err;
+  }
+
+  const reached = !SERVER_DOWN_STATUSES.includes(response.status);
+
+  reachabilityListeners.forEach((listener) => listener(reached));
+
+  return response;
+}
 
 // Checks that the API is up
 export async function checkHealth() {
@@ -25,7 +55,7 @@ export async function apiRequest(path, { method = "GET", body, csrfToken } = {})
     headers["X-CSRF-Token"] = csrfToken;
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await apiFetch(path, {
     method,
     credentials: "include",
     headers,
@@ -38,7 +68,7 @@ export async function apiRequest(path, { method = "GET", body, csrfToken } = {})
 
 // Uploads a file as the request body
 export async function apiUpload(path, file, { csrfToken, method = "PUT" } = {}) {
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await apiFetch(path, {
     method,
     credentials: "include",
     headers: {
@@ -55,7 +85,7 @@ export async function apiUpload(path, file, { csrfToken, method = "PUT" } = {}) 
 
 // Downloads a file and returns its bytes and name
 export async function apiFile(path) {
-  const response = await fetch(`${API_URL}${path}`, { credentials: "include" });
+  const response = await apiFetch(path, { credentials: "include" });
 
   if (!response.ok) {
     return null;
@@ -74,7 +104,7 @@ export async function apiFile(path) {
 
 // Downloads a company's logo, or returns null when it has none
 export async function apiLogo(company) {
-  const response = await fetch(`${API_URL}/api/logos?company=${encodeURIComponent(company)}`, { credentials: "include" });
+  const response = await apiFetch(`/api/logos?company=${encodeURIComponent(company)}`, { credentials: "include" });
 
   if (response.status === 204) {
     return null;

@@ -7,6 +7,8 @@ import { API_URL, apiRequest } from "../lib/api";
 import appsScript from "../gmailSync/Code.gs?raw";
 import appsScriptManifest from "../gmailSync/appsscript.json?raw";
 import { emptySecondFactor, isSecondFactorComplete, secondFactorBody } from "../utils/auth/authForms";
+import { ACCOUNT_PANEL, AUTHENTICATOR_RESET } from "../utils/auth/authMachines";
+import { useMachine } from "../hooks/useMachine";
 import Alert from "../components/ui/Alert";
 
 const LOW_RECOVERY_CODES = 3;
@@ -18,7 +20,7 @@ function Account({ csrfToken, onSessionChanged, onUnauthorized, onDeleted }) {
   const [recoveryCodesLeft, setRecoveryCodesLeft] = useState(null);
   const [gmailSync, setGmailSync] = useState(NO_GMAIL_SYNC);
   const [loadError, setLoadError] = useState("");
-  const [panel, setPanel] = useState(null);
+  const [panel, sendPanel] = useMachine(ACCOUNT_PANEL);
   const [success, setSuccess] = useState("");
 
   // Sends a request, handling an expired session
@@ -76,12 +78,12 @@ function Account({ csrfToken, onSessionChanged, onUnauthorized, onDeleted }) {
   // Opens a settings panel
   function openPanel(next) {
     setSuccess("");
-    setPanel(next);
+    sendPanel("open", next);
   }
 
   // Closes the panel, shows a message and reloads the settings
   function closePanel(message = "") {
-    setPanel(null);
+    sendPanel("close");
     setSuccess(message);
     setRefreshKey((current) => current + 1);
   }
@@ -125,7 +127,7 @@ function Account({ csrfToken, onSessionChanged, onUnauthorized, onDeleted }) {
           {panel === "codes" && (
             <RegenerateCodesPanel
               request={request}
-              onCancel={() => setPanel(null)}
+              onCancel={() => sendPanel("close")}
               onDone={() => closePanel("New recovery codes are active. Your old codes no longer work.")}
             />
           )}
@@ -150,7 +152,7 @@ function Account({ csrfToken, onSessionChanged, onUnauthorized, onDeleted }) {
             <ResetAuthenticatorPanel
               request={request}
               onSessionChanged={onSessionChanged}
-              onCancel={() => setPanel(null)}
+              onCancel={() => sendPanel("close")}
               onDone={() => closePanel("Your new authenticator app is set up.")}
             />
           )}
@@ -161,7 +163,7 @@ function Account({ csrfToken, onSessionChanged, onUnauthorized, onDeleted }) {
           panel={panel}
           request={request}
           openPanel={openPanel}
-          setPanel={setPanel}
+          sendPanel={sendPanel}
           closePanel={closePanel}
         />
 
@@ -192,7 +194,7 @@ function Account({ csrfToken, onSessionChanged, onUnauthorized, onDeleted }) {
           </div>
 
           {panel === "delete" && (
-            <DeleteAccountPanel request={request} onCancel={() => setPanel(null)} onDeleted={onDeleted} />
+            <DeleteAccountPanel request={request} onCancel={() => sendPanel("close")} onDeleted={onDeleted} />
           )}
         </section>
       </div>
@@ -215,7 +217,7 @@ function lastSyncLabel(lastIngestAt) {
 }
 
 // Card for connecting and managing Gmail sync
-function GmailSyncCard({ status, panel, request, openPanel, setPanel, closePanel }) {
+function GmailSyncCard({ status, panel, request, openPanel, sendPanel, closePanel }) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -296,7 +298,7 @@ function GmailSyncCard({ status, panel, request, openPanel, setPanel, closePanel
           {panel === "emailDisconnect" ? (
             <div className="form-actions">
               <span className="muted">Disconnect and delete all email suggestions?</span>
-              <button type="button" className="btn btn-ghost" onClick={() => setPanel(null)}>Keep</button>
+              <button type="button" className="btn btn-ghost" onClick={() => sendPanel("close")}>Keep</button>
               <button type="button" className="btn btn-danger" onClick={disconnect}>Disconnect</button>
             </div>
           ) : (
@@ -313,7 +315,7 @@ function GmailSyncCard({ status, panel, request, openPanel, setPanel, closePanel
         <GmailSyncSetupPanel
           request={request}
           replacing={status.connected}
-          onCancel={() => setPanel(null)}
+          onCancel={() => sendPanel("close")}
           onDone={() => closePanel("Gmail sync is set up. The first sync runs as soon as you start the script.")}
         />
       )}
@@ -500,7 +502,7 @@ function RegenerateCodesPanel({ request, onCancel, onDone }) {
 
 // Panel for moving 2FA to a new authenticator
 function ResetAuthenticatorPanel({ request, onSessionChanged, onCancel, onDone }) {
-  const [stage, setStage] = useState("verify");
+  const [stage, sendStage] = useMachine(AUTHENTICATOR_RESET);
   const [password, setPassword] = useState("");
   const [factor, setFactor] = useState(emptySecondFactor);
   const [error, setError] = useState("");
@@ -521,7 +523,7 @@ function ResetAuthenticatorPanel({ request, onSessionChanged, onCancel, onDone }
     if (result.ok) {
       setPassword("");
       setSetup(result.data);
-      setStage("setup");
+      sendStage("verified");
     } else {
       setError(result.error);
       setFactor((current) => ({ ...current, code: "" }));
@@ -532,7 +534,15 @@ function ResetAuthenticatorPanel({ request, onSessionChanged, onCancel, onDone }
   async function handleConfirmed(data) {
     await onSessionChanged();
     setCodes(data.recoveryCodes);
-    setStage("codes");
+    sendStage("confirmed");
+  }
+
+  // Goes back to the first step after the server stopped waiting for the new authenticator
+  function handleExpired(message) {
+    setSetup(null);
+    setFactor(emptySecondFactor);
+    setError(message);
+    sendStage("expired");
   }
 
   if (stage === "setup") {
@@ -545,6 +555,7 @@ function ResetAuthenticatorPanel({ request, onSessionChanged, onCancel, onDone }
           confirmPath="/api/account/mfa/reset/confirm"
           submitLabel="Switch to this authenticator"
           onConfirmed={handleConfirmed}
+          onExpired={handleExpired}
         />
         <button type="button" className="btn btn-ghost btn-block" onClick={onCancel}>
           Cancel and keep my current authenticator
