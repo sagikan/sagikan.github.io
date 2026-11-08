@@ -27,6 +27,7 @@
 ```
 .
 ├── backend/
+│   ├── STATE_MACHINES.md    # state tables: jobs, searches, email updates, sign-in, 2FA
 │   ├── schema.sql           # full database schema (safe to re-run)
 │   ├── scripts/             # reset-db.js
 │   ├── tests/               # test setup and helpers (db/ is for database tests)
@@ -40,10 +41,11 @@
 │       └── services/        # business logic by domain
 │           ├── ai/  applications/  auth/  email/  jobs/  logos/  resume/  shared/
 ├── frontend/
+│   ├── STATE_MACHINES.md    # state tables: session, sign-in steps, dialogs, tailoring
 │   ├── tests/               # test setup
 │   └── src/
 │       ├── App.jsx, main.jsx, index.css
-│       ├── lib/             # API client, hash router
+│       ├── lib/             # API client, hash router, state machines
 │       ├── pages/           # one file per route
 │       ├── components/      # ui/, layout/, applications/, auth/, jobs/
 │       ├── hooks/  utils/   # shared hooks; helpers grouped by feature
