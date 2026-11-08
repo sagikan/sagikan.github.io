@@ -125,6 +125,18 @@ CREATE TABLE IF NOT EXISTS email_events (
 CREATE INDEX IF NOT EXISTS email_events_user_state_idx
     ON email_events(user_id, state);
 
+ALTER TABLE email_events DROP CONSTRAINT IF EXISTS email_events_state_check;
+ALTER TABLE email_events ADD CONSTRAINT email_events_state_check
+    CHECK (state IN (
+        'ignored',
+        'pending',
+        'auto_applied',
+        'accepted',
+        'dismissed',
+        'undone',
+        'expired'
+    ));
+
 CREATE TABLE IF NOT EXISTS cv_profiles (
     user_id BIGINT PRIMARY KEY REFERENCES users(id)
         ON DELETE CASCADE,
@@ -200,6 +212,11 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS match_have JSONB NOT NULL DEFAULT '[]'
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS match_missing JSONB NOT NULL DEFAULT '[]';
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS posted_at TIMESTAMPTZ;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT FALSE;
+-- Only an applied job can be hidden (archived); see JOB in src/services/jobs/jobStates.js
+UPDATE jobs SET hidden = FALSE WHERE hidden AND state <> 'applied';
+ALTER TABLE jobs DROP CONSTRAINT IF EXISTS jobs_hidden_check;
+ALTER TABLE jobs ADD CONSTRAINT jobs_hidden_check
+    CHECK (NOT hidden OR state = 'applied');
 
 CREATE INDEX IF NOT EXISTS jobs_user_id_idx
     ON jobs(user_id);
@@ -315,3 +332,4 @@ CREATE TABLE IF NOT EXISTS feed_logo_misses (
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS policy_version TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS policy_seen_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_pending_at TIMESTAMPTZ;

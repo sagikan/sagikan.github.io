@@ -431,7 +431,7 @@ describe("POST /api/jobs", () => {
 
   it("brings back a dismissed job instead of adding a second one for the same link", async () => {
     const { client, user } = await signedInClient();
-    const id = await createJob(user.id, { url: "https://example.com/job/1", state: "dismissed", hidden: true });
+    const id = await createJob(user.id, { url: "https://example.com/job/1", state: "dismissed" });
     const res = await client.post("/api/jobs").send({ company: "Acme", position: "Backend Engineer", url: "https://example.com/job/1" });
 
     expect(res.body).toMatchObject({ id: String(id), state: "new" });
@@ -464,6 +464,29 @@ describe("POST /api/jobs", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error).toContain("You can add up to 2000 jobs yourself");
+  });
+
+  it("doesn't count dismissed or archived jobs toward the 2000", async () => {
+    const { client, user } = await signedInClient();
+
+    await db.query(
+      `INSERT INTO jobs (user_id, source, company, position, state, hidden)
+       SELECT $1, 'manual', 'Co ' || n, 'Role', CASE WHEN n % 2 = 0 THEN 'dismissed' ELSE 'applied' END, n % 2 = 1
+       FROM generate_series(1, 2000) AS n`,
+      [user.id]
+    );
+
+    const res = await client.post("/api/jobs").send({ company: "Acme", position: "Engineer" });
+
+    expect(res.status).toBe(201);
+  });
+
+  it("makes a found job hand-added when its link is added again, so cleanups leave it alone", async () => {
+    const { client, user } = await signedInClient();
+    const id = await createJob(user.id, { source: "search", url: "https://example.com/job/1", state: "dismissed" });
+    const res = await client.post("/api/jobs").send({ company: "Acme", position: "Backend Engineer", url: "https://example.com/job/1" });
+
+    expect(res.body).toMatchObject({ id: String(id), source: "manual", state: "new" });
   });
 
   it("allows 30 jobs an hour per user", async () => {

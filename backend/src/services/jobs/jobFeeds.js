@@ -4,6 +4,7 @@ const logoPrefetch = require("../logos/logoPrefetch");
 const dev = require("../shared/devMode");
 const { htmlToText } = require("../shared/htmlText");
 const { areasFor, areaScore, tidyLocation } = require("./locations");
+const { canMove, inStates } = require("./jobStates");
 
 const REFRESH_HOURS = 6;
 const DISCOVERY_HOURS = 24;
@@ -280,14 +281,14 @@ async function removeClosedJobs(urls) {
   }
 
   const removed = await db.query(
-    `DELETE FROM jobs WHERE source = 'search' AND state = 'new' AND url = ANY($1::text[])`,
+    `DELETE FROM jobs WHERE source = 'search' AND ${canMove("close")} AND url = ANY($1::text[])`,
     [urls]
   );
 
   return removed.rowCount;
 }
 
-// Removes postings that are too old or no longer listed
+// Removes postings that are too old or no longer listed, and the jobs that go with them
 async function removeOldPostings() {
   await db.query(
     `DELETE FROM job_postings WHERE COALESCE(posted_at, first_seen_at) < NOW() - make_interval(days => $1)`,
@@ -301,9 +302,14 @@ async function removeOldPostings() {
     `DELETE FROM closed_postings WHERE closed_at < NOW() - make_interval(days => $1)`,
     [MAX_AGE_DAYS]
   );
+  /* Untouched found jobs go with their postings. A dismissed job goes too, but only once its posting is gone from the
+     feed (a posting seen again gets a new first-seen date), so a search can't bring it back. Hand-added jobs stay
+     until the user acts on them */
   const removed = await db.query(
     `DELETE FROM jobs
-     WHERE source = 'search' AND state = 'new' AND COALESCE(posted_at, created_at) < NOW() - make_interval(days => $1)`,
+     WHERE ${canMove("expire")} AND (source = 'search' OR ${inStates(["dismissed"])})
+       AND COALESCE(posted_at, created_at) < NOW() - make_interval(days => $1)
+       AND NOT (${inStates(["dismissed"])} AND EXISTS (SELECT 1 FROM job_postings p WHERE p.url = jobs.url))`,
     [MAX_AGE_DAYS]
   );
 

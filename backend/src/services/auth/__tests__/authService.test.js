@@ -239,12 +239,12 @@ describe("session cleanup", () => {
 
 describe("setPending and requirePending", () => {
   // Runs the middleware and returns what it did
-  async function run(stage, cookies) {
+  async function run(move, cookies) {
     const next = vi.fn();
     const res = mockResponse();
     const req = { cookies };
 
-    await auth.requirePending(stage)(req, res, next);
+    await auth.requirePending(move)(req, res, next);
 
     return { req, res, next };
   }
@@ -260,7 +260,7 @@ describe("setPending and requirePending", () => {
 
   it("lets a matching pending sign-in through and exposes it on the request", async () => {
     vi.spyOn(db, "query").mockResolvedValue(rows({ token_version: 3 }));
-    const { req, next, res } = await run("mfa", { pending_auth: sign({ id: 7, typ: "pending", ver: 3, stage: "mfa" }) });
+    const { req, next, res } = await run("verifySecondFactor", { pending_auth: sign({ id: 7, typ: "pending", ver: 3, stage: "mfa" }) });
 
     expect(next).toHaveBeenCalledOnce();
     expect(req.pending).toMatchObject({ id: 7, stage: "mfa" });
@@ -276,7 +276,7 @@ describe("setPending and requirePending", () => {
     ["has a garbled token", "not.a.token", rows({ token_version: 3 })]
   ])("restarts the sign-in when the request %s", async (_title, cookie, result) => {
     vi.spyOn(db, "query").mockResolvedValue(result);
-    const { res, next, req } = await run("mfa", { pending_auth: cookie });
+    const { res, next, req } = await run("verifySecondFactor", { pending_auth: cookie });
 
     expect(next).not.toHaveBeenCalled();
     expect(req.pending).toBeUndefined();
@@ -286,20 +286,14 @@ describe("setPending and requirePending", () => {
   });
 
   it("restarts the sign-in when the request has no cookies at all", async () => {
-    const { res, next } = await run("mfa", undefined);
+    const { res, next } = await run("verifySecondFactor", undefined);
 
     expect(next).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(401);
   });
-});
 
-describe("nextStage", () => {
-  it.each([
-    ["an unverified email", { email_verified: false, totp_enabled: false }, "verify_email"],
-    ["no authenticator yet", { email_verified: true, totp_enabled: false }, "mfa_setup"],
-    ["everything set up", { email_verified: true, totp_enabled: true }, "mfa"]
-  ])("asks for the next step for %s", (_title, user, expected) => {
-    expect(auth.nextStage(user)).toBe(expected);
+  it("refuses to build the middleware for a move that isn't in the sign-in table", () => {
+    expect(() => auth.requirePending("mfa")).toThrow('Unknown sign-in move "mfa"');
   });
 });
 
@@ -396,6 +390,25 @@ describe("sendEmailCode", () => {
     const fetchMock = mockFetch(() => new Response("{}", { status: 201 }));
 
     expect(await auth.sendEmailCode(USER, "verify")).toEqual({ sent: false });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["within the resend wait", "10"],
+    ["after the resend wait", "120"]
+  ])("replaces a valid code that has no tries left %s, even when not forced", async (_title, age) => {
+    lastCode({ age, valid: true, attempts: 5, sends_today: 1 });
+    const fetchMock = mockFetch(() => new Response("{}", { status: 201 }));
+
+    expect(await auth.sendEmailCode(USER, "verify")).toEqual({ sent: true });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("still holds a code with no tries left to the daily limit", async () => {
+    lastCode({ age: "10", valid: true, attempts: 5, sends_today: 8 });
+    const fetchMock = mockFetch(() => new Response("{}", { status: 201 }));
+
+    expect(await auth.sendEmailCode(USER, "verify")).toEqual({ dailyLimit: true });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

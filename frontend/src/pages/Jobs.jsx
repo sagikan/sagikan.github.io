@@ -10,6 +10,8 @@ import { apiRequest, localISO, toDateInput } from "../lib/api";
 import { downloadSavedCv } from "../utils/resume/cvPdf";
 import Alert from "../components/ui/Alert";
 import FitMeta from "../components/applications/FitMeta";
+import { useMachine } from "../hooks/useMachine";
+import { JOB_MODAL } from "../utils/jobs/jobMachines";
 
 const POLL_MS = 5000;
 const DATE_RANGES = [
@@ -335,7 +337,8 @@ function Jobs({ csrfToken, applications, onApplied, onUnauthorized }) {
   const [search, setSearch] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [modal, setModal] = useState(null);
+  const [modal, sendModal] = useMachine(JOB_MODAL);
+  const [modalJob, setModalJob] = useState(null);
   const autoSearched = useRef(false);
 
   // Sends a request, handling an expired session
@@ -422,7 +425,7 @@ function Jobs({ csrfToken, applications, onApplied, onUnauthorized }) {
   // Updates a job in the list and the open modal
   function updateJob(id, patch) {
     setJobs((current) => current.map((job) => (job.id === id ? { ...job, ...patch } : job)));
-    setModal((current) => (current?.job?.id === id ? { ...current, job: { ...current.job, ...patch } } : current));
+    setModalJob((current) => (current?.id === id ? { ...current, ...patch } : current));
   }
 
   // Dismisses a job
@@ -503,7 +506,7 @@ function Jobs({ csrfToken, applications, onApplied, onUnauthorized }) {
     setProfile(next);
 
     if (!keepOpen) {
-      setModal(null);
+      sendModal("close");
     }
 
     if (firstProfile) {
@@ -523,7 +526,10 @@ function Jobs({ csrfToken, applications, onApplied, onUnauthorized }) {
   const shownJobs = openJobs.filter((job) => inDateRange(job, dateRange));
   const appliedJobs = jobs.filter((job) => job.state === "applied").sort(byListOrder);
   const cardProps = {
-    onTailor: (job) => setModal({ type: "tailor", job }),
+    onTailor: (job) => {
+      setModalJob(job);
+      sendModal("open", "tailor");
+    },
     onApply: apply,
     onDismiss: dismiss,
     onDownload: downloadCv
@@ -542,7 +548,7 @@ function Jobs({ csrfToken, applications, onApplied, onUnauthorized }) {
               className="btn btn-ghost"
               aria-label="Your profile"
               title="Your profile"
-              onClick={() => setModal({ type: "profile" })}
+              onClick={() => sendModal("open", "profile")}
             >
               <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
                 <circle cx="10" cy="7" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.8" />
@@ -552,7 +558,7 @@ function Jobs({ csrfToken, applications, onApplied, onUnauthorized }) {
             </button>
           )}
           {hasProfile && (
-            <button type="button" className="btn btn-primary" aria-label="New job post" onClick={() => setModal({ type: "add" })}>
+            <button type="button" className="btn btn-primary" aria-label="New job post" onClick={() => sendModal("open", "add")}>
               <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
                 <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
               </svg>
@@ -582,7 +588,7 @@ function Jobs({ csrfToken, applications, onApplied, onUnauthorized }) {
           <p className="muted">
             Upload your resume as a PDF. We'll read it, search the web for jobs that fit, and tailor your resume to each one.
           </p>
-          <button type="button" className="btn btn-primary" onClick={() => setModal({ type: "profile" })}>
+          <button type="button" className="btn btn-primary" onClick={() => sendModal("open", "profile")}>
             Upload your resume
           </button>
         </div>
@@ -656,38 +662,38 @@ function Jobs({ csrfToken, applications, onApplied, onUnauthorized }) {
         </>
       )}
 
-      {modal?.type === "profile" && (
+      {modal === "profile" && (
         <ProfileModal
           profile={profile}
           csrfToken={csrfToken}
-          onClose={() => setModal(null)}
+          onClose={() => sendModal("close")}
           onSaved={profileSaved}
           onUnauthorized={onUnauthorized}
         />
       )}
 
-      {modal?.type === "add" && (
+      {modal === "add" && (
         <AddJobModal
           csrfToken={csrfToken}
           pastEntries={pastEntries}
           applications={applications}
-          onClose={() => setModal(null)}
+          onClose={() => sendModal("close")}
           onUnauthorized={onUnauthorized}
           onAdded={(job) => {
             setJobs((current) => [job, ...current.filter((other) => other.id !== job.id)]);
-            setModal(null);
+            sendModal("close");
           }}
         />
       )}
 
-      {modal?.type === "tailor" && (
+      {modal === "tailor" && (
         <TailorModal
-          job={modal.job}
+          job={modalJob}
           csrfToken={csrfToken}
           baseCv={profile?.cv}
           gradeSheet={profile?.gradeSheet ?? null}
           onGradeSheetChange={setProfile}
-          onClose={() => setModal(null)}
+          onClose={() => sendModal("close")}
           onTailored={(id, description) => updateJob(id, { has_tailoring: true, ...(description ? { description } : {}) })}
           onApply={apply}
           onUnauthorized={onUnauthorized}

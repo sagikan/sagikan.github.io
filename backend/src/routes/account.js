@@ -5,6 +5,7 @@ const requireAuth = require("../middleware/auth");
 const { requireCsrf } = require("../middleware/csrf");
 const mfa = require("../services/auth/mfa");
 const auth = require("../services/auth/authService");
+const { AUTHENTICATOR, authenticatorState, unlockSql } = require("../services/auth/authStates");
 const { readPolicyVersion } = require("../services/auth/policy");
 
 const router = express.Router();
@@ -95,14 +96,20 @@ router.post("/mfa/reset/start", async (req, res) => {
       return res.status(result.status).json({ error: result.error });
     }
 
+    if (!AUTHENTICATOR.can(authenticatorState(user), "startReplacing")) {
+      return res.status(400).json({ error: "Two-factor authentication isn't set up." });
+    }
+
     const secret = mfa.generateTotpSecret();
 
     await db.query(
-      `UPDATE users SET totp_pending_secret = $2 WHERE id = $1`,
+      `UPDATE users SET totp_pending_secret = $2, totp_pending_at = NOW() WHERE id = $1`,
       [user.id, mfa.encryptSecret(secret)]
     );
 
     res.set("Cache-Control", "no-store");
+
+    auth.logDevTotp(user.email, secret);
 
     res.json(await auth.mfaSetupPayload(secret, user.email));
   } catch (err) {
@@ -122,8 +129,15 @@ router.post("/mfa/reset/confirm", async (req, res) => {
       return res.status(429).json({ error: locked });
     }
 
-    if (!user.totp_pending_secret) {
-      return res.status(400).json({ error: "Please start the authenticator reset again." });
+    if (!AUTHENTICATOR.can(authenticatorState(user), "confirmReplacing")) {
+      if (!user.totp_pending_secret) {
+        return res.status(400).json({ error: "Please start the authenticator reset again." });
+      }
+
+      // The reset expired: its secret is removed, so it can never be confirmed
+      await db.query(`UPDATE users SET totp_pending_secret = NULL, totp_pending_at = NULL WHERE id = $1`, [user.id]);
+
+      return res.status(400).json({ error: "This authenticator reset expired. Please start it again.", expired: true });
     }
 
     const step = mfa.verifyTotp(mfa.decryptSecret(user.totp_pending_secret), req.body.code, null);
@@ -137,8 +151,8 @@ router.post("/mfa/reset/confirm", async (req, res) => {
     const recoveryCodes = await auth.withTransaction(async (client) => {
       await client.query(
         `UPDATE users
-         SET totp_secret = totp_pending_secret, totp_pending_secret = NULL,
-             totp_last_step = $2, mfa_failed_attempts = 0, mfa_locked_until = NULL,
+         SET totp_secret = totp_pending_secret, totp_pending_secret = NULL, totp_pending_at = NULL,
+             totp_last_step = $2, ${unlockSql("mfa")},
              token_version = token_version + 1
          WHERE id = $1`,
         [user.id, step]

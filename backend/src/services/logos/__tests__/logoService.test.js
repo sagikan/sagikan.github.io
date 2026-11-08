@@ -6,7 +6,7 @@ const require = createRequire(import.meta.url);
 const db = require("../../../config/db");
 const claude = require("../../ai/anthropic");
 const {
-  DailyLimitError, FEED_IMAGES_PER_DAY, FEED_LOOKUPS_PER_DAY, MAX_IMAGES_PER_DAY, MAX_LOOKUPS_PER_DAY, OUTAGE_AFTER, OUTAGE_PAUSE_MS, USER_IMAGES_PER_DAY, outage,
+  DailyLimitError, FEED_IMAGES_PER_DAY, FEED_LOOKUPS_PER_DAY, MAX_IMAGES_PER_DAY, MAX_LOOKUPS_PER_DAY, OUTAGE, OUTAGE_AFTER, OUTAGE_PAUSE_MS, USER_IMAGES_PER_DAY, outage,
   domainMatches, downloadImage, getLogo, hasSignature, normalizeCompany, prefetchLogo, removeOldMisses, sameCompany
 } = require("../logoService");
 
@@ -1275,5 +1275,20 @@ describe("removeOldMisses", () => {
     vi.spyOn(db, "query").mockRejectedValue(new Error("db down"));
 
     await expect(removeOldMisses()).rejects.toThrow("db down");
+  });
+});
+
+describe("OUTAGE", () => {
+  it.each([
+    ["running", "pause", "paused"],
+    ["paused", "pause", "paused"],
+    ["paused", "resume", "running"]
+  ])("moves lookups from %s on %s to %s", (state, event, expected) => {
+    expect(OUTAGE.move(state, event)).toBe(expected);
+  });
+
+  it("starts running and can't resume what isn't paused", () => {
+    expect(OUTAGE.initial).toBe("running");
+    expect(OUTAGE.can("running", "resume")).toBe(false);
   });
 });

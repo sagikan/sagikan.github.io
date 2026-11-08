@@ -6,6 +6,7 @@ import Alert from "../ui/Alert";
 function MfaSetupStep({
   request,
   onConfirmed,
+  onExpired,
   initialSetup = null,
   confirmPath = "/api/auth/mfa/setup/confirm",
   submitLabel = "Enable two-factor authentication"
@@ -56,6 +57,8 @@ function MfaSetupStep({
 
     if (result.ok) {
       onConfirmed(result.data);
+    } else if (result.data?.expired && onExpired) {
+      onExpired(result.error);
     } else {
       setError(result.error);
       setCode("");

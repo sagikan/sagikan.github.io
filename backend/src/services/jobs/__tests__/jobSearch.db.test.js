@@ -33,14 +33,14 @@ describe("trimFound", () => {
     expect(dismissed.lowest).toBeLessThanOrEqual(kept.lowest);
   });
 
-  it("leaves hand-added, applied, hidden and other users' jobs alone", async () => {
+  it("leaves hand-added, applied, archived and other users' jobs alone", async () => {
     const user = await createUser({ email: "dana@example.com" });
     const other = await createUser({ email: "noa@example.com" });
 
     await addJobs(user.id, jobSearch.MAX_FOUND_JOBS);
     await addJobs(user.id, 3, { source: "manual", prefix: "Manual" });
     await addJobs(user.id, 3, { state: "applied", prefix: "Applied" });
-    await addJobs(user.id, 3, { hidden: true, prefix: "Hidden" });
+    await addJobs(user.id, 3, { state: "applied", hidden: true, prefix: "Archived" });
     await addJobs(other.id, jobSearch.MAX_FOUND_JOBS + 3);
     await jobSearch.trimFound(user.id);
 
@@ -48,8 +48,8 @@ describe("trimFound", () => {
     const countFor = (userId, state) => rows.find((row) => String(row.user_id) === String(userId) && row.state === state)?.count ?? 0;
 
     expect(countFor(user.id, "dismissed")).toBe(0);
-    expect(countFor(user.id, "new")).toBe(jobSearch.MAX_FOUND_JOBS + 6);
-    expect(countFor(user.id, "applied")).toBe(3);
+    expect(countFor(user.id, "new")).toBe(jobSearch.MAX_FOUND_JOBS + 3);
+    expect(countFor(user.id, "applied")).toBe(6);
     expect(countFor(other.id, "dismissed")).toBe(0);
   });
 

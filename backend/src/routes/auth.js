@@ -5,6 +5,7 @@ const requireAuth = require("../middleware/auth");
 const { requireCsrf } = require("../middleware/csrf");
 const mfa = require("../services/auth/mfa");
 const auth = require("../services/auth/authService");
+const { AUTHENTICATOR, SIGN_IN, authenticatorState, nextStage, unlockSql } = require("../services/auth/authStates");
 const dev = require("../services/shared/devMode");
 const { readPolicyVersion } = require("../services/auth/policy");
 const { loginLimiter, registerLimiter, passwordResetLimiter, codeLimiter } = require("../middleware/rateLimit");
@@ -73,7 +74,9 @@ router.post("/register", registerLimiter, async (req, res) => {
     );
     const user = result.rows[0];
 
-    auth.setPending(res, user, "verify_email");
+    const next = SIGN_IN.move("credentials", "register");
+
+    auth.setPending(res, user, next);
 
     let emailSent = true;
 
@@ -84,7 +87,7 @@ router.post("/register", registerLimiter, async (req, res) => {
       emailSent = false;
     }
 
-    res.status(201).json({ next: "verify_email", email: user.email, emailSent });
+    res.status(201).json({ next, email: user.email, emailSent });
   } catch (err) {
     if (err.code === "23505") {
       return res.status(409).json({
@@ -131,11 +134,11 @@ router.post("/login", loginLimiter, async (req, res) => {
     }
 
     await db.query(
-      `UPDATE users SET failed_login_attempts = 0, login_locked_until = NULL WHERE id = $1`,
+      `UPDATE users SET ${unlockSql("login")} WHERE id = $1`,
       [user.id]
     );
 
-    const next = auth.nextStage(user);
+    const next = SIGN_IN.move("credentials", "logIn", nextStage(user));
     auth.setPending(res, user, next);
 
     let emailSent = true;
@@ -164,7 +167,7 @@ router.post("/login", loginLimiter, async (req, res) => {
 });
 
 // Verifies the email code and moves to 2FA setup
-router.post("/verify-email", codeLimiter, auth.requirePending("verify_email"), async (req, res) => {
+router.post("/verify-email", codeLimiter, auth.requirePending("verifyEmail"), async (req, res) => {
   try {
     const codeError = await auth.checkEmailCode("verify", req.pending.id, req.body.code);
 
@@ -178,7 +181,7 @@ router.post("/verify-email", codeLimiter, auth.requirePending("verify_email"), a
     });
 
     const user = await auth.getUser(req.pending.id);
-    const next = auth.nextStage(user);
+    const next = SIGN_IN.move(req.pending.stage, "verifyEmail", nextStage(user));
     auth.setPending(res, user, next);
 
     res.json({ next });
@@ -190,7 +193,7 @@ router.post("/verify-email", codeLimiter, auth.requirePending("verify_email"), a
 });
 
 // Sends a new email verification code
-router.post("/resend-verification", codeLimiter, auth.requirePending("verify_email"), async (req, res) => {
+router.post("/resend-verification", codeLimiter, auth.requirePending("resendCode"), async (req, res) => {
   try {
     const user = await auth.getUser(req.pending.id);
     const { retryAfter, dailyLimit } = await auth.sendEmailCode(user, "verify", { force: true });
@@ -215,11 +218,11 @@ router.post("/resend-verification", codeLimiter, auth.requirePending("verify_ema
 });
 
 // Creates a pending authenticator secret and returns its QR code
-router.post("/mfa/setup", codeLimiter, auth.requirePending("mfa_setup"), async (req, res) => {
+router.post("/mfa/setup", codeLimiter, auth.requirePending("startAuthenticator"), async (req, res) => {
   try {
     const user = await auth.getUser(req.pending.id);
 
-    if (!user || user.totp_enabled) {
+    if (!user || !AUTHENTICATOR.can(authenticatorState(user), "start")) {
       return res.status(400).json({ error: "Two-factor authentication is already set up.", restart: true });
     }
 
@@ -243,7 +246,7 @@ router.post("/mfa/setup", codeLimiter, auth.requirePending("mfa_setup"), async (
 });
 
 // Confirms the authenticator code and finishes 2FA setup
-router.post("/mfa/setup/confirm", codeLimiter, auth.requirePending("mfa_setup"), async (req, res) => {
+router.post("/mfa/setup/confirm", codeLimiter, auth.requirePending("confirmAuthenticator"), async (req, res) => {
   try {
     const user = await auth.getUser(req.pending.id);
     const locked = auth.lockedMessage(user.mfa_locked_until);
@@ -252,7 +255,7 @@ router.post("/mfa/setup/confirm", codeLimiter, auth.requirePending("mfa_setup"),
       return res.status(429).json({ error: locked });
     }
 
-    if (!user.totp_secret || user.totp_enabled) {
+    if (!AUTHENTICATOR.can(authenticatorState(user), "confirm")) {
       return res.status(400).json({ error: "Please restart two-factor setup.", restart: true });
     }
 
@@ -268,7 +271,7 @@ router.post("/mfa/setup/confirm", codeLimiter, auth.requirePending("mfa_setup"),
       await client.query(
         `UPDATE users
          SET totp_enabled = TRUE, totp_last_step = $2,
-             mfa_failed_attempts = 0, mfa_locked_until = NULL
+             ${unlockSql("mfa")}
          WHERE id = $1`,
         [user.id, step]
       );
@@ -288,7 +291,7 @@ router.post("/mfa/setup/confirm", codeLimiter, auth.requirePending("mfa_setup"),
 });
 
 // Checks the second factor and starts the session
-router.post("/mfa/verify", codeLimiter, auth.requirePending("mfa"), async (req, res) => {
+router.post("/mfa/verify", codeLimiter, auth.requirePending("verifySecondFactor"), async (req, res) => {
   try {
     const user = await auth.getUser(req.pending.id);
     const result = await auth.verifySecondFactor(user, req.body);
@@ -361,7 +364,7 @@ router.post("/password/reset", passwordResetLimiter, async (req, res) => {
       await client.query(
         `UPDATE users
          SET password_hash = $2, email_verified = TRUE,
-             failed_login_attempts = 0, login_locked_until = NULL,
+             ${unlockSql("login")},
              token_version = token_version + 1
          WHERE id = $1`,
         [user.id, passwordHash]

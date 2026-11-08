@@ -219,6 +219,7 @@ describe("changing the authenticator", () => {
       expect(res.body.qrCode).toMatch(/^data:image\/png;base64,/);
       expect(mfa.decryptSecret(row.totp_pending_secret)).toBe(res.body.secret.replace(/ /g, ""));
       expect(mfa.decryptSecret(row.totp_secret)).toBe(user.totpSecret);
+      expect(Date.now() - new Date(row.totp_pending_at).getTime()).toBeLessThan(60 * 1000);
     });
 
     it.each([
@@ -293,7 +294,7 @@ describe("changing the authenticator", () => {
       expect(res.status).toBe(200);
       expect(res.body.recoveryCodes).toHaveLength(10);
       expect(mfa.decryptSecret(row.totp_secret)).toBe(newSecret);
-      expect(row).toMatchObject({ totp_pending_secret: null, token_version: 1, mfa_failed_attempts: 0 });
+      expect(row).toMatchObject({ totp_pending_secret: null, totp_pending_at: null, token_version: 1, mfa_failed_attempts: 0 });
       expect((await db.query("SELECT code_hash FROM recovery_codes")).rows.map((r) => r.code_hash).sort()).toEqual(
         res.body.recoveryCodes.map((code) => mfa.hashCode(mfa.normalizeRecoveryCode(code))).sort()
       );
@@ -355,6 +356,36 @@ describe("changing the authenticator", () => {
       expect(res.status).toBe(400);
       expect((await userRow()).mfa_failed_attempts).toBe(1);
       expect((await userRow()).totp_pending_secret).toBeTruthy();
+    });
+
+    it.each([
+      ["more than 15 minutes ago", "NOW() - INTERVAL '16 minutes'"],
+      ["with no start time, as resets from before the time limit", "NULL"]
+    ])("refuses a reset started %s and removes its secret", async (_title, startedAt) => {
+      const { client, user } = await signedInClient();
+      const newSecret = await startReset(client, user);
+
+      await db.query(`UPDATE users SET totp_pending_at = ${startedAt}`);
+
+      const res = await client.post("/api/account/mfa/reset/confirm").send({ code: totp(newSecret) });
+      const row = await userRow();
+
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ error: "This authenticator reset expired. Please start it again.", expired: true });
+      expect(row).toMatchObject({ totp_pending_secret: null, totp_pending_at: null, token_version: 0 });
+      expect(mfa.decryptSecret(row.totp_secret)).toBe(user.totpSecret);
+    });
+
+    it("accepts a reset confirmed just within 15 minutes", async () => {
+      const { client, user } = await signedInClient();
+      const newSecret = await startReset(client, user);
+
+      await db.query("UPDATE users SET totp_pending_at = NOW() - INTERVAL '14 minutes'");
+
+      const res = await client.post("/api/account/mfa/reset/confirm").send({ code: totp(newSecret) });
+
+      expect(res.status).toBe(200);
+      expect(mfa.decryptSecret((await userRow()).totp_secret)).toBe(newSecret);
     });
 
     it("asks to start again when no reset was started", async () => {

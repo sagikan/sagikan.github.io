@@ -7,7 +7,15 @@ const COMPANY_MATCH_MIN = 0.8;
 const POSITION_MATCH_MIN = 0.5;
 const POSITION_GAP_MIN = 0.15;
 const MAX_CANDIDATES = 8;
-const RANK = { Applied: 0, Interview: 1, Offer: 2 };
+/* The status moves an email update can make: "auto" is applied when the match is confident, "review" always waits
+   for the user, and a move that isn't listed is ignored. Hand edits aren't limited by this: the user can set any status */
+const EMAIL_MOVES = {
+  Applied: { Interview: "auto", Offer: "auto", Rejected: "auto" },
+  Interview: { Offer: "auto", Rejected: "auto" },
+  Offer: { Rejected: "review" },
+  Rejected: {},
+  Withdrawn: {}
+};
 
 // Splits text into lowercase words, without the given noise words
 function tokens(text, noise) {
@@ -137,15 +145,14 @@ function matchApplication(event, applications, receivedDay) {
 
 // Decides whether a status change is applied, reviewed or ignored
 function transition(current, target) {
-  if (current === target || current === "Rejected" || current === "Withdrawn") {
-    return "ignore";
-  }
-
-  if (target === "Rejected") {
-    return current === "Offer" ? "review" : "auto";
-  }
-
-  return RANK[target] > RANK[current] ? "auto" : "ignore";
+  return Object.hasOwn(EMAIL_MOVES, current) && Object.hasOwn(EMAIL_MOVES[current], target) ? EMAIL_MOVES[current][target] : "ignore";
 }
 
-module.exports = { matchApplication, transition, companyScore, positionScore };
+// Builds an SQL condition that's true when an email update may move the current status to the target (see EMAIL_MOVES)
+function movesStatusSql(current, target) {
+  const pairs = Object.entries(EMAIL_MOVES).flatMap(([from, moves]) => Object.keys(moves).map((to) => `('${from}', '${to}')`));
+
+  return `(${current}, ${target}) IN (${pairs.join(", ")})`;
+}
+
+module.exports = { EMAIL_MOVES, matchApplication, transition, movesStatusSql, companyScore, positionScore };

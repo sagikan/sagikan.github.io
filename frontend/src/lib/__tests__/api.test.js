@@ -37,6 +37,47 @@ describe("constants", () => {
   });
 });
 
+describe("onReachability", () => {
+  it.each([
+    ["answers", () => mockFetch(json({})), true],
+    ["answers with an error of its own", () => mockFetch(json({}, { status: 500 })), true],
+    ["is down behind its host", () => mockFetch(json({}, { status: 503 })), false]
+  ])("reports whether the server could be reached when it %s", async (_title, mock, expected) => {
+    const { apiRequest, onReachability } = await freshModule();
+    const listener = vi.fn();
+
+    mock();
+    onReachability(listener);
+    await apiRequest("/api/applications");
+
+    expect(listener).toHaveBeenCalledWith(expected);
+  });
+
+  it("reports an unreachable server and still throws the error", async () => {
+    const { apiFile, onReachability } = await freshModule();
+    const listener = vi.fn();
+
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      throw new TypeError("Failed to fetch");
+    }));
+    onReachability(listener);
+
+    await expect(apiFile("/api/file")).rejects.toThrow("Failed to fetch");
+    expect(listener).toHaveBeenCalledWith(false);
+  });
+
+  it("stops reporting once the returned function is called", async () => {
+    const { apiLogo, onReachability } = await freshModule();
+    const listener = vi.fn();
+
+    mockFetch(new Response(null, { status: 204 }));
+    onReachability(listener)();
+    await apiLogo("Acme");
+
+    expect(listener).not.toHaveBeenCalled();
+  });
+});
+
 describe("checkHealth", () => {
   it("returns the health report", async () => {
     const fetchMock = mockFetch(json({ status: "ok" }));

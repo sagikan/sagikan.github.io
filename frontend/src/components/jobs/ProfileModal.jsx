@@ -8,6 +8,8 @@ import { LIMITS, formatResume, resumeProblems } from "../../utils/resume/resumeR
 import Alert from "../ui/Alert";
 import ButtonIcon from "../ui/ButtonIcon";
 import { MAX_CV_MB, MAX_GRADES_MB, checkPdf } from "../../utils/resume/pdfFiles";
+import { useMachine } from "../../hooks/useMachine";
+import { GRADE_SHEET, RESUME_FILE } from "../../utils/resume/resumeMachines";
 
 const SENIORITIES = ["Any", "Student", "Junior", "Mid", "Senior"];
 const SENIORITY_OPTIONS = SENIORITIES.map((level) => ({ key: level, label: level }));
@@ -59,9 +61,8 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
   const [cv, setCv] = useState(() => profile.cv && formatResume(profile.cv));
   const [prefs, setPrefs] = useState(() => toForm(profile.preferences));
   const [gradeSheet, setGradeSheet] = useState(profile.gradeSheet);
-  const [reading, setReading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [gradeBusy, setGradeBusy] = useState(false);
+  const [resumeFile, sendResumeFile] = useMachine(RESUME_FILE);
+  const [gradeState, sendGradeSheet] = useMachine(GRADE_SHEET);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [problems, setProblems] = useState([]);
@@ -69,6 +70,9 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
   const [saveAttempts, setSaveAttempts] = useState(0);
   // Bumped each time a resume is read, so the editor restarts with the new entries collapsed
   const [readCount, setReadCount] = useState(0);
+  const reading = resumeFile === "reading";
+  const saving = resumeFile === "saving";
+  const gradeBusy = gradeState === "busy";
 
   // Uploads a resume PDF and fills the editor from it
   async function readCv(file) {
@@ -80,7 +84,7 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
       return;
     }
 
-    setReading(true);
+    sendResumeFile("read");
 
     try {
       const { response, data } = await apiUpload("/api/jobs/profile/cv", file, { csrfToken });
@@ -103,7 +107,7 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
     } catch {
       setError("Could not reach the server. Please try again.");
     } finally {
-      setReading(false);
+      sendResumeFile("done");
     }
   }
 
@@ -116,7 +120,7 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
       return;
     }
 
-    setGradeBusy(true);
+    sendGradeSheet("start");
 
     try {
       const { response, data } = await apiUpload("/api/jobs/grade-sheet", file, { csrfToken });
@@ -132,13 +136,13 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
     } catch {
       setError("Could not reach the server. Please try again.");
     } finally {
-      setGradeBusy(false);
+      sendGradeSheet("done");
     }
   }
 
   // Removes the grade sheet
   async function removeGrades() {
-    setGradeBusy(true);
+    sendGradeSheet("start");
     setError("");
 
     try {
@@ -155,7 +159,7 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
     } catch {
       setError("Could not reach the server. Please try again.");
     } finally {
-      setGradeBusy(false);
+      sendGradeSheet("done");
     }
   }
 
@@ -187,7 +191,7 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
       return;
     }
 
-    setSaving(true);
+    sendResumeFile("save");
 
     try {
       const { response, data } = await apiRequest("/api/jobs/profile", {
@@ -206,7 +210,7 @@ function ProfileModal({ profile, csrfToken, onClose, onSaved, onUnauthorized }) 
     } catch {
       setError("Could not reach the server. Please try again.");
     } finally {
-      setSaving(false);
+      sendResumeFile("done");
     }
   }
 

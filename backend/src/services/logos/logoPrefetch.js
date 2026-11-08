@@ -1,8 +1,17 @@
 const db = require("../../config/db");
 const logos = require("./logoService");
+const { createMachine } = require("../shared/stateMachine");
 
 const CONCURRENCY = 3;
-let running = false;
+// Only one prefetch runs at a time
+const PREFETCH = createMachine("logo prefetch", {
+  initial: "idle",
+  states: {
+    idle: { start: "running" },
+    running: { finish: "idle" }
+  }
+});
+let state = PREFETCH.initial;
 
 /* Finds the companies in the job postings that have no recent logo or miss, newest first, each with the posting that introduced it.
    Boards that came from users' links are left out: anyone can make a board of their own, with any company name and title,
@@ -51,11 +60,11 @@ async function companiesToLookUp() {
 
 // Looks up the logos of companies in the job postings, a few at a time, until they are done, the feed's daily allowance runs out or lookups are paused
 async function prefetchLogos() {
-  if (running || !logos.isConfigured()) {
+  if (!PREFETCH.can(state, "start") || !logos.isConfigured()) {
     return null;
   }
 
-  running = true;
+  state = PREFETCH.move(state, "start");
 
   try {
     const companies = await companiesToLookUp();
@@ -78,7 +87,7 @@ async function prefetchLogos() {
 
     return results;
   } finally {
-    running = false;
+    state = PREFETCH.move(state, "finish");
   }
 }
 
