@@ -230,6 +230,20 @@ describe("GET /api/email/events", () => {
     expect((await client.get("/api/email/events")).body.pending.map((event) => event.id)).toEqual([String(open)]);
   });
 
+  it.each([
+    ["Offer", "Interview", false],
+    ["Rejected", "Interview", false],
+    ["Withdrawn", "Offer", false],
+    ["Offer", "Rejected", true]
+  ])("lists a suggestion only while it can still apply (application at %s, suggests %s, listed: %s)", async (status, suggested, listed) => {
+    const { client, user } = await signedInClient();
+    const application = await createApplication(user.id, { status });
+    const event = await createEvent(user.id, { application_id: application.id, suggested_status: suggested });
+    const ids = (await client.get("/api/email/events")).body.pending.map((row) => row.id);
+
+    expect(ids).toEqual(listed ? [String(event)] : []);
+  });
+
   it("lists recent updates from the last 24 hours with their application, and whether they can be undone", async () => {
     const { client, user } = await signedInClient();
     const application = await createApplication(user.id, { status: "Interview" });
@@ -286,6 +300,18 @@ describe("POST /api/email/events/:id/accept", () => {
     expect(res.status).toBe(400);
     expect(res.body).toEqual({ error: "Choose which application this email is about." });
     expect(await statusOf(outsider.id)).toBe("Applied");
+  });
+
+  it("refuses an update the application's status has moved past, and leaves both as they are", async () => {
+    const { client, user } = await signedInClient();
+    const application = await createApplication(user.id, { status: "Rejected" });
+    const event = await createEvent(user.id, { application_id: application.id });
+    const res = await client.post(`/api/email/events/${event}/accept`);
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ error: "The application's status changed, so this update no longer applies." });
+    expect(await statusOf(application.id)).toBe("Rejected");
+    expect((await eventRow(event)).state).toBe("pending");
   });
 
   it("refuses an event that was already handled", async () => {

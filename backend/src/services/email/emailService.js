@@ -4,7 +4,30 @@ const auth = require("../auth/authService");
 const { classifyEmail } = require("./emailClassifier");
 const { matchApplication, transition } = require("./emailMatcher");
 const { APPLICATION_FIELDS } = require("../applications/applicationFields");
+const { createMachine } = require("../shared/stateMachine");
 
+/* An email event is recorded as ignored, pending (waiting for the user's review) or auto-applied. The user accepts
+   or dismisses a pending one, and can undo one that changed an application's status. A pending one nobody reviews
+   expires. Events that led nowhere are removed (deleted) after a while; ones that changed a status are kept as the
+   record of why it changed */
+const EMAIL_EVENT = createMachine("email event", {
+  initial: ["ignored", "pending", "auto_applied"],
+  states: {
+    ignored: { remove: "removed" },
+    pending: { accept: "accepted", dismiss: "dismissed", expire: "expired" },
+    auto_applied: { undo: "undone" },
+    accepted: { undo: "undone" },
+    dismissed: { remove: "removed" },
+    undone: { remove: "removed" },
+    expired: { remove: "removed" },
+    removed: {}
+  }
+});
+// Days a suggestion waits for review before it expires
+const PENDING_DAYS = 30;
+/* Days an event that led nowhere is kept after it was resolved (or recorded, for ignored ones). Longer than the sync
+   script ever looks back (45 days), so a removed email is never sent again and recorded twice */
+const KEEP_DAYS = 90;
 const STATUS_FOR_EVENT = { interview: "Interview", offer: "Offer", rejection: "Rejected" };
 const MIN_CONFIDENCE = 0.5;
 const AUTO_CONFIDENCE = 0.85;
@@ -47,6 +70,10 @@ async function mapWithConcurrency(items, limit, task) {
 
 // Stores an email event
 async function insertEvent(client, userId, message, classified, outcome) {
+  if (!EMAIL_EVENT.initial.includes(outcome.state)) {
+    throw new Error(`An email event can't start as "${outcome.state}"`);
+  }
+
   await client.query(
     `INSERT INTO email_events
        (user_id, message_id, received_at, sender, subject, snippet, event_type, company, position, confidence,
@@ -213,4 +240,22 @@ async function ingest(userId, autoUpdate, messages) {
   return counts;
 }
 
-module.exports = { APPLICATION_FIELDS, generateToken, hashToken, ingest };
+// Expires suggestions nobody reviewed in time, then removes old events that led nowhere; returns how many of each
+async function cleanUpEvents() {
+  const expired = await db.query(
+    `UPDATE email_events SET state = ${EMAIL_EVENT.sqlList(EMAIL_EVENT.targets("expire"))}, resolved_at = NOW()
+     WHERE state IN (${EMAIL_EVENT.sqlList(EMAIL_EVENT.sources("expire"))})
+       AND created_at < NOW() - make_interval(days => $1)`,
+    [PENDING_DAYS]
+  );
+  const removed = await db.query(
+    `DELETE FROM email_events
+     WHERE state IN (${EMAIL_EVENT.sqlList(EMAIL_EVENT.sources("remove"))})
+       AND COALESCE(resolved_at, created_at) < NOW() - make_interval(days => $1)`,
+    [KEEP_DAYS]
+  );
+
+  return { expired: expired.rowCount, removed: removed.rowCount };
+}
+
+module.exports = { APPLICATION_FIELDS, EMAIL_EVENT, PENDING_DAYS, KEEP_DAYS, generateToken, hashToken, ingest, cleanUpEvents };

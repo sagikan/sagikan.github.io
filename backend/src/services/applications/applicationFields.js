@@ -8,6 +8,7 @@ const APPLICATION_FIELDS = `
     LIMIT 1
   ) AS cv_job_id
 `;
+// The user can set any status by hand; email updates may only make the moves in EMAIL_MOVES (emailMatcher)
 const STATUSES = ["Applied", "Interview", "Offer", "Rejected", "Withdrawn"];
 const WORKPLACE_MODELS = ["On-site", "Hybrid", "Remote"];
 const MAX_APPLICATIONS = 5000;

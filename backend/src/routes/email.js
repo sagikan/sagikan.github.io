@@ -4,7 +4,8 @@ const requireAuth = require("../middleware/auth");
 const { requireCsrf } = require("../middleware/csrf");
 const auth = require("../services/auth/authService");
 const classifier = require("../services/email/emailClassifier");
-const { APPLICATION_FIELDS, generateToken, hashToken } = require("../services/email/emailService");
+const { APPLICATION_FIELDS, EMAIL_EVENT, generateToken, hashToken } = require("../services/email/emailService");
+const { movesStatusSql, transition } = require("../services/email/emailMatcher");
 
 const router = express.Router();
 const ID_PATTERN = /^[1-9]\d*$/;
@@ -119,8 +120,8 @@ router.get("/events", async (req, res) => {
       `SELECT ${eventFields}
        FROM email_events e
        LEFT JOIN applications a ON a.id = e.application_id
-       WHERE e.user_id = $1 AND e.state = 'pending'
-         AND (a.id IS NULL OR a.status <> e.suggested_status)
+       WHERE e.user_id = $1 AND e.state IN (${EMAIL_EVENT.sqlList(EMAIL_EVENT.sources("accept"))})
+         AND (a.id IS NULL OR ${movesStatusSql("a.status", "e.suggested_status")})
        ORDER BY e.received_at DESC NULLS LAST, e.id DESC`,
       [req.user.id]
     );
@@ -130,7 +131,7 @@ router.get("/events", async (req, res) => {
               a.status = e.suggested_status AS undoable
        FROM email_events e
        JOIN applications a ON a.id = e.application_id
-       WHERE e.user_id = $1 AND e.state IN ('auto_applied', 'accepted')
+       WHERE e.user_id = $1 AND e.state IN (${EMAIL_EVENT.sqlList(EMAIL_EVENT.sources("undo"))})
          AND e.resolved_at > NOW() - make_interval(hours => $2)
        ORDER BY e.resolved_at DESC
        LIMIT 50`,
@@ -154,8 +155,8 @@ function eventId(req) {
   return req.params.id;
 }
 
-// Locks an event row and checks that it's in an allowed state
-async function lockEvent(client, id, userId, states) {
+// Locks an event row, checks that the move is allowed from its state and returns it with the state it moves to
+async function lockEvent(client, id, userId, move) {
   const result = await client.query(
     `SELECT * FROM email_events WHERE id = $1 AND user_id = $2 FOR UPDATE`,
     [id, userId]
@@ -166,11 +167,11 @@ async function lockEvent(client, id, userId, states) {
     throw new HttpError(404, "Update not found.");
   }
 
-  if (!states.includes(event.state)) {
+  if (!EMAIL_EVENT.can(event.state, move)) {
     throw new HttpError(409, "This update was already handled.");
   }
 
-  return event;
+  return { event, next: EMAIL_EVENT.move(event.state, move) };
 }
 
 // Locks an application row and checks that it belongs to the user
@@ -197,7 +198,7 @@ router.post("/events/:id/accept", async (req, res) => {
   try {
     const id = eventId(req);
     const application = await auth.withTransaction(async (client) => {
-      const event = await lockEvent(client, id, req.user.id, ["pending"]);
+      const { event, next } = await lockEvent(client, id, req.user.id, "accept");
       let applicationId = event.application_id;
 
       if (!applicationId) {
@@ -212,12 +213,16 @@ router.post("/events/:id/accept", async (req, res) => {
 
       const current = await lockApplication(client, applicationId, req.user.id);
 
+      if (transition(current.status, event.suggested_status) === "ignore") {
+        throw new HttpError(409, "The application's status changed, so this update no longer applies.");
+      }
+
       await client.query(`UPDATE applications SET status = $2 WHERE id = $1`, [applicationId, event.suggested_status]);
       await client.query(
         `UPDATE email_events
-         SET state = 'accepted', application_id = $2, previous_status = $3, resolved_at = NOW()
+         SET state = $4, application_id = $2, previous_status = $3, resolved_at = NOW()
          WHERE id = $1`,
-        [id, applicationId, current.status]
+        [id, applicationId, current.status, next]
       );
 
       return loadApplication(client, applicationId);
@@ -235,8 +240,9 @@ router.post("/events/:id/dismiss", async (req, res) => {
     const id = eventId(req);
 
     await auth.withTransaction(async (client) => {
-      await lockEvent(client, id, req.user.id, ["pending"]);
-      await client.query(`UPDATE email_events SET state = 'dismissed', resolved_at = NOW() WHERE id = $1`, [id]);
+      const { next } = await lockEvent(client, id, req.user.id, "dismiss");
+
+      await client.query(`UPDATE email_events SET state = $2, resolved_at = NOW() WHERE id = $1`, [id, next]);
     });
 
     res.json({ ok: true });
@@ -250,7 +256,7 @@ router.post("/events/:id/undo", async (req, res) => {
   try {
     const id = eventId(req);
     const application = await auth.withTransaction(async (client) => {
-      const event = await lockEvent(client, id, req.user.id, ["auto_applied", "accepted"]);
+      const { event, next } = await lockEvent(client, id, req.user.id, "undo");
 
       if (!event.application_id) {
         throw new HttpError(404, "Application not found.");
@@ -263,7 +269,7 @@ router.post("/events/:id/undo", async (req, res) => {
       }
 
       await client.query(`UPDATE applications SET status = $2 WHERE id = $1`, [event.application_id, event.previous_status]);
-      await client.query(`UPDATE email_events SET state = 'undone', resolved_at = NOW() WHERE id = $1`, [id]);
+      await client.query(`UPDATE email_events SET state = $2, resolved_at = NOW() WHERE id = $1`, [id, next]);
 
       return loadApplication(client, event.application_id);
     });

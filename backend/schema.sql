@@ -125,6 +125,18 @@ CREATE TABLE IF NOT EXISTS email_events (
 CREATE INDEX IF NOT EXISTS email_events_user_state_idx
     ON email_events(user_id, state);
 
+ALTER TABLE email_events DROP CONSTRAINT IF EXISTS email_events_state_check;
+ALTER TABLE email_events ADD CONSTRAINT email_events_state_check
+    CHECK (state IN (
+        'ignored',
+        'pending',
+        'auto_applied',
+        'accepted',
+        'dismissed',
+        'undone',
+        'expired'
+    ));
+
 CREATE TABLE IF NOT EXISTS cv_profiles (
     user_id BIGINT PRIMARY KEY REFERENCES users(id)
         ON DELETE CASCADE,

@@ -4,6 +4,7 @@ const jobSearch = require("./services/jobs/jobSearch");
 const jobFeeds = require("./services/jobs/jobFeeds");
 const authService = require("./services/auth/authService");
 const logoService = require("./services/logos/logoService");
+const emailService = require("./services/email/emailService");
 const devMode = require("./services/shared/devMode");
 
 const port = process.env.PORT || 3000;
@@ -22,11 +23,12 @@ app.listen(port, "0.0.0.0", () => {
 
   jobSearch.failInterrupted().catch((err) => console.error("Could not clear interrupted job searches:", err.message));
 
-  // Removes old job postings, expired sessions and old notes that no logo was found
+  // Removes old job postings, expired sessions, old notes that no logo was found and old email updates
   const dailyCleanup = () => {
     jobFeeds.removeOldPostings().catch((err) => console.error("Could not remove old job postings:", err.message));
     authService.removeExpiredSessions().catch((err) => console.error("Could not remove expired sessions:", err.message));
     logoService.removeOldMisses().catch((err) => console.error("Could not remove old logo notes:", err.message));
+    emailService.cleanUpEvents().catch((err) => console.error("Could not clean up email updates:", err.message));
   };
 
   dailyCleanup();

@@ -47,6 +47,42 @@ describe("APPLICATION_FIELDS", () => {
   });
 });
 
+describe("EMAIL_EVENT", () => {
+  const { EMAIL_EVENT } = emailService;
+
+  it.each([
+    ["pending", "accept", "accepted"],
+    ["pending", "dismiss", "dismissed"],
+    ["auto_applied", "undo", "undone"],
+    ["accepted", "undo", "undone"],
+    ["pending", "expire", "expired"],
+    ["ignored", "remove", "removed"],
+    ["dismissed", "remove", "removed"],
+    ["undone", "remove", "removed"],
+    ["expired", "remove", "removed"]
+  ])("moves a %s event on %s to %s", (state, event, expected) => {
+    expect(EMAIL_EVENT.move(state, event)).toBe(expected);
+  });
+
+  it.each([
+    ["ignored", "accept"],
+    ["accepted", "accept"],
+    ["dismissed", "undo"],
+    ["undone", "undo"],
+    ["pending", "undo"],
+    ["pending", "remove"],
+    ["accepted", "remove"],
+    ["auto_applied", "remove"],
+    ["expired", "accept"]
+  ])("doesn't let a %s event %s", (state, event) => {
+    expect(EMAIL_EVENT.can(state, event)).toBe(false);
+  });
+
+  it("records events as ignored, pending or auto-applied", () => {
+    expect(EMAIL_EVENT.initial).toEqual(["ignored", "pending", "auto_applied"]);
+  });
+});
+
 describe("ingest", () => {
   let client;
 

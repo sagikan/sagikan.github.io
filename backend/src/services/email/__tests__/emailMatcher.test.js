@@ -2,7 +2,8 @@ import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 
 const require = createRequire(import.meta.url);
-const { companyScore, matchApplication, positionScore, transition } = require("../emailMatcher");
+const { EMAIL_MOVES, companyScore, matchApplication, movesStatusSql, positionScore, transition } = require("../emailMatcher");
+const { STATUSES } = require("../../applications/applicationFields");
 
 const BACKEND = { id: 1, company: "Acme", position: "Backend Engineer", applied_at: "2026-03-01" };
 const FRONTEND = { id: 2, company: "Acme Inc.", position: "Frontend Developer", applied_at: "2026-03-10" };
@@ -123,5 +124,28 @@ describe("transition", () => {
     ["Withdrawn", "Offer", "ignore"]
   ])("moves %s to %s as: %s", (current, target, expected) => {
     expect(transition(current, target)).toBe(expected);
+  });
+});
+
+describe("EMAIL_MOVES", () => {
+  it("has a row for every application status", () => {
+    expect(Object.keys(EMAIL_MOVES).sort()).toEqual([...STATUSES].sort());
+  });
+
+  it("only moves to real statuses", () => {
+    const targets = Object.values(EMAIL_MOVES).flatMap((moves) => Object.keys(moves));
+
+    expect(targets.every((status) => STATUSES.includes(status))).toBe(true);
+  });
+});
+
+describe("movesStatusSql", () => {
+  it("lists every status move EMAIL_MOVES allows as SQL pairs", () => {
+    const sql = movesStatusSql("a.status", "e.suggested_status");
+    const pairs = [...sql.matchAll(/\('(\w+)', '(\w+)'\)/g)].map(([, from, to]) => [from, to]);
+
+    expect(sql.startsWith("(a.status, e.suggested_status) IN (")).toBe(true);
+    expect(pairs).toHaveLength(6);
+    expect(pairs.every(([from, to]) => transition(from, to) !== "ignore")).toBe(true);
   });
 });
