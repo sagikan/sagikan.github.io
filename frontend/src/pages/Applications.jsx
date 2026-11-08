@@ -14,6 +14,8 @@ import SelectInput from "../components/ui/SelectInput";
 import ApplicationStats from "../components/applications/ApplicationStats";
 import { downloadSavedCv } from "../utils/resume/cvPdf";
 import Alert from "../components/ui/Alert";
+import { useMachine } from "../hooks/useMachine";
+import { APPLICATION_EDITOR } from "../utils/applications/applicationMachines";
 
 const KIND_OPTIONS = [{ value: "application", label: "Application" }, { value: "job", label: "Job Post" }];
 const STATUS_ORDER = ["Offer", "Interview", "Applied", "Rejected", "Withdrawn"];
@@ -142,6 +144,7 @@ function Applications({
   const [dateRange, setDateRange] = useState("all");
   const [pickedDate, setPickedDate] = useState("");
   const [sort, setSort] = useState(DEFAULT_SORT);
+  const [editor, sendEditor] = useMachine(APPLICATION_EDITOR);
   const [editing, setEditing] = useState(null);
   const [newKind, setNewKind] = useState("application");
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
@@ -288,20 +291,34 @@ function Applications({
       position: update.position || "",
       status: update.suggested_status
     });
+    sendEditor("createFromEmail");
+  }
+
+  // Opens the form to edit an application
+  function editApplication(job) {
+    setEditing(job);
+    sendEditor("edit");
+  }
+
+  // Opens the blank form for a new application or job post
+  function createEntry() {
+    setEditing(null);
+    sendEditor("create");
   }
 
   // Closes the form and resets its switch to applications
   function closeEditing() {
+    sendEditor("close");
     setEditing(null);
     setNewKind("application");
   }
 
   // Saves the form and resolves its email update, if any
   async function handleSubmit(fields) {
-    const message = await onSave(editing === "new" ? null : editing.id, fields);
+    const message = await onSave(editor === "editing" ? editing.id : null, fields);
 
     if (!message) {
-      if (editing.eventId) {
+      if (editor === "draft") {
         onResolveEmailUpdate(editing.eventId, "dismiss");
       }
 
@@ -430,7 +447,7 @@ function Applications({
     }
 
     if (!event.target.closest("button, a, input, .dropdown, .app-notes.is-expandable")) {
-      setEditing(job);
+      editApplication(job);
     }
   }
 
@@ -440,7 +457,7 @@ function Applications({
       <button
         type="button"
         className="icon-btn app-edit"
-        onClick={() => setEditing(job)}
+        onClick={() => editApplication(job)}
         aria-label={`Edit ${job.company} application`}
         title="Edit"
       >
@@ -594,7 +611,7 @@ function Applications({
             </svg>
             <span className="btn-label">Export</span>
           </button>
-          <button type="button" className="btn btn-primary" aria-label="New application" onClick={() => setEditing("new")}>
+          <button type="button" className="btn btn-primary" aria-label="New application" onClick={createEntry}>
             <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
               <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
@@ -877,7 +894,7 @@ function Applications({
           </div>
           <h2>No applications yet</h2>
           <p className="muted">Add your first application to start tracking your search.</p>
-          <button type="button" className="btn btn-primary" onClick={() => setEditing("new")}>
+          <button type="button" className="btn btn-primary" onClick={createEntry}>
             Add application
           </button>
         </div>
@@ -924,17 +941,17 @@ function Applications({
         </ul>
       )}
 
-      {editing && (
+      {editor !== "closed" && (
         <Modal
-          title={editing === "new" ? (
+          title={editor === "new" ? (
             <span className="modal-title-row">
               New
               <SelectInput value={newKind} onChange={setNewKind} options={KIND_OPTIONS} aria-label="Entry type" />
             </span>
-          ) : editing.id ? "Edit Application" : "New Application"}
+          ) : editor === "editing" ? "Edit Application" : "New Application"}
           onClose={closeEditing}
         >
-          {editing === "new" ? (
+          {editor === "new" ? (
             <div className="form-stack">
               <div className={newKind === "application" ? "" : "is-hidden"}>
                 <ApplicationForm job={null} applications={applications} onSubmit={handleSubmit} active={newKind === "application"} />
