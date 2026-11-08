@@ -8,6 +8,7 @@ const profiles = require("../services/resume/cvProfile");
 const jobSearch = require("../services/jobs/jobSearch");
 const feeds = require("../services/jobs/jobFeeds");
 const cvTailor = require("../services/resume/cvTailor");
+const { JOB, VISIBLE, jobState, inStates, canMove, moveSet } = require("../services/jobs/jobStates");
 const { APPLICATION_FIELDS, isCalendarDate, isWebUrl } = require("../services/applications/applicationFields");
 
 const router = express.Router();
@@ -23,6 +24,7 @@ const TAILORING_FIELDS = `job_id, cv, gaps, flags, include_grade_sheet, updated_
 const MAX_MANUAL_JOBS = 2000;
 const MAX_APPLIED_JOBS = 100;
 const MAX_BULK_IDS = jobSearch.MAX_FOUND_JOBS + MAX_MANUAL_JOBS;
+const SECTION_STATES = { found: ["new"], applied: ["applied", "archived"] };
 const readCvLimiter = userLimiter(5, 60, "You've uploaded your resume several times this hour.");
 const tailorLimiter = [
   userLimiter(10, 60, "You've tailored a lot of resumes this hour."),
@@ -225,8 +227,8 @@ router.get("/", async (req, res) => {
     const [jobs, search] = await Promise.all([
       db.query(
         `SELECT ${JOB_FIELDS} FROM jobs
-         WHERE user_id = $1 AND state <> 'dismissed' AND NOT hidden
-           AND NOT (source = 'search' AND state = 'new'
+         WHERE user_id = $1 AND ${inStates(VISIBLE)}
+           AND NOT (source = 'search' AND ${canMove("expire")}
                     AND COALESCE(posted_at, created_at) < NOW() - make_interval(days => $2))
          ORDER BY (state = 'applied'), match_score DESC NULLS FIRST, created_at DESC`,
         [req.user.id, feeds.MAX_AGE_DAYS]
@@ -266,7 +268,11 @@ router.post("/", addJobLimiter, async (req, res) => {
       return res.status(400).json({ error: "The link must start with http:// or https://." });
     }
 
-    const count = await db.query(`SELECT COUNT(*)::int AS count FROM jobs WHERE user_id = $1 AND source = 'manual'`, [req.user.id]);
+    // Only jobs shown on the Jobs page use a place: dismissed and archived ones don't
+    const count = await db.query(
+      `SELECT COUNT(*)::int AS count FROM jobs WHERE user_id = $1 AND source = 'manual' AND ${inStates(VISIBLE)}`,
+      [req.user.id]
+    );
 
     if (count.rows[0].count >= MAX_MANUAL_JOBS) {
       return res.status(400).json({ error: `You can add up to ${MAX_MANUAL_JOBS} jobs yourself. Dismiss some old ones first.` });
@@ -276,7 +282,7 @@ router.post("/", addJobLimiter, async (req, res) => {
       `INSERT INTO jobs (user_id, source, company, position, location, workplace_model, url, description)
        VALUES ($1, 'manual', $2, $3, $4, $5, $6, $7)
        ON CONFLICT (user_id, url) WHERE url IS NOT NULL
-         DO UPDATE SET state = CASE WHEN jobs.state = 'dismissed' THEN 'new' ELSE jobs.state END, hidden = FALSE
+         DO UPDATE SET ${moveSet("addAgain", "jobs")}, source = 'manual'
        RETURNING ${JOB_FIELDS}`,
       [req.user.id, company, position, text(req.body?.location, 200), workplace, url, description]
     );
@@ -341,7 +347,7 @@ router.post("/dismiss-all", async (req, res) => {
   const ids = req.body?.ids;
   const section = req.body?.section;
 
-  if (!["found", "applied"].includes(section) || !Array.isArray(ids) || ids.length > MAX_BULK_IDS
+  if (!Object.hasOwn(SECTION_STATES, section) || !Array.isArray(ids) || ids.length > MAX_BULK_IDS
     || !ids.every((id) => /^[1-9]\d{0,17}$/.test(String(id)))) {
     return res.status(400).json({ error: "Invalid request." });
   }
@@ -351,10 +357,9 @@ router.post("/dismiss-all", async (req, res) => {
        from the Found section or the other way around */
     await db.query(
       `UPDATE jobs
-       SET state = CASE WHEN state = 'new' THEN 'dismissed' ELSE state END,
-           hidden = hidden OR state = 'applied'
-       WHERE user_id = $1 AND id = ANY($2::bigint[]) AND state = $3`,
-      [req.user.id, ids, section === "found" ? "new" : "applied"]
+       SET ${moveSet("dismiss")}
+       WHERE user_id = $1 AND id = ANY($2::bigint[]) AND ${canMove("dismiss", { only: SECTION_STATES[section] })}`,
+      [req.user.id, ids]
     );
 
     res.status(204).end();
@@ -369,13 +374,11 @@ router.post("/:id/dismiss", async (req, res) => {
   if (!id) return;
 
   try {
-    /* A new job is dismissed. An applied one is only hidden from the Jobs page: it stays applied,
-       so it and the resume that was sent are kept for the Applications page */
+    // A new job is dismissed; an applied one is archived (see JOB in jobStates)
     const result = await db.query(
       `UPDATE jobs
-       SET state = CASE WHEN state = 'new' THEN 'dismissed' ELSE state END,
-           hidden = hidden OR state = 'applied'
-       WHERE id = $1 AND user_id = $2 AND state IN ('new', 'applied')
+       SET ${moveSet("dismiss")}
+       WHERE id = $1 AND user_id = $2 AND ${canMove("dismiss")}
        RETURNING id`,
       [id, req.user.id]
     );
@@ -512,12 +515,12 @@ router.post("/:id/apply", async (req, res) => {
     await client.query("BEGIN");
 
     const job = await client.query(
-      `SELECT company, position, location, workplace_model, url, state FROM jobs
+      `SELECT company, position, location, workplace_model, url, state, hidden FROM jobs
        WHERE id = $1 AND user_id = $2 FOR UPDATE`,
       [id, req.user.id]
     );
 
-    if (job.rowCount === 0 || job.rows[0].state === "applied") {
+    if (job.rowCount === 0 || !JOB.can(jobState(job.rows[0]), "apply")) {
       await client.query("ROLLBACK");
 
       return res.status(job.rowCount === 0 ? 404 : 409).json({
@@ -534,18 +537,17 @@ router.post("/:id/apply", async (req, res) => {
     );
     const applicationId = inserted.rows[0].id;
     const updated = await client.query(
-      `UPDATE jobs SET state = 'applied', application_id = $3 WHERE id = $1 AND user_id = $2 RETURNING ${JOB_FIELDS}`,
+      `UPDATE jobs SET ${moveSet("apply")}, application_id = $3 WHERE id = $1 AND user_id = $2 RETURNING ${JOB_FIELDS}`,
       [id, req.user.id, applicationId]
     );
     const application = await client.query(`SELECT ${APPLICATION_FIELDS} FROM applications WHERE id = $1`, [applicationId]);
 
-    /* Only the most recent applied jobs stay on the Jobs page. Older ones are hidden, not un-applied,
-       so they and the resume that was sent are kept for the Applications page */
+    // Only the most recent applied jobs stay on the Jobs page; older ones are archived
     const trimmed = await client.query(
-      `UPDATE jobs SET hidden = TRUE
+      `UPDATE jobs SET ${moveSet("archive")}
        WHERE id IN (
          SELECT id FROM jobs
-         WHERE user_id = $1 AND state = 'applied' AND NOT hidden
+         WHERE user_id = $1 AND ${canMove("archive")}
          ORDER BY application_id DESC NULLS LAST, id DESC
          OFFSET $2
        )

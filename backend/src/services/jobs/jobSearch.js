@@ -7,6 +7,7 @@ const { cvToText, normalizePreferences, object } = require("../resume/cvProfile"
 const { companyScore, positionScore } = require("../email/emailMatcher");
 const { adjustForExperience, candidateYears, requiredExperience, requirementPhrase, withoutYearRequirements } = require("./experience");
 const postingCheck = require("./postingCheck");
+const { SEARCH, canMove, moveSet } = require("./jobStates");
 
 const CHECK_BATCH = 6;
 const RECHECK_HOURS = 24;
@@ -84,8 +85,9 @@ function hoursAgo(hours) {
 async function status(userId, client = db) {
   await client.query(
     `UPDATE job_searches
-     SET status = 'failed', error = 'The search took too long.', finished_at = NOW()
-     WHERE user_id = $1 AND status = 'running' AND started_at < NOW() - make_interval(mins => $2)`,
+     SET status = ${SEARCH.sqlList(SEARCH.targets("timeOut"))}, error = 'The search took too long.', finished_at = NOW()
+     WHERE user_id = $1 AND status IN (${SEARCH.sqlList(SEARCH.sources("timeOut"))})
+       AND started_at < NOW() - make_interval(mins => $2)`,
     [userId, STALE_MINUTES]
   );
 
@@ -132,7 +134,7 @@ async function start(userId, { auto = false } = {}) {
 
     if (profile.rowCount > 0 && allowed) {
       const inserted = await client.query(
-        `INSERT INTO job_searches (user_id, status) VALUES ($1, 'running') RETURNING id`,
+        `INSERT INTO job_searches (user_id, status) VALUES ($1, ${SEARCH.sqlList([SEARCH.initial])}) RETURNING id`,
         [userId]
       );
       searchId = inserted.rows[0].id;
@@ -205,10 +207,10 @@ async function run(userId, searchId) {
 // Dismisses the weakest found jobs beyond the cap, leaving hand-added ones alone
 async function trimFound(userId) {
   await db.query(
-    `UPDATE jobs SET state = 'dismissed'
+    `UPDATE jobs SET ${moveSet("trim")}
      WHERE id IN (
        SELECT id FROM jobs
-       WHERE user_id = $1 AND source = 'search' AND state = 'new' AND NOT hidden
+       WHERE user_id = $1 AND source = 'search' AND ${canMove("trim")}
          AND COALESCE(posted_at, created_at) >= NOW() - make_interval(days => $2)
        ORDER BY match_score DESC NULLS LAST, created_at DESC
        OFFSET $3
@@ -244,7 +246,7 @@ async function stillOpen(jobs, limit) {
 async function recheckFound(userId) {
   const { rows } = await db.query(
     `SELECT id, url FROM jobs
-     WHERE user_id = $1 AND source = 'search' AND state = 'new' AND url IS NOT NULL
+     WHERE user_id = $1 AND source = 'search' AND ${canMove("close")} AND url IS NOT NULL
        AND (checked_at IS NULL OR checked_at < NOW() - make_interval(hours => $2))
      ORDER BY checked_at NULLS FIRST
      LIMIT $3`,
@@ -262,12 +264,16 @@ async function recheckFound(userId) {
 }
 
 // Records how a search ended
-function finish(searchId, state, error, found, usage) {
+async function finish(searchId, state, error, found, usage) {
+  if (!SEARCH.targets("finish").includes(state)) {
+    throw new Error(`A search can't finish as "${state}"`);
+  }
+
   return db.query(
     `UPDATE job_searches
      SET status = $2, error = $3, found = $4, input_tokens = $5, output_tokens = $6,
          web_searches = $7, web_fetches = $8, finished_at = NOW()
-     WHERE id = $1`,
+     WHERE id = $1 AND status IN (${SEARCH.sqlList(SEARCH.sources("finish"))})`,
     [searchId, state, error, found, usage.input, usage.output, usage.searches, usage.fetches]
   );
 }
@@ -492,8 +498,8 @@ async function score(cv, prefs, candidates, usage) {
 function failInterrupted() {
   return db.query(
     `UPDATE job_searches
-     SET status = 'failed', error = 'The search was interrupted. Please try again.', finished_at = NOW()
-     WHERE status = 'running'`
+     SET status = ${SEARCH.sqlList(SEARCH.targets("interrupt"))}, error = 'The search was interrupted. Please try again.', finished_at = NOW()
+     WHERE status IN (${SEARCH.sqlList(SEARCH.sources("interrupt"))})`
   );
 }
 

@@ -267,7 +267,7 @@ describe("failInterrupted", () => {
     await jobSearch.failInterrupted();
 
     expect(query.mock.calls[0][0]).toContain("The search was interrupted. Please try again.");
-    expect(query.mock.calls[0][0]).toContain("WHERE status = 'running'");
+    expect(query.mock.calls[0][0]).toContain("WHERE status IN ('running')");
   });
 });
 
@@ -630,7 +630,7 @@ describe("run", () => {
 
     await jobSearch.run(7, 55);
 
-    const trim = db.query.mock.calls.find(([sql]) => sql.includes("SET state = 'dismissed'"));
+    const trim = db.query.mock.calls.find(([sql]) => sql.includes("THEN 'dismissed'"));
 
     expect(trim[1]).toEqual([7, feeds.MAX_AGE_DAYS, jobSearch.MAX_FOUND_JOBS]);
     expect(db.query.mock.calls.indexOf(trim)).toBeGreaterThan(db.query.mock.calls.findIndex(([sql]) => sql.includes("INSERT INTO jobs")));

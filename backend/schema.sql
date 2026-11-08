@@ -200,6 +200,11 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS match_have JSONB NOT NULL DEFAULT '[]'
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS match_missing JSONB NOT NULL DEFAULT '[]';
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS posted_at TIMESTAMPTZ;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT FALSE;
+-- Only an applied job can be hidden (archived); see JOB in src/services/jobs/jobStates.js
+UPDATE jobs SET hidden = FALSE WHERE hidden AND state <> 'applied';
+ALTER TABLE jobs DROP CONSTRAINT IF EXISTS jobs_hidden_check;
+ALTER TABLE jobs ADD CONSTRAINT jobs_hidden_check
+    CHECK (NOT hidden OR state = 'applied');
 
 CREATE INDEX IF NOT EXISTS jobs_user_id_idx
     ON jobs(user_id);
