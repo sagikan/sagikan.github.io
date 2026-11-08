@@ -2,6 +2,7 @@ const db = require("../../config/db");
 const claude = require("../ai/anthropic");
 const dev = require("../shared/devMode");
 const { safeFetch } = require("../shared/safeFetch");
+const { createMachine } = require("../shared/stateMachine");
 
 const SEARCH_URL = "https://api.logo.dev/v2/search";
 const IMAGE_URL = "https://img.logo.dev";
@@ -40,6 +41,15 @@ const lookups = new Map();
 const images = { users: { day: 0, count: 0 }, feed: { day: 0, count: 0 } };
 const feedLookups = { day: 0, count: 0 };
 const outage = { failures: 0, until: 0 };
+/* Lookups pause for a while after several failures in a row (see noteOutcome) and resume on their own once the pause
+   ends. A pause can be extended while it lasts */
+const OUTAGE = createMachine("logo lookups", {
+  initial: "running",
+  states: {
+    running: { pause: "paused" },
+    paused: { pause: "paused", resume: "running" }
+  }
+});
 
 // Error for when the logo service's daily allowance is used up
 class DailyLimitError extends Error {}
@@ -75,9 +85,14 @@ function hasSignature(contentType, image) {
   return start.subarray(0, 4).toString("latin1") === "RIFF" && start.subarray(8, 12).toString("latin1") === "WEBP";
 }
 
+// Returns whether lookups are running or paused; a pause resumes once its time is up
+function outageState() {
+  return Date.now() < outage.until ? "paused" : "running";
+}
+
 // Checks whether lookups are paused after repeated failures of the logo service or Claude
 function paused() {
-  return Date.now() < outage.until;
+  return outageState() === "paused";
 }
 
 /* Notes how a lookup went. A few failures in a row pause every lookup for a minute, so an outage
@@ -90,6 +105,7 @@ function noteOutcome(error) {
   outage.failures = error ? outage.failures + 1 : 0;
 
   if (outage.failures >= OUTAGE_AFTER) {
+    OUTAGE.move(outageState(), "pause");
     outage.failures = 0;
     outage.until = Date.now() + OUTAGE_PAUSE_MS;
     console.error(`Logo lookups paused for ${OUTAGE_PAUSE_MS / 1000} seconds after repeated failures.`);
@@ -492,5 +508,5 @@ async function prefetchLogo(company, context) {
 
 module.exports = {
   normalizeCompany, sameCompany, domainMatches, hasSignature, downloadImage, getLogo, prefetchLogo, removeOldMisses, isConfigured,
-  outage, OUTAGE_AFTER, OUTAGE_PAUSE_MS, MAX_NAME_LENGTH, MAX_IMAGES_PER_DAY, USER_IMAGES_PER_DAY, FEED_IMAGES_PER_DAY, FEED_LOOKUPS_PER_DAY, MAX_LOOKUPS_PER_DAY, MISS_DAYS, LOGO_DAYS, DailyLimitError
+  outage, OUTAGE, OUTAGE_AFTER, OUTAGE_PAUSE_MS, MAX_NAME_LENGTH, MAX_IMAGES_PER_DAY, USER_IMAGES_PER_DAY, FEED_IMAGES_PER_DAY, FEED_LOOKUPS_PER_DAY, MAX_LOOKUPS_PER_DAY, MISS_DAYS, LOGO_DAYS, DailyLimitError
 };
