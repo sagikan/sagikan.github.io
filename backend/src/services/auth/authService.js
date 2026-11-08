@@ -5,6 +5,7 @@ const db = require("../../config/db");
 const { sendCodeEmail, sendSecurityNotice } = require("../email/mailer");
 const mfa = require("./mfa");
 const dev = require("../shared/devMode");
+const { LOCKS, SIGN_IN, codeState, lockState, unlockSql } = require("./authStates");
 
 const isProduction = process.env.NODE_ENV === "production";
 const baseCookieOptions = {
@@ -21,11 +22,6 @@ const PENDING_MINUTES = 15;
 const EMAIL_CODE_MINUTES = 15;
 const EMAIL_RESEND_SECONDS = 60;
 const EMAIL_MAX_SENDS_PER_DAY = 8;
-const EMAIL_MAX_ATTEMPTS = 5;
-const MFA_MAX_ATTEMPTS = 5;
-const MFA_LOCK_MINUTES = 15;
-const LOGIN_MAX_ATTEMPTS = 10;
-const LOGIN_LOCK_MINUTES = 15;
 const EMAIL_CODE_TABLES = {
   verify: "email_verifications",
   reset: "password_resets",
@@ -157,15 +153,21 @@ function setPending(res, user, stage) {
   });
 }
 
-// Creates middleware that requires a pending sign-in at the given step
-function requirePending(stage) {
+// Creates middleware that requires a pending sign-in at a step the given sign-in move can start from
+function requirePending(move) {
+  const stages = SIGN_IN.sources(move);
+
+  if (stages.length === 0) {
+    throw new Error(`Unknown sign-in move "${move}"`);
+  }
+
   return async (req, res, next) => {
     let payload;
 
     try {
       payload = verifyToken(req.cookies?.[PENDING_COOKIE]);
 
-      if (payload.typ !== "pending" || payload.stage !== stage) {
+      if (payload.typ !== "pending" || !stages.includes(payload.stage)) {
         throw new Error("Wrong stage");
       }
 
@@ -188,18 +190,10 @@ function requirePending(stage) {
   };
 }
 
-// Returns the next sign-in step for a user
-function nextStage(user) {
-  if (!user.email_verified) return "verify_email";
-  if (!user.totp_enabled) return "mfa_setup";
-
-  return "mfa";
-}
-
 // Loads a user's account and security fields
 async function getUser(id) {
   const result = await db.query(
-    `SELECT id, email, email_verified, totp_secret, totp_pending_secret, totp_enabled,
+    `SELECT id, email, email_verified, totp_secret, totp_pending_secret, totp_pending_at, totp_enabled,
             totp_last_step, mfa_locked_until, login_locked_until, token_version
      FROM users WHERE id = $1`,
     [id]
@@ -231,18 +225,21 @@ async function sendEmailCode(user, kind, { force = false } = {}) {
   const table = EMAIL_CODE_TABLES[kind];
   const existing = await db.query(
     `SELECT EXTRACT(EPOCH FROM (NOW() - sent_at)) AS age,
-            expires_at > NOW() AS valid,
+            expires_at > NOW() AS valid, attempts,
             CASE WHEN window_started_at > NOW() - INTERVAL '24 hours' THEN send_count ELSE 0 END AS sends_today
      FROM ${table} WHERE user_id = $1`,
     [user.id]
   );
   const row = existing.rows[0];
+  const state = codeState(row);
 
-  if (row && row.valid && Number(row.age) < EMAIL_RESEND_SECONDS) {
+  /* Only a code that still works is protected: it isn't resent within the wait, and it's kept unless a new one is asked
+     for. A code with no tries left is replaced right away (the daily limit still applies) */
+  if (state === "active" && Number(row.age) < EMAIL_RESEND_SECONDS) {
     return { retryAfter: Math.ceil(EMAIL_RESEND_SECONDS - Number(row.age)) };
   }
 
-  if (row && row.valid && !force) {
+  if (state === "active" && !force) {
     return { sent: false };
   }
 
@@ -281,12 +278,13 @@ async function checkEmailCode(kind, userId, rawCode) {
     [userId]
   );
   const row = result.rows[0];
+  const state = codeState(row);
 
-  if (!row || !row.valid) {
+  if (state === "missing" || state === "expired") {
     return { status: 400, error: "This code has expired. Request a new one." };
   }
 
-  if (row.attempts >= EMAIL_MAX_ATTEMPTS) {
+  if (state === "used_up") {
     return { status: 429, error: "Too many attempts. Request a new code." };
   }
 
@@ -301,7 +299,7 @@ async function checkEmailCode(kind, userId, rawCode) {
 
 // Returns a lockout message while the account is locked
 function lockedMessage(until) {
-  if (until && new Date(until) > new Date()) {
+  if (lockState(until) === "locked") {
     const minutes = Math.ceil((new Date(until) - new Date()) / 60000);
 
     return `Too many failed attempts. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`;
@@ -310,19 +308,17 @@ function lockedMessage(until) {
   return null;
 }
 
-// Counts a failed attempt and locks the account after too many
+// Counts a failed attempt and locks after too many, resetting the count (LOCKOUT's fail move)
 async function recordFailure(userId, kind) {
-  const [attemptsColumn, lockColumn, max, minutes] = kind === "login"
-    ? ["failed_login_attempts", "login_locked_until", LOGIN_MAX_ATTEMPTS, LOGIN_LOCK_MINUTES]
-    : ["mfa_failed_attempts", "mfa_locked_until", MFA_MAX_ATTEMPTS, MFA_LOCK_MINUTES];
+  const { attempts, until, max, minutes } = LOCKS[kind];
 
   await db.query(
     `UPDATE users SET
-       ${attemptsColumn} = CASE WHEN ${attemptsColumn} + 1 >= $2 THEN 0
-                                ELSE ${attemptsColumn} + 1 END,
-       ${lockColumn} = CASE WHEN ${attemptsColumn} + 1 >= $2
-                            THEN NOW() + make_interval(mins => $3)
-                            ELSE ${lockColumn} END
+       ${attempts} = CASE WHEN ${attempts} + 1 >= $2 THEN 0
+                          ELSE ${attempts} + 1 END,
+       ${until} = CASE WHEN ${attempts} + 1 >= $2
+                       THEN NOW() + make_interval(mins => $3)
+                       ELSE ${until} END
      WHERE id = $1`,
     [userId, max, minutes]
   );
@@ -377,7 +373,7 @@ async function verifySecondFactor(user, { code, recoveryCode }) {
   }
 
   await db.query(
-    `UPDATE users SET mfa_failed_attempts = 0, mfa_locked_until = NULL WHERE id = $1`,
+    `UPDATE users SET ${unlockSql("mfa")} WHERE id = $1`,
     [user.id]
   );
 
@@ -446,7 +442,6 @@ module.exports = {
   clearSessionCookies,
   setPending,
   requirePending,
-  nextStage,
   getUser,
   withTransaction,
   sendEmailCode,
