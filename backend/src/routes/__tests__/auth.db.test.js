@@ -560,7 +560,11 @@ describe("resetting a forgotten password", () => {
   async function requestCode(email = "dana@example.com") {
     const res = await api().post("/api/auth/password/forgot").send({ email });
 
-    await vi.waitFor(() => expect(mail.codes("reset").length).toBeGreaterThan(0));
+    // The server emails the code before it saves it, so wait for both
+    await vi.waitFor(async () => {
+      expect(mail.codes("reset").length).toBeGreaterThan(0);
+      expect((await db.query("SELECT 1 FROM password_resets")).rowCount).toBeGreaterThan(0);
+    });
 
     return { res, code: mail.codes("reset").at(-1) };
   }

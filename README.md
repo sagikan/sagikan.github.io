@@ -19,8 +19,8 @@
 | Job data | JSearch and company job boards; company logos from Logo.dev |
 | Email | Brevo or SMTP for outgoing mail; Apps Script for incoming job mails |
 | Testing | Vitest, React Testing Library, and supertest against a real PostgreSQL |
-| Hosting | GitHub Pages (frontend) and Render (backend, database) |
-| CI/CD & Ops | GitHub Actions, Dependabot, and encrypted daily database backups |
+| Hosting | GitHub Pages (frontend), Render (backend), Neon (database) |
+| DevOps | GitHub Actions, Dependabot, and encrypted daily database backups |
 
 ## Repo Layout
 

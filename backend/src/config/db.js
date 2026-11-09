@@ -7,6 +7,13 @@ const pool = new Pool({
   ssl: sslOptions(),
 });
 
+pool.on("error", logIdleError);
+
+// Logs an error from an idle connection, since an unhandled pool error would crash the process
+function logIdleError(err) {
+  console.error("[db] Idle database connection error:", err.message);
+}
+
 // Checks whether the connection string points at this machine
 function isLocalDatabase(connectionString = process.env.DATABASE_URL) {
   if (!connectionString) {
@@ -70,3 +77,4 @@ function withoutSslParams(connectionString) {
 
 module.exports = pool;
 module.exports.isLocalDatabase = isLocalDatabase;
+module.exports.logIdleError = logIdleError;
