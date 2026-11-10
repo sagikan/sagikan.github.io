@@ -523,7 +523,7 @@ function Applications({
                 </a>
               )}
             </FitMeta>
-            {job.notes && <AppNote notes={job.notes} />}
+            {job.notes && <AppNote notes={job.notes} auto={job.notes_auto} />}
           </div>
 
           {update ? (

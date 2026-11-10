@@ -19,6 +19,12 @@ describe("useMachine", () => {
     expect(result.current[0]).toBe("off");
   });
 
+  it("starts in the given state when one is passed", () => {
+    const { result } = renderHook(() => useMachine(LIGHT, "dim"));
+
+    expect(result.current[0]).toBe("dim");
+  });
+
   it("follows allowed moves, with the caller's pick for a list move", () => {
     const { result } = renderHook(() => useMachine(LIGHT));
 

@@ -3,7 +3,7 @@ import { useState } from "react";
 const ROLES = { error: "alert", warning: "status", success: "status" };
 
 // Message box that can be dismissed
-function Alert({ type = "error", children, onDismiss, className = "" }) {
+function Alert({ type = "error", children, onDismiss, action = null, className = "" }) {
   const text = typeof children === "string" ? children : null;
   const [dismissed, setDismissed] = useState(undefined);
 
@@ -14,6 +14,7 @@ function Alert({ type = "error", children, onDismiss, className = "" }) {
   return (
     <div className={`alert alert-${type} alert-dismissible ${className}`.trim()} role={ROLES[type]}>
       <div className="alert-content">{children}</div>
+      {action}
       <button
         type="button"
         className="icon-btn alert-close"

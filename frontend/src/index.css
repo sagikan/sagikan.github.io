@@ -842,6 +842,32 @@ a {
   opacity: 1;
 }
 
+/* Duplicate warning: always a single row, the message is cut with an ellipsis when it doesn't fit */
+
+.duplicate-warning {
+  align-items: center;
+  gap: 2px;
+  padding-top: 7.5px;
+  padding-bottom: 7.5px;
+  white-space: nowrap;
+}
+
+.duplicate-warning .alert-content {
+  overflow: hidden;
+  margin-right: 10px;
+}
+
+.duplicate-message {
+  display: block;
+  overflow: hidden;
+  padding-top: 1px;
+  text-overflow: ellipsis;
+}
+
+.duplicate-warning .alert-close {
+  margin: 0;
+}
+
 /* Landing */
 
 .landing {
@@ -3302,6 +3328,12 @@ a {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.app-note-sign {
+  display: inline-block;
+  margin-right: 5px;
+  vertical-align: -2px;
 }
 
 .app-notes.is-expandable {

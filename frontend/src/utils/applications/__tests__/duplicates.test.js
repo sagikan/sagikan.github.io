@@ -1,10 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { duplicateNote, findLatestDuplicate, ordinalDate, withSuggestedNote } from "../duplicates";
+import { duplicateKey, duplicateNote, findLatestDuplicate, ordinalDate, suggestNote } from "../duplicates";
 
 const OLD = { id: 1, position: "Backend Engineer", company: "Orbit", status: "Applied", job_url: "https://orbit.example/jobs/1", applied_at: "2020-03-05", created_at: "2020-03-05T08:00:00Z" };
 const NEWER = { id: 2, position: "Backend Engineer", company: "Orbit", status: "Rejected", job_url: "https://orbit.example/jobs/2", applied_at: "2021-06-21", created_at: "2021-06-21T08:00:00Z" };
 const OTHER_ROLE = { id: 3, position: "Frontend Engineer", company: "Orbit", status: "Applied", job_url: null, applied_at: "2022-01-01", created_at: "2022-01-01T08:00:00Z" };
 const OTHER_COMPANY = { id: 4, position: "Backend Engineer", company: "Pinnacle", status: "Applied", job_url: null, applied_at: "2022-02-02", created_at: "2022-02-02T08:00:00Z" };
+
+describe("duplicateKey", () => {
+  it("is the same for a position and company written with other case or spaces", () => {
+    expect(duplicateKey("  Backend ENGINEER ", " orbit")).toBe(duplicateKey("backend engineer", "Orbit "));
+  });
+
+  it("differs when the position or company differs, even if their text joins the same way", () => {
+    expect(duplicateKey("Backend", "Engineer Orbit")).not.toBe(duplicateKey("Backend Engineer", "Orbit"));
+    expect(duplicateKey("a|b", "c")).not.toBe(duplicateKey("a", "b|c"));
+  });
+});
 
 describe("findLatestDuplicate", () => {
   it("returns the most recent application for the same position and company, whatever the order of the list", () => {
@@ -14,6 +25,13 @@ describe("findLatestDuplicate", () => {
 
   it("ignores case and spaces around the names", () => {
     expect(findLatestDuplicate([OLD], { position: "  backend ENGINEER ", company: " orbit " })).toBe(OLD);
+  });
+
+  it("finds nothing for the position and company whose warning was reverted, but still finds others", () => {
+    const revertedKey = duplicateKey("Backend Engineer", "Orbit");
+
+    expect(findLatestDuplicate([OLD, OTHER_ROLE], { position: " backend engineer", company: "ORBIT", revertedKey })).toBeNull();
+    expect(findLatestDuplicate([OLD, OTHER_ROLE], { position: "Frontend Engineer", company: "Orbit", revertedKey })).toBe(OTHER_ROLE);
   });
 
   it.each([
@@ -118,51 +136,52 @@ describe("duplicateNote", () => {
   });
 });
 
-describe("withSuggestedNote", () => {
-  const BLANK = { position: "", company: "", applied_at: "2030-01-01", notes: "", autoNote: "" };
+describe("suggestNote", () => {
+  const BLANK = { position: "", company: "", applied_at: "2030-01-01", notes: "" };
   const FILLED = { ...BLANK, position: "Backend Engineer", company: "Orbit" };
 
-  it("fills the note from the most recent application for the same position and company", () => {
-    const result = withSuggestedNote(BLANK, FILLED, "company", [OLD, NEWER]);
+  it("fills an empty note from the most recent application for the same position and company", () => {
+    const result = suggestNote("empty", FILLED, "company", [OLD, NEWER]);
 
-    expect(result.notes).toBe(duplicateNote(NEWER));
-    expect(result.autoNote).toBe(duplicateNote(NEWER));
+    expect(result.values.notes).toBe(duplicateNote(NEWER));
+    expect(result.move).toEqual(["fill"]);
   });
 
-  it("leaves the note empty when there is no duplicate", () => {
-    expect(withSuggestedNote(BLANK, FILLED, "company", [OTHER_ROLE, OTHER_COMPANY])).toMatchObject({ notes: "", autoNote: "" });
+  it("leaves an empty note empty when there is no duplicate", () => {
+    expect(suggestNote("empty", FILLED, "company", [OTHER_ROLE, OTHER_COMPANY])).toEqual({ values: FILLED, move: null });
   });
 
-  it("changes the filled note when the duplicate changes, and clears it when there is none", () => {
-    const first = withSuggestedNote(BLANK, FILLED, "company", [OLD, NEWER]);
-    const earlier = withSuggestedNote(first, { ...first, applied_at: "2021-01-01" }, "applied_at", [OLD, NEWER]);
-    const gone = withSuggestedNote(earlier, { ...earlier, company: "Globex" }, "company", [OLD, NEWER]);
+  it("refreshes an automatic note when the duplicate changes, and empties it when there is none", () => {
+    const first = suggestNote("empty", FILLED, "company", [OLD, NEWER]).values;
+    const earlier = suggestNote("automatic", { ...first, applied_at: "2021-01-01" }, "applied_at", [OLD, NEWER]);
+    const gone = suggestNote("automatic", { ...earlier.values, company: "Globex" }, "company", [OLD, NEWER]);
 
-    expect(earlier.notes).toBe(duplicateNote(OLD));
-    expect(gone.notes).toBe("");
+    expect(earlier.values.notes).toBe(duplicateNote(OLD));
+    expect(earlier.move).toEqual(["refresh", "automatic"]);
+    expect(gone.values.notes).toBe("");
+    expect(gone.move).toEqual(["refresh", "empty"]);
   });
 
-  it("keeps a note the user wrote", () => {
-    const written = { ...FILLED, notes: "Referred by Dana", autoNote: "" };
+  it("leaves a written note alone", () => {
+    const written = { ...FILLED, notes: "Referred by Dana" };
 
-    expect(withSuggestedNote(written, written, "company", [OLD, NEWER]).notes).toBe("Referred by Dana");
+    expect(suggestNote("written", written, "company", [OLD, NEWER])).toEqual({ values: written, move: null });
   });
 
-  it("keeps the note when the user cleared a filled one", () => {
-    const first = withSuggestedNote(BLANK, FILLED, "company", [OLD, NEWER]);
-    const cleared = { ...first, notes: "" };
+  it("leaves the note empty for a reverted warning, and fills it again for another duplicate", () => {
+    const reverted = { ...FILLED, revertedKey: duplicateKey("Backend Engineer", "Orbit") };
 
-    expect(withSuggestedNote(cleared, { ...cleared, applied_at: "2031-01-01" }, "applied_at", [OLD, NEWER]).notes).toBe("");
+    expect(suggestNote("empty", reverted, "applied_at", [OLD, NEWER]).move).toBeNull();
+    expect(suggestNote("empty", { ...reverted, position: "Frontend Engineer" }, "position", [OTHER_ROLE]).move).toEqual(["fill"]);
   });
 
   it.each(["notes", "location", "status", "job_url", "workplace_model"])("does nothing when the changed field is %s", (field) => {
-    const first = withSuggestedNote(BLANK, FILLED, "company", [OLD, NEWER]);
-    const next = { ...first, [field]: "changed", notes: field === "notes" ? "typed" : first.notes };
+    const next = { ...FILLED, [field]: "changed" };
 
-    expect(withSuggestedNote(first, next, field, [OLD, NEWER])).toBe(next);
+    expect(suggestNote("empty", next, field, [OLD, NEWER])).toEqual({ values: next, move: null });
   });
 
   it("fills the note when no field is named, such as when the form first opens", () => {
-    expect(withSuggestedNote(FILLED, FILLED, null, [OLD, NEWER]).notes).toBe(duplicateNote(NEWER));
+    expect(suggestNote("empty", FILLED, null, [OLD, NEWER]).values.notes).toBe(duplicateNote(NEWER));
   });
 });

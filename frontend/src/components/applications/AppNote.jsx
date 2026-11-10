@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 // Note line that is cut off with an ellipsis when too long and opens in full on click
-function AppNote({ notes }) {
+function AppNote({ notes, auto = false }) {
   const ref = useRef(null);
   const [open, setOpen] = useState(false);
   const [clipped, setClipped] = useState(false);
@@ -42,7 +42,13 @@ function AppNote({ notes }) {
         onKeyDown: handleKeyDown
       })}
     >
-      <i>{notes}</i>
+      {auto && (
+        <svg className="app-note-sign" viewBox="0 0 20 20" width="13" height="13" role="img" aria-label="Added automatically">
+          <title>Added automatically</title>
+          <path d="M8.500 4l1.500 4.200 4.200 1.500-4.200 1.500L8.500 15.400 7 11.200 2.800 9.700 7 8.200zM15.500 2.500v3M14 4h3" fill="none" stroke="currentColor" strokeWidth="1.600" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )}
+      {notes}
     </p>
   );
 }

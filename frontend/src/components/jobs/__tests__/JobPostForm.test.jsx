@@ -26,8 +26,18 @@ describe("JobPostForm duplicates", () => {
     renderForm();
     await fill(user, "Backend Engineer", "Orbit");
 
-    expect(screen.getByRole("status")).toHaveTextContent(/You already applied to this position at this company on .*21/);
+    expect(screen.getByRole("status")).toHaveTextContent(/You were rejected for this position after applying on .*21/);
     expect(screen.getByRole("status")).toHaveTextContent(String(THIS_YEAR - 1));
+  });
+
+  it("offers no revert button, since the form has no note to withdraw", async () => {
+    const user = userEvent.setup();
+
+    renderForm();
+    await fill(user, "Backend Engineer", "Orbit");
+
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /revert/i })).not.toBeInTheDocument();
   });
 
   it("shows no warning before both fields are filled", async () => {

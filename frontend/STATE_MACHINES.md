@@ -12,7 +12,7 @@ the table. This page lists each table, what moves it and what the UI shows in ea
 export const LIGHT = createMachine("light", {
   initial: "off",
   states: {
-    off: { switchOn: ["dim", "bright"] },   // a list: the caller picks one
+    off: { switchOn: ["dim", "bright"] },     // a list: the caller picks one
     dim: { switchOff: "off" },
     bright: { switchOff: "off" }
   }
@@ -25,9 +25,9 @@ It offers `next(state, move, pick)` (the next state, or `null` if the move isn't
 [`hooks/useMachine.js`](src/hooks/useMachine.js) keeps a table's state in a component:
 
 ```jsx
-const [light, sendLight] = useMachine(LIGHT);
+const [light, sendLight] = useMachine(LIGHT); // or useMachine(LIGHT, "dim") to start elsewhere
 
-sendLight("switchOn", "bright");   // pick for a list move
+sendLight("switchOn", "bright");              // pick for a list move
 sendLight("switchOff");
 ```
 
@@ -49,6 +49,7 @@ sendLight("switchOff");
 | [`AUTHENTICATOR_RESET`](#authenticator-reset-authenticator_reset) | [`utils/auth/authMachines.js`](src/utils/auth/authMachines.js) | `pages/Account.jsx` (`ResetAuthenticatorPanel`) |
 | [`ACCOUNT_PANEL`](#account-panels-account_panel) | [`utils/auth/authMachines.js`](src/utils/auth/authMachines.js) | `pages/Account.jsx` |
 | [`APPLICATION_EDITOR`](#application-form-application_editor) | [`utils/applications/applicationMachines.js`](src/utils/applications/applicationMachines.js) | `pages/Applications.jsx` |
+| [`NOTE`](#application-note-note) | [`utils/applications/applicationMachines.js`](src/utils/applications/applicationMachines.js) | `components/applications/ApplicationForm.jsx` |
 | [`JOB_MODAL`](#jobs-page-dialogs-job_modal) | [`utils/jobs/jobMachines.js`](src/utils/jobs/jobMachines.js) | `pages/Jobs.jsx` |
 | [`TAILOR`](#tailored-resume-tailor) | [`utils/resume/resumeMachines.js`](src/utils/resume/resumeMachines.js) | `components/jobs/TailorModal.jsx` |
 | [`RESUME_FILE`](#profile-resume-and-grade-sheet-resume_file-grade_sheet) | [`utils/resume/resumeMachines.js`](src/utils/resume/resumeMachines.js) | `components/jobs/ProfileModal.jsx` |
@@ -211,6 +212,44 @@ stateDiagram-v2
 - **Data.** `editing` holds the application, or the email's details for a draft.
 - **Closing.** `closeEditing()` closes the form and resets the switch to applications.
 - **One at a time.** A form can't switch to another while open; the dialog covers the buttons that would do it.
+
+## Application note (`NOTE`)
+
+The note field of the application form, and whether the duplicate warning wrote it.
+
+```mermaid
+stateDiagram-v2
+  [*] --> empty
+  empty --> automatic: fill
+  empty --> written: write
+  automatic --> empty: refresh*, revert
+  automatic --> written: write
+  written --> empty: revert*
+```
+
+> Not drawn, since they keep the state: `refresh` of an `automatic` note while its duplicate remains (the text follows the duplicate), and `write` on a `written` note
+
+> `refresh` goes to `empty` when the duplicate is gone. `revert` works from `written` only when the text is exactly the
+> automatic one (a note saved before the marker existed)
+
+| State | Meaning |
+|---|---|
+| `empty` | No note, or one that was reverted. The next duplicate fills it |
+| `automatic` | The text `duplicateNote` wrote. It follows the latest duplicate as position, company and date change |
+| `written` | The user typed in the field, even if they cleared it again. The warning never touches it |
+
+| Move | Made by |
+|---|---|
+| `fill` | `suggestNote`, when an empty note has a duplicate to write from |
+| `refresh` | `suggestNote`, when the duplicate of an automatic note changes (a list move: `automatic` or `empty`) |
+| `write` | `setField("notes", …)`, on every edit of the field |
+| `revert` | The warning's undo button (`revertDuplicate`) |
+
+- **Starting state.** `noteStateOf(job)`, next to the table: `empty` without a note, `automatic` when the saved `notes_auto` is true,
+  `written` otherwise. The form then fills an empty note, or refreshes an automatic one, as it opens.
+- **Saving.** `notes_auto` is sent as true only in `automatic`. The backend's `NOTE` table stores it.
+- **Reverted warning.** After a revert the warning stays hidden, and an empty note stays empty, for that position and
+  company (`revertedKey`). A different pair brings both back.
 
 ## Jobs page dialogs (`JOB_MODAL`)
 

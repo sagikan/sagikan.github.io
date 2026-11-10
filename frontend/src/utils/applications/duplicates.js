@@ -1,16 +1,21 @@
 import { jobDay, localISO } from "../../lib/api";
+import { NOTE } from "./applicationMachines";
 
 const SUGGESTING_FIELDS = ["position", "company", "applied_at"];
 
 // Trims and lowercases text for comparison
 const normalize = (text) => text.trim().toLowerCase();
 
+// Returns a key identifying a position and company pair, used to remember a reverted duplicate warning
+export const duplicateKey = (position, company) => `${normalize(position)}
+${normalize(company)}`;
+
 // Finds the most recent application for the same position and company, only on or before a day when one is given
-export function findLatestDuplicate(applications, { position, company, day, excludeId }) {
+export function findLatestDuplicate(applications, { position, company, day, excludeId, revertedKey }) {
   const wantedPosition = normalize(position);
   const wantedCompany = normalize(company);
 
-  if (!wantedPosition || !wantedCompany) {
+  if (!wantedPosition || !wantedCompany || duplicateKey(position, company) === revertedKey) {
     return null;
   }
 
@@ -42,24 +47,29 @@ export function duplicateNote(duplicate) {
   return duplicate.job_url ? `${line}: ${duplicate.job_url}` : line;
 }
 
-/* Returns the form values with the note filled from the latest duplicate, unless the user wrote their own note
-   or the changed field is not one that decides the duplicate */
-export function withSuggestedNote(previous, next, field, applications, excludeId) {
-  if (field && !SUGGESTING_FIELDS.includes(field)) {
-    return next;
-  }
+/* Returns the form values with the note filled from the latest duplicate, and the move the note's state makes
+   ([event, pick], or null for none). A written note is left alone, and so is any change to a field that doesn't
+   decide the duplicate */
+export function suggestNote(noteState, next, field, applications, excludeId) {
+  const unchanged = { values: next, move: null };
 
-  if (previous.notes !== previous.autoNote) {
-    return next;
+  if (field && !SUGGESTING_FIELDS.includes(field)) {
+    return unchanged;
   }
 
   const duplicate = findLatestDuplicate(applications, {
     position: next.position,
     company: next.company,
     day: next.applied_at || localISO(new Date()),
-    excludeId
+    excludeId,
+    revertedKey: next.revertedKey
   });
   const suggestion = duplicate ? duplicateNote(duplicate) : "";
+  const move = NOTE.can(noteState, "fill") ? ["fill"] : ["refresh", suggestion ? "automatic" : "empty"];
 
-  return { ...next, notes: suggestion, autoNote: suggestion };
+  if (!NOTE.can(noteState, ...move) || (move[0] === "fill" && !suggestion)) {
+    return unchanged;
+  }
+
+  return { values: { ...next, notes: suggestion }, move };
 }

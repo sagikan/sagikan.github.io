@@ -1,6 +1,8 @@
 import { useId, useMemo, useState } from "react";
+import { useMachine } from "../../hooks/useMachine";
 import { STATUSES, WORKPLACE_MODELS, localISO, toDateInput } from "../../lib/api";
-import { findLatestDuplicate, withSuggestedNote } from "../../utils/applications/duplicates";
+import { NOTE, noteStateOf } from "../../utils/applications/applicationMachines";
+import { duplicateKey, duplicateNote, findLatestDuplicate, suggestNote } from "../../utils/applications/duplicates";
 import { lastLocationFor, suggestionsFor } from "../../utils/forms/suggestions";
 import Alert from "../ui/Alert";
 import AutocompleteInput from "../ui/AutocompleteInput";
@@ -24,18 +26,24 @@ function initialValues(job) {
     job_url: job?.job_url || "",
     applied_at: job ? toDateInput(job.applied_at) : new Date().toLocaleDateString("en-CA"),
     notes: job?.notes || "",
-    autoNote: ""
+    revertedKey: ""
   };
+}
+
+// Returns the form's starting values and note state, with the note filled from the latest duplicate
+function startingForm(job, applications) {
+  const noteState = noteStateOf(job);
+  const { values, move } = suggestNote(noteState, initialValues(job), null, applications, job?.id);
+
+  return { values, noteState: move ? NOTE.next(noteState, ...move) : noteState };
 }
 
 // Form for adding or editing an application
 function ApplicationForm({ job, applications, onSubmit, active = true }) {
   const formId = useId();
-  const [values, setValues] = useState(() => {
-    const starting = initialValues(job);
-
-    return withSuggestedNote(starting, starting, null, applications, job?.id);
-  });
+  const [starting] = useState(() => startingForm(job, applications));
+  const [values, setValues] = useState(starting.values);
+  const [noteState, sendNote] = useMachine(NOTE, starting.noteState);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [autoLocation, setAutoLocation] = useState("");
@@ -48,20 +56,48 @@ function ApplicationForm({ job, applications, onSubmit, active = true }) {
     position: values.position,
     company: values.company,
     day: values.applied_at || localISO(new Date()),
-    excludeId: job?.id
-  }), [applications, job, values.position, values.company, values.applied_at]);
+    excludeId: job?.id,
+    revertedKey: values.revertedKey
+  }), [applications, job, values.position, values.company, values.applied_at, values.revertedKey]);
 
   // Returns a change handler for a field
   function update(field) {
     return (event) => setField(field, event.target.value);
   }
 
+  // Applies a change to the values, filling the note from the latest duplicate when the note allows it
+  function applyChange(next, field) {
+    const { values: updated, move } = suggestNote(noteState, next, field, applications, job?.id);
+
+    setValues(updated);
+
+    if (move) {
+      sendNote(...move);
+    }
+  }
+
   // Sets a field's value
   function setField(field, value) {
-    setValues((current) => {
-      const next = { ...current, [field]: value };
+    if (field === "notes") {
+      sendNote("write");
+    }
 
-      return withSuggestedNote(current, next, field, applications, job?.id);
+    applyChange({ ...values, [field]: value }, field);
+  }
+
+  // Reverts the duplicate warning for this position and company, and empties the note it filled in
+  function revertDuplicate() {
+    const generated = earlierDuplicate ? duplicateNote(earlierDuplicate) : null;
+    const emptiesNote = NOTE.can(noteState, "revert") && (noteState === "automatic" || values.notes === generated);
+
+    if (emptiesNote) {
+      sendNote("revert");
+    }
+
+    setValues({
+      ...values,
+      revertedKey: duplicateKey(values.position, values.company),
+      notes: emptiesNote ? "" : values.notes
     });
   }
 
@@ -70,11 +106,7 @@ function ApplicationForm({ job, applications, onSubmit, active = true }) {
     const untouched = !values.location || values.location === autoLocation;
     const location = lastLocationFor(applications, company);
 
-    setValues((current) => {
-      const next = { ...current, company, ...(untouched ? { location } : {}) };
-
-      return withSuggestedNote(current, next, "company", applications, job?.id);
-    });
+    applyChange({ ...values, company, ...(untouched ? { location } : {}) }, "company");
 
     if (untouched) {
       setAutoLocation(location);
@@ -95,6 +127,7 @@ function ApplicationForm({ job, applications, onSubmit, active = true }) {
       status: values.status,
       job_url: values.job_url || null,
       notes: values.notes || null,
+      notes_auto: noteState === "automatic",
       applied_at: values.applied_at || null
     });
 
@@ -109,7 +142,7 @@ function ApplicationForm({ job, applications, onSubmit, active = true }) {
     <form id={formId} className="app-form" onSubmit={handleSubmit}>
       {error && <Alert type="error">{error}</Alert>}
 
-      <DuplicateWarning duplicate={earlierDuplicate} />
+      <DuplicateWarning duplicate={earlierDuplicate} onRevert={revertDuplicate} />
 
       <div className="form-grid" style={{ "--fixed-rows": 4 }}>
         <label className="field">

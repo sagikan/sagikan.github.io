@@ -1,8 +1,8 @@
 import { useCallback, useState } from "react";
 
 // Holds a state that only changes by the moves its machine allows; a move that isn't allowed is ignored
-export function useMachine(machine) {
-  const [state, setState] = useState(machine.initial);
+export function useMachine(machine, initial = machine.initial) {
+  const [state, setState] = useState(initial);
   const send = useCallback((event, pick) => {
     setState((current) => {
       const next = machine.next(current, event, pick);
