@@ -45,6 +45,8 @@ CREATE TABLE IF NOT EXISTS applications (
 CREATE INDEX IF NOT EXISTS applications_user_id_idx
     ON applications(user_id);
 
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS notes_auto BOOLEAN NOT NULL DEFAULT FALSE;
+
 CREATE TABLE IF NOT EXISTS email_verifications (
     user_id BIGINT PRIMARY KEY REFERENCES users(id)
         ON DELETE CASCADE,

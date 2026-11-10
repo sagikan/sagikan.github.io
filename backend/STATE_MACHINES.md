@@ -14,7 +14,7 @@ const DOOR = createMachine("door", {
   states: {
     closed: { open: "open", lock: "locked" },
     open: { close: "closed" },
-    locked: { unlock: ["closed", "locked"] }   // a list: the caller picks one
+    locked: { unlock: ["closed", "locked"] }  // a list: the caller picks one
   }
 });
 ```
@@ -50,6 +50,7 @@ const DOOR = createMachine("door", {
 | [`LOCKOUT`](#lockouts-lockout) | [`services/auth/authStates.js`](src/services/auth/authStates.js) | `users.*_failed_attempts` + `users.*_locked_until` |
 | [`EMAIL_CODE`](#emailed-codes-email_code) | [`services/auth/authStates.js`](src/services/auth/authStates.js) | `email_verifications`, `password_resets` |
 | [`AUTHENTICATOR`](#authenticator-authenticator) | [`services/auth/authStates.js`](src/services/auth/authStates.js) | `users.totp_enabled`, `totp_secret`, `totp_pending_secret`, `totp_pending_at` |
+| [`NOTE`](#application-note-note) | [`services/applications/noteStates.js`](src/services/applications/noteStates.js) | `applications.notes` + `applications.notes_auto` |
 | [`OUTAGE`](#logo-lookup-pause-outage) | [`services/logos/logoService.js`](src/services/logos/logoService.js) | Memory |
 | [`PREFETCH`](#logo-prefetch-prefetch) | [`services/logos/logoPrefetch.js`](src/services/logos/logoPrefetch.js) | Memory |
 
@@ -416,3 +417,39 @@ stateDiagram-v2
 4. **Tests.** Update the table's tests (`__tests__/jobStates.test.js`, `authStates.test.js`, `emailService.test.js`,
    `emailMatcher.test.js`). If a route's behavior changes, update its database test too.
 5. **This page.** Update it, along with the frontend's page if the change shows there.
+
+## Application note (`NOTE`)
+
+An application's note. The duplicate warning in the form can write it, and the card marks such a note.
+
+```mermaid
+stateDiagram-v2
+  [*] --> empty
+  empty --> written: write
+  empty --> automatic: generate
+  automatic --> empty: clear
+  automatic --> written: write
+  written --> empty: clear
+  written --> automatic: generate
+```
+
+> Not drawn, since they keep the state: `clear` on an empty note, `generate` on an automatic one, and `write` on a written one
+
+The state is stored in two columns:
+
+| State | `notes` | `notes_auto` |
+|---|---|---|
+| `empty` | null | false |
+| `automatic` | Generated text | true |
+| `written` | Text | false |
+
+| Move | Made by |
+|---|---|
+| `clear` | A save with no note (empty text becomes null) |
+| `write` | A save with a note and `notes_auto` false or missing |
+| `generate` | A save with a note and `notes_auto` true |
+
+- **Any state to any state.** The form knows which kind of save it is, so the server doesn't read the old state;
+  `savedNoteState(notes, auto)` picks the move and the table gives the state, which sets `notes_auto`.
+- **Rules.** `notes_auto` is only accepted together with `notes`. A note saved without it becomes `written`, and an
+  empty note is never marked automatic. A request that doesn't touch `notes` leaves the state as it is.

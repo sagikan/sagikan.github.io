@@ -175,6 +175,17 @@ describe("POST /api/applications", () => {
     });
   });
 
+  it("keeps the automatic-note mark only while there is a note", async () => {
+    const { client } = await signedInClient();
+    const marked = await client.post("/api/applications").send({ ...NEW_APPLICATION, notes: "Applied on Oct 10th", notes_auto: true });
+    const empty = await client.post("/api/applications").send({ ...NEW_APPLICATION, notes: "", notes_auto: true });
+    const plain = await client.post("/api/applications").send({ ...NEW_APPLICATION, notes: "My note" });
+
+    expect(marked.body.notes_auto).toBe(true);
+    expect(empty.body.notes_auto).toBe(false);
+    expect(plain.body.notes_auto).toBe(false);
+  });
+
   it("turns an empty link or note into nothing", async () => {
     const { client } = await signedInClient();
     const res = await client.post("/api/applications").send({ ...NEW_APPLICATION, job_url: "   ", notes: "" });
@@ -257,6 +268,32 @@ describe("PATCH /api/applications/:id", () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ id: application.id, company: "Acme", status: "Offer", notes: "Great call", applied_at: "2026-05-01" });
     expect((await db.query("SELECT status FROM applications WHERE id = $1", [application.id])).rows[0].status).toBe("Offer");
+  });
+
+  it("clears the automatic-note mark when the note is changed without it, or emptied", async () => {
+    const { client, user } = await signedInClient();
+    const application = await createApplication(user.id);
+
+    await client.patch(`/api/applications/${application.id}`).send({ notes: "Applied on Oct 10th", notes_auto: true });
+    const kept = await client.patch(`/api/applications/${application.id}`).send({ status: "Interview" });
+    const edited = await client.patch(`/api/applications/${application.id}`).send({ notes: "Applied on Oct 10th, call booked" });
+
+    await client.patch(`/api/applications/${application.id}`).send({ notes: "Applied on Oct 10th", notes_auto: true });
+    const emptied = await client.patch(`/api/applications/${application.id}`).send({ notes: "", notes_auto: true });
+
+    expect(kept.body.notes_auto).toBe(true);
+    expect(edited.body.notes_auto).toBe(false);
+    expect(emptied.body).toMatchObject({ notes: null, notes_auto: false });
+  });
+
+  it("refuses the automatic-note mark without a note in the same request", async () => {
+    const { client, user } = await signedInClient();
+    const application = await createApplication(user.id, { notes: "Old" });
+    const res = await client.patch(`/api/applications/${application.id}`).send({ notes_auto: true });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("notes_auto can only be sent together with notes.");
+    expect((await db.query("SELECT notes_auto FROM applications WHERE id = $1", [application.id])).rows[0].notes_auto).toBe(false);
   });
 
   it("clears optional fields with null or empty text", async () => {

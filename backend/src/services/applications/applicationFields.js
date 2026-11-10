@@ -1,5 +1,5 @@
 const APPLICATION_FIELDS = `
-  id, company, position, location, workplace_model, status, job_url, notes,
+  id, company, position, location, workplace_model, status, job_url, notes, notes_auto,
   TO_CHAR(applied_at, 'YYYY-MM-DD') AS applied_at, created_at,
   (
     SELECT jobs.id FROM jobs
@@ -58,6 +58,8 @@ function checkApplicationField(field, value) {
       if (typeof value !== "string") return "notes must be a string or null.";
 
       return value.length > MAX_LENGTH.notes ? `Notes can be at most ${MAX_LENGTH.notes} characters.` : null;
+    case "notes_auto":
+      return typeof value === "boolean" ? null : "notes_auto must be true or false.";
     case "applied_at":
       return value === null || isCalendarDate(value) ? null : "applied_at must be a real date in YYYY-MM-DD format or null.";
     default:

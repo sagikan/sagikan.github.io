@@ -75,6 +75,12 @@ describe("checkApplicationField", () => {
     expect(checkApplicationField("notes", 5)).toBe("notes must be a string or null.");
   });
 
+  it("accepts true or false for notes_auto", () => {
+    expect(checkApplicationField("notes_auto", true)).toBeNull();
+    expect(checkApplicationField("notes_auto", false)).toBeNull();
+    expect(checkApplicationField("notes_auto", "yes")).toBe("notes_auto must be true or false.");
+  });
+
   it("accepts a real date or null for applied_at", () => {
     expect(checkApplicationField("applied_at", "2026-05-01")).toBeNull();
     expect(checkApplicationField("applied_at", null)).toBeNull();

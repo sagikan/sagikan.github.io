@@ -3,6 +3,7 @@ const db = require("../config/db");
 const requireAuth = require("../middleware/auth");
 const { requireCsrf } = require("../middleware/csrf");
 const { APPLICATION_FIELDS, MAX_APPLICATIONS, checkApplicationField } = require("../services/applications/applicationFields");
+const { savedNoteState } = require("../services/applications/noteStates");
 
 const router = express.Router();
 const ID_PATTERN = /^[1-9]\d{0,17}$/;
@@ -14,6 +15,7 @@ const applicationFields = {
   status: "status",
   job_url: "job_url",
   notes: "notes",
+  notes_auto: "notes_auto",
   applied_at: "applied_at"
 };
 const returnedFields = APPLICATION_FIELDS;
@@ -56,6 +58,7 @@ router.post("/", async (req, res) => {
       status: body.status ?? "Applied",
       job_url: cleanValue("job_url", body.job_url ?? null),
       notes: cleanValue("notes", body.notes ?? null),
+      notes_auto: body.notes_auto ?? false,
       applied_at: body.applied_at || null
     };
 
@@ -75,6 +78,8 @@ router.post("/", async (req, res) => {
       }
     }
 
+    values.notes_auto = savedNoteState(values.notes, values.notes_auto) === "automatic";
+
     const count = await db.query(`SELECT COUNT(*)::int AS count FROM applications WHERE user_id = $1`, [req.user.id]);
 
     if (count.rows[0].count >= MAX_APPLICATIONS) {
@@ -83,8 +88,8 @@ router.post("/", async (req, res) => {
 
     const result = await db.query(
       `INSERT INTO applications
-         (user_id, company, position, location, workplace_model, status, job_url, notes, applied_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         (user_id, company, position, location, workplace_model, status, job_url, notes, notes_auto, applied_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING ${returnedFields}`,
       [
         req.user.id,
@@ -95,6 +100,7 @@ router.post("/", async (req, res) => {
         values.status,
         values.job_url,
         values.notes,
+        values.notes_auto,
         values.applied_at
       ]
     );
@@ -152,7 +158,22 @@ router.patch("/:id", async (req, res) => {
       return res.status(400).json({ error: "Invalid request body." });
     }
 
-    const fields = Object.keys(updates);
+    const changes = { ...updates };
+
+    if (Object.hasOwn(changes, "notes_auto") && !Object.hasOwn(changes, "notes")) {
+      return res.status(400).json({ error: "notes_auto can only be sent together with notes." });
+    }
+
+    // A note saved without saying whether it is automatic is a written one
+    if (Object.hasOwn(changes, "notes")) {
+      changes.notes_auto ??= false;
+    }
+
+    if (typeof changes.notes_auto === "boolean") {
+      changes.notes_auto = savedNoteState(cleanValue("notes", changes.notes), changes.notes_auto) === "automatic";
+    }
+
+    const fields = Object.keys(changes);
 
     if (fields.length === 0) {
       return res.status(400).json({ error: "At least one field must be provided." });
@@ -166,7 +187,7 @@ router.patch("/:id", async (req, res) => {
     const assignments = [];
 
     for (const field of fields) {
-      const value = cleanValue(field, updates[field]);
+      const value = cleanValue(field, changes[field]);
       const problem = checkApplicationField(field, value);
 
       if (problem) {
