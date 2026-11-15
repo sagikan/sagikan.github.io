@@ -6,7 +6,8 @@ const APPLICATION = {
   position: "Backend Engineer",
   location: "Haifa",
   workplace_model: "Hybrid",
-  status: "Applied",
+  status: "Interview",
+  steps: [{ id: "1", status: "Applied", date: "2026-05-01" }, { id: "2", status: "Interview", date: "2026-05-09" }],
   applied_at: "2026-05-01",
   job_url: "https://example.com/job",
   notes: "Said \"hello\"",
@@ -56,7 +57,7 @@ describe("downloadApplicationsCsv", () => {
     expect(document.querySelector("a")).toBeNull();
   });
 
-  it("writes a header row and a row per application, with a byte order mark for Excel", async () => {
+  it("writes a header row and a row per application with its journey, with a byte order mark for Excel", async () => {
     downloadApplicationsCsv([APPLICATION]);
 
     const blob = URL.createObjectURL.mock.calls[0][0];
@@ -66,8 +67,8 @@ describe("downloadApplicationsCsv", () => {
     expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
     expect(blob.type).toBe("text/csv;charset=utf-8");
     expect(lines).toEqual([
-      "\"Company\",\"Position\",\"Location\",\"Workplace\",\"Status\",\"Applied on\",\"Job URL\",\"Notes\",\"Added at\"",
-      "\"Acme\",\"Backend Engineer\",\"Haifa\",\"Hybrid\",\"Applied\",\"2026-05-01\",\"https://example.com/job\",\"Said \"\"hello\"\"\",\"2026-05-02T10:00:00Z\""
+      "\"Company\",\"Position\",\"Location\",\"Workplace\",\"Status\",\"Journey\",\"Applied on\",\"Job URL\",\"Notes\",\"Added at\"",
+      "\"Acme\",\"Backend Engineer\",\"Haifa\",\"Hybrid\",\"Interview\",\"Applied 2026-05-01 > Interview 2026-05-09\",\"2026-05-01\",\"https://example.com/job\",\"Said \"\"hello\"\"\",\"2026-05-02T10:00:00Z\""
     ]);
   });
 
