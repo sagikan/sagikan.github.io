@@ -11,6 +11,7 @@ const app = require("../../src/app");
 const db = require("../../src/config/db");
 const auth = require("../../src/services/auth/authService");
 const mfa = require("../../src/services/auth/mfa");
+const { FIRST_STATUS } = require("../../src/services/applications/statusStates");
 
 export const ORIGIN = process.env.FRONTEND_ORIGIN;
 export const PASSWORD = "Str0ng!Passw0rd";
@@ -57,17 +58,40 @@ export async function signedInClient(options) {
   return { user, client: api(await signIn(user)) };
 }
 
-// Adds an application for a user and returns its row
+/* Adds an application for a user with its steps and returns its row. The steps are the given journey (a list of
+   [status, date]), or as the schema's backfill makes them: the first status on the applied date (or today), then the
+   status when it's another one */
 export async function createApplication(userId, values = {}) {
-  const row = { company: "Acme", position: "Backend Engineer", location: "Haifa", status: "Applied", ...values };
+  const row = { company: "Acme", position: "Backend Engineer", location: "Haifa", status: FIRST_STATUS, ...values };
+  const today = new Date().toISOString().slice(0, 10);
+  const firstDate = row.applied_at || today;
+  const journey = row.journey ?? [[FIRST_STATUS, firstDate], ...(row.status === FIRST_STATUS ? [] : [[row.status, firstDate > today ? firstDate : today]])];
+  const status = journey[journey.length - 1][0];
   const { rows } = await db.query(
     `INSERT INTO applications (user_id, company, position, location, workplace_model, status, job_url, notes, applied_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING id, company, position, location, workplace_model, status, job_url, notes, applied_at`,
-    [userId, row.company, row.position, row.location, row.workplace_model ?? null, row.status, row.job_url ?? null, row.notes ?? null, row.applied_at ?? null]
+    [userId, row.company, row.position, row.location, row.workplace_model ?? null, status, row.job_url ?? null, row.notes ?? null, row.applied_at ?? null]
   );
 
+  for (const [position, [stepStatus, date]] of journey.entries()) {
+    await db.query(
+      `INSERT INTO application_steps (application_id, user_id, position, status, step_date) VALUES ($1, $2, $3, $4, $5)`,
+      [rows[0].id, userId, position, stepStatus, date]
+    );
+  }
+
   return rows[0];
+}
+
+// Lists an application's steps as [status, date], oldest first
+export async function stepsOf(applicationId) {
+  const { rows } = await db.query(
+    `SELECT status, TO_CHAR(step_date, 'YYYY-MM-DD') AS date FROM application_steps WHERE application_id = $1 ORDER BY position`,
+    [applicationId]
+  );
+
+  return rows.map(({ status, date }) => [status, date]);
 }
 
 // Computes the authenticator app's 6-digit code for a secret at a time, written separately from the server's own code

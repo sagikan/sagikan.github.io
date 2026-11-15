@@ -335,3 +335,48 @@ CREATE TABLE IF NOT EXISTS feed_logo_misses (
 ALTER TABLE users ADD COLUMN IF NOT EXISTS policy_version TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS policy_seen_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_pending_at TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS application_steps (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    application_id BIGINT NOT NULL REFERENCES applications(id)
+        ON DELETE CASCADE,
+    user_id BIGINT NOT NULL REFERENCES users(id)
+        ON DELETE CASCADE,
+    position INTEGER NOT NULL,
+    status TEXT NOT NULL
+        CHECK (status IN (
+            'Applied',
+            'Interview',
+            'Offer',
+            'Rejected',
+            'Withdrawn'
+        )),
+    step_date DATE NOT NULL,
+    UNIQUE (application_id, position)
+);
+
+CREATE INDEX IF NOT EXISTS application_steps_user_id_idx
+    ON application_steps(user_id);
+
+INSERT INTO application_steps (application_id, user_id, position, status, step_date)
+SELECT a.id, a.user_id, step.position, step.status, step.step_date
+FROM applications a
+CROSS JOIN LATERAL (
+    VALUES
+        (0, 'Applied', COALESCE(a.applied_at, a.created_at::date)),
+        (1, a.status, GREATEST(a.created_at::date, COALESCE(a.applied_at, a.created_at::date)))
+) AS step(position, status, step_date)
+WHERE (step.position = 0 OR a.status <> 'Applied')
+  AND NOT EXISTS (SELECT 1 FROM application_steps s WHERE s.application_id = a.id);
+
+ALTER TABLE email_events ADD COLUMN IF NOT EXISTS step_id BIGINT;
+
+UPDATE applications a
+SET applied_at = first_step.step_date
+FROM (
+    SELECT DISTINCT ON (application_id) application_id, step_date
+    FROM application_steps
+    ORDER BY application_id, position
+) AS first_step
+WHERE first_step.application_id = a.id
+  AND a.applied_at IS DISTINCT FROM first_step.step_date;

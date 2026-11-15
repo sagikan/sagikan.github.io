@@ -919,6 +919,16 @@ describe("POST /api/jobs/:id/apply", () => {
     expect(res.body.application).toMatchObject({ location: "Not specified", applied_at: today });
   });
 
+  it("applies today for a date in the future, and starts the journey with Applied on that day", async () => {
+    const { client, user } = await signedInClient();
+    const id = await createJob(user.id);
+    const res = await client.post(`/api/jobs/${id}/apply`).send({ applied_at: "2099-01-01" });
+    const today = (await db.query("SELECT TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') AS day")).rows[0].day;
+
+    expect(res.body.application).toMatchObject({ status: "Applied", applied_at: today });
+    expect(res.body.application.steps).toEqual([{ id: expect.any(String), status: "Applied", date: today }]);
+  });
+
   it("shows the application's resume on the application list once tailored", async () => {
     mockClaude(tailoring());
 

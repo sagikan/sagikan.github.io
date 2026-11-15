@@ -3,7 +3,7 @@ require("dotenv").config();
 const readline = require("readline/promises");
 const db = require("../src/config/db");
 
-const TABLES = ["closed_postings", "feed_state","job_postings", "job_boards", "cv_tailorings", "jobs", "job_searches", "grade_sheets", "cv_profiles", "email_events", "email_sync", "recovery_codes", "password_resets", "email_verifications", "applications", "users"];
+const TABLES = ["closed_postings", "feed_state","job_postings", "job_boards", "cv_tailorings", "jobs", "job_searches", "grade_sheets", "cv_profiles", "email_events", "email_sync", "recovery_codes", "password_resets", "email_verifications", "application_steps", "applications", "users"];
 const { isLocalDatabase } = db;
 
 // Describes the target database for the confirmation prompt

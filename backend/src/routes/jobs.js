@@ -10,6 +10,8 @@ const feeds = require("../services/jobs/jobFeeds");
 const cvTailor = require("../services/resume/cvTailor");
 const { JOB, VISIBLE, jobState, inStates, canMove, moveSet } = require("../services/jobs/jobStates");
 const { APPLICATION_FIELDS, isCalendarDate, isWebUrl } = require("../services/applications/applicationFields");
+const { FIRST_STATUS } = require("../services/applications/statusStates");
+const steps = require("../services/applications/applicationSteps");
 
 const router = express.Router();
 const MAX_CV_PAGES = 10;
@@ -508,7 +510,8 @@ router.post("/:id/apply", async (req, res) => {
   const id = jobId(req, res);
   if (!id) return;
 
-  const appliedAt = isCalendarDate(req.body?.applied_at) ? req.body.applied_at : null;
+  const given = req.body?.applied_at;
+  const appliedAt = isCalendarDate(given) && given <= steps.latestDate() ? given : null;
   const client = await db.connect();
 
   try {
@@ -531,11 +534,19 @@ router.post("/:id/apply", async (req, res) => {
     const { company, position, location, workplace_model: workplace, url } = job.rows[0];
     const inserted = await client.query(
       `INSERT INTO applications (user_id, company, position, location, workplace_model, status, job_url, applied_at)
-       VALUES ($1, $2, $3, $4, $5, 'Applied', $6, COALESCE($7::date, CURRENT_DATE))
-       RETURNING id`,
-      [req.user.id, company, position, location || "Not specified", workplace, url, appliedAt]
+       VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8::date, CURRENT_DATE))
+       RETURNING id, TO_CHAR(applied_at, 'YYYY-MM-DD') AS applied_at`,
+      [req.user.id, company, position, location || "Not specified", workplace, FIRST_STATUS, url, appliedAt]
     );
     const applicationId = inserted.rows[0].id;
+
+    await steps.startJourney(client, {
+      applicationId,
+      userId: req.user.id,
+      status: FIRST_STATUS,
+      appliedAt: inserted.rows[0].applied_at
+    });
+
     const updated = await client.query(
       `UPDATE jobs SET ${moveSet("apply")}, application_id = $3 WHERE id = $1 AND user_id = $2 RETURNING ${JOB_FIELDS}`,
       [id, req.user.id, applicationId]

@@ -1,3 +1,5 @@
+const { STATUSES } = require("./statusStates");
+
 const APPLICATION_FIELDS = `
   id, company, position, location, workplace_model, status, job_url, notes, notes_auto,
   TO_CHAR(applied_at, 'YYYY-MM-DD') AS applied_at, created_at,
@@ -6,10 +8,16 @@ const APPLICATION_FIELDS = `
     JOIN cv_tailorings ON cv_tailorings.job_id = jobs.id
     WHERE jobs.application_id = applications.id
     LIMIT 1
-  ) AS cv_job_id
+  ) AS cv_job_id,
+  (
+    SELECT COALESCE(
+      json_agg(json_build_object('id', steps.id::text, 'status', steps.status, 'date', TO_CHAR(steps.step_date, 'YYYY-MM-DD')) ORDER BY steps.position),
+      '[]'
+    )
+    FROM application_steps steps
+    WHERE steps.application_id = applications.id
+  ) AS steps
 `;
-// The user can set any status by hand; email updates may only make the moves in EMAIL_MOVES (emailMatcher)
-const STATUSES = ["Applied", "Interview", "Offer", "Rejected", "Withdrawn"];
 const WORKPLACE_MODELS = ["On-site", "Hybrid", "Remote"];
 const MAX_APPLICATIONS = 5000;
 const MAX_LENGTH = { company: 200, position: 200, location: 200, job_url: 500, notes: 2000 };
