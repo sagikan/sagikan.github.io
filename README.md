@@ -27,7 +27,7 @@
 ```
 .
 ├── backend/
-│   ├── STATE_MACHINES.md    # state tables: jobs, searches, email updates, sign-in, 2FA
+│   ├── STATE_MACHINES.md    # state tables: jobs, searches, statuses, email updates, sign-in, 2FA
 │   ├── schema.sql           # full database schema (safe to re-run)
 │   ├── scripts/             # reset-db.js
 │   ├── tests/               # test setup and helpers (db/ is for database tests)
@@ -41,7 +41,7 @@
 │       └── services/        # business logic by domain
 │           ├── ai/  applications/  auth/  email/  jobs/  logos/  resume/  shared/
 ├── frontend/
-│   ├── STATE_MACHINES.md    # state tables: session, sign-in steps, dialogs, tailoring
+│   ├── STATE_MACHINES.md    # state tables: session, sign-in steps, dialogs, status folds, tailoring
 │   ├── tests/               # test setup
 │   └── src/
 │       ├── App.jsx, main.jsx, index.css
