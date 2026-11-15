@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiRequest, checkHealth, onReachability } from "./lib/api";
 import { navigate, redirect, useHashRoute } from "./lib/router";
 import { useMachine } from "./hooks/useMachine";
+import { useStepSaves } from "./hooks/useStepSaves";
 import { API_HEALTH, SESSION } from "./utils/auth/authMachines";
 import Footer from "./components/layout/Footer";
 import Navbar from "./components/layout/Navbar";
@@ -50,6 +51,14 @@ function App() {
       setEmailUpdates(result.data);
     }
   }, []);
+  const stepSaves = useStepSaves({
+    applications,
+    setApplications,
+    onError: setError,
+    onUnauthorized: clearSession,
+    onSaved: loadEmailUpdates,
+    csrfToken
+  });
 
   // Fetches the CSRF token for the current session
   const refreshCsrfToken = useCallback(async () => {
@@ -246,8 +255,8 @@ function App() {
     }
   }
 
-  // Deletes an application
-  async function handleDeleteApp(id) {
+  // Deletes an application; the same function on every render, so cards that get it can skip re-rendering
+  const handleDeleteApp = useCallback(async (id) => {
     setError("");
 
     try {
@@ -268,7 +277,7 @@ function App() {
     } catch (err) {
       setError(err.message);
     }
-  }
+  }, [csrfToken, clearSession]);
 
   // Accepts, dismisses or undoes an email update
   async function resolveEmailUpdate(id, action, body = {}) {
@@ -282,6 +291,9 @@ function App() {
       if (!response.ok) {
         if (response.status === 401) {
           clearSession();
+        } else {
+          // The update may be out of date (its application changed since): the fresh lists drop its buttons
+          await loadEmailUpdates();
         }
 
         return data.error || "Could not update. Please try again.";
@@ -297,12 +309,6 @@ function App() {
     } catch {
       return "Could not reach the server. Please try again.";
     }
-  }
-
-  // Changes an application's status from its card
-  async function handleQuickStatus(id, status) {
-    const message = await saveApp(id, { status });
-    setError(message);
   }
 
   let page;
@@ -354,7 +360,10 @@ function App() {
         onDismissError={() => setError("")}
         onSave={saveApp}
         onDelete={handleDeleteApp}
-        onQuickStatus={handleQuickStatus}
+        savingIds={stepSaves.savingIds}
+        onAddStep={stepSaves.onAddStep}
+        onChangeStep={stepSaves.onChangeStep}
+        onRemoveStep={stepSaves.onRemoveStep}
       />
     );
   } else if (route === "/privacy") {

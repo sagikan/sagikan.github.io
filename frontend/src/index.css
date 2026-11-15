@@ -37,6 +37,8 @@
   --rejected-soft: #fde8e8;
   --withdrawn: #71717a;
   --withdrawn-soft: #f0f0f2;
+  --crease-shade: rgb(16 24 40 / 0.11);
+  --flap-shadow: rgb(16 24 40 / 0.14);
 
   color-scheme: light;
   font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -82,6 +84,8 @@
     --rejected-soft: #3a1618;
     --withdrawn: #a1a1aa;
     --withdrawn-soft: #26262b;
+    --crease-shade: rgb(0 0 0 / 0.3);
+    --flap-shadow: rgb(0 0 0 / 0.4);
 
     color-scheme: dark;
   }
@@ -2049,7 +2053,6 @@ a {
 }
 
 .toolbar .dropdown-list,
-.app-actions .dropdown-list,
 .month-field .dropdown-list {
   right: auto;
   min-width: 100%;
@@ -2058,8 +2061,7 @@ a {
   overflow-y: auto;
 }
 
-.toolbar .dropdown-list,
-.app-actions .dropdown-list {
+.toolbar .dropdown-list {
   right: 0;
   left: auto;
 }
@@ -2836,51 +2838,6 @@ a {
   box-shadow: var(--top-line), var(--shadow-card-hover);
 }
 
-@media (width > 640px) {
-  .app-card:has(.app-notes):has(> .app-actions) {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    column-gap: 16px;
-    row-gap: 2px;
-    align-items: center;
-  }
-
-  .app-card:has(.app-notes):has(> .app-actions) > .app-main {
-    display: contents;
-  }
-
-  .app-card:has(.app-notes):has(> .app-actions) > .avatar {
-    grid-column: 1;
-    grid-row: 1 / span 2;
-  }
-
-  .app-card:has(.app-notes):has(> .app-actions) .app-title {
-    grid-column: 2;
-    grid-row: 1;
-    align-self: end;
-  }
-
-  .app-card:has(.app-notes):has(> .app-actions) .app-meta {
-    grid-column: 2;
-    grid-row: 2;
-    align-self: start;
-  }
-
-  .app-card:has(.app-notes):has(> .app-actions) .app-notes {
-    grid-column: 2 / -1;
-    grid-row: 3;
-  }
-
-  .app-card:has(.app-notes):has(> .app-actions) .app-notes:not(.is-open) {
-    margin-right: 8px;
-  }
-
-  .app-card:has(.app-notes):has(> .app-actions) > .app-actions {
-    grid-column: 3;
-    grid-row: 1 / span 2;
-  }
-}
-
 /* Status colours */
 .status-applied { --status: var(--applied); --status-soft: var(--applied-soft); }
 .status-interview { --status: var(--interview); --status-soft: var(--interview-soft); }
@@ -3354,14 +3311,7 @@ a {
   opacity: 0.6;
 }
 
-/* Application card actions */
-.app-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
+/* Application card: edit button */
 .app-card .app-edit {
   flex-shrink: 0;
   width: 28px;
@@ -3394,34 +3344,6 @@ a {
   }
 }
 
-.app-card > .app-actions {
-  margin-right: 20px;
-}
-
-.app-card > .app-actions > .app-delete.icon-btn {
-  position: absolute;
-  top: 4px;
-  right: 7px;
-  z-index: 1;
-  width: 20px;
-  height: 20px;
-  color: color-mix(in srgb, var(--text-muted) 45%, transparent);
-}
-
-.app-card > .app-actions > .app-delete.icon-btn svg {
-  width: 13px;
-  height: 13px;
-}
-
-.app-card:hover > .app-actions > .app-delete.icon-btn,
-.app-card > .app-actions > .app-delete.icon-btn:focus-visible {
-  color: var(--text-muted);
-}
-
-.app-card > .app-actions > .app-delete.icon-btn:hover {
-  color: var(--rejected);
-}
-
 .status-select {
   width: 120px;
   height: 30px;
@@ -3433,14 +3355,6 @@ a {
   font-size: 0.87rem;
   font-weight: 600;
   cursor: pointer;
-}
-
-.app-cv-btn {
-  margin-right: 4px;
-}
-
-.app-actions .dropdown {
-  margin-right: 4px;
 }
 
 .status-select .select-value {
@@ -3485,12 +3399,476 @@ a {
   transform: rotate(180deg);
 }
 
-.confirm {
+/* Application cards: the status area, a stack of folding pages on the card's right (StatusStack.jsx). The current
+   status is the top page; earlier steps are slashed panels beneath it, like the email review cards' suggestion */
+.app-card:has(> .zone) {
+  --zone: 212px;
+  --slant: 18px;
+  --strip: 6px;
+  --ear: 25px;
+  min-height: 64px;
+  padding-right: calc(var(--zone) + 4px);
+  isolation: isolate;
+}
+
+/* The card's old tint, laid over its new one while a new status fades in or an undone one fades out (StatusStack.jsx
+   sets --was-soft and --was-alpha each frame). Fading a layer, as the page fades over the one beneath it, blends the
+   two tints the same way on both sides of the status area's edge, which a color transition doesn't, so no line shows
+   there */
+.app-card:has(> .zone)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background-color: color-mix(in srgb, var(--was-soft, var(--surface)) 55%, var(--surface));
+  box-shadow: var(--top-line);
+  opacity: var(--was-alpha, 0);
+  pointer-events: none;
+}
+
+.app-card.folded {
+  cursor: pointer;
+}
+
+@media (width > 640px) {
+  .app-card:has(.app-notes):has(> .zone) {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 16px;
+    row-gap: 2px;
+    align-items: center;
+  }
+
+  .app-card:has(.app-notes):has(> .zone) > .app-main {
+    display: contents;
+  }
+
+  .app-card:has(.app-notes):has(> .zone) > .avatar {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+
+  .app-card:has(.app-notes):has(> .zone) .app-title {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: end;
+  }
+
+  .app-card:has(.app-notes):has(> .zone) .app-meta {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: start;
+  }
+
+  .app-card:has(.app-notes):has(> .zone) .app-notes {
+    grid-column: 2;
+    grid-row: 3;
+  }
+}
+
+.zone {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--zone);
+}
+
+.zpage,
+.zpage > * {
+  position: absolute;
+  inset: 0;
+}
+
+.zpage {
+  pointer-events: none;
+}
+
+.zpage.earlier {
+  --panel: color-mix(in srgb, var(--status) 16%, var(--surface));
+}
+
+/* A page's color and top line ease between their strip, panel and current shades over the time the page takes to fold
+   or unfold */
+.zfront {
+  pointer-events: auto;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  transition: background-color 0.35s ease-in-out, box-shadow 0.35s ease-in-out;
+}
+
+.zpage.earlier .zfront {
+  background-color: var(--panel);
+  box-shadow: inset 0 2px 0 color-mix(in srgb, var(--status) 30%, transparent);
+}
+
+.zpage.earlier.turned .zfront {
+  background-color: color-mix(in srgb, var(--status) 28%, var(--surface));
+  cursor: pointer;
+}
+
+.zpage.earlier.turned .zfront:hover {
+  background-color: color-mix(in srgb, var(--status) 34%, var(--surface));
+  transition-duration: 0.15s;
+}
+
+.zpage.current.turned .zfront {
+  cursor: pointer;
+}
+
+.zpage.earlier.turned .zfront:focus-visible {
+  outline: none;
+  background-color: color-mix(in srgb, var(--status) 40%, var(--surface));
+}
+
+.zpage.current.turned .zfront:focus-visible {
+  outline: none;
+  background-color: color-mix(in srgb, var(--text) 10%, var(--panel));
+}
+
+/* Interview rounds: in a run of steps with the same status, the one repeating the status above it takes a deeper tint
+   and the one under it a lighter one, alternating, so a folded corner and the strips stand out from their neighbors */
+.zpage.earlier.deeper {
+  --panel: color-mix(in srgb, var(--status) 35%, var(--surface));
+}
+
+.zpage.earlier.lighter {
+  --panel: color-mix(in srgb, var(--status) 20%, var(--surface));
+}
+
+.zpage.earlier.deeper.turned .zfront {
+  background-color: color-mix(in srgb, var(--status) 47%, var(--surface));
+}
+
+.zpage.earlier.lighter.turned .zfront {
+  background-color: color-mix(in srgb, var(--status) 32%, var(--surface));
+}
+
+.zpage.earlier.deeper.turned .zfront:hover {
+  background-color: color-mix(in srgb, var(--status) 53%, var(--surface));
+}
+
+.zpage.earlier.lighter.turned .zfront:hover {
+  background-color: color-mix(in srgb, var(--status) 38%, var(--surface));
+}
+
+.zpage.earlier.deeper.turned .zfront:focus-visible {
+  background-color: color-mix(in srgb, var(--status) 59%, var(--surface));
+}
+
+.zpage.earlier.lighter.turned .zfront:focus-visible {
+  background-color: color-mix(in srgb, var(--status) 44%, var(--surface));
+}
+
+/* The current status's page, in the card's tint. The page that was current keeps this look while a new status unfolds
+   over it (holding, StatusStack.jsx), so this comes after the interview rounds' shades, which it overrides */
+.zpage.current,
+.zpage.earlier.holding {
+  --panel: color-mix(in srgb, var(--status-soft) 55%, var(--surface));
+}
+
+.zpage.current .zfront,
+.zpage.earlier.holding .zfront {
+  background-color: var(--panel);
+  box-shadow: inset 0 2px 0 color-mix(in srgb, var(--text) 14%, transparent);
+}
+
+/* Pages that change look under a folding page change at once, so the folding page fades over their final color as the
+   card's tint does, and no line shows at the status area's edge: an undo's page beneath takes the current look, and
+   the page that was current keeps it while a new status arrives (holding, added after React has set its classes, so
+   the browser may already have worked out its earlier look, which mustn't fade into the held one) */
+.zone.undoing .zfront,
+.zone.undoing .step-dates::before,
+.zpage.holding .zfront,
+.zpage.holding .step-dates::before {
+  transition: none;
+}
+
+.app-card.folded .zpage:not(.turned) .zfront {
+  cursor: auto;
+}
+
+.zone-controls {
+  display: contents;
+}
+
+.zshade {
+  pointer-events: none;
+  background: linear-gradient(var(--a, 315deg), transparent var(--cs, 0%), var(--crease-shade) var(--c, 0%));
+}
+
+.zflap-wrap {
+  pointer-events: none;
+  filter: drop-shadow(-1px 1px 1.5px var(--flap-shadow));
+}
+
+/* The back of a page: its own panel color, a little darker at the crease, so a fold never flashes lighter than the card */
+.zflap {
+  background: linear-gradient(
+    var(--a, 315deg),
+    color-mix(in srgb, var(--text) 9%, var(--panel)) var(--c, 0%),
+    color-mix(in srgb, var(--text) 2%, var(--panel)) var(--cf, 0%)
+  );
+}
+
+.zpage.leaving {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+/* A page's status menu, resume button and date */
+.zone .slot {
+  position: absolute;
+  top: 50%;
+  right: 24px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
+  transform: translateY(-50%);
+}
+
+.zone .pill-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.zone .select-trigger.status-select {
+  height: 32px;
   font-size: 0.87rem;
-  font-weight: 500;
+}
+
+.select-trigger.status-select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.select-trigger.status-select:disabled:hover {
+  border-color: color-mix(in srgb, var(--status) 38%, transparent);
+  background: color-mix(in srgb, var(--status) 9%, transparent);
+}
+
+/* A step's date: styled like the job feed's "New" tag (capsule, spaced capitals), sitting on the menu's bottom edge.
+   Its coating covers the top 55%, where it sits over the menu; the bottom 45% shows the panel */
+.step-dates {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 3px 6px 1px calc(6px + 0.12em);
+  isolation: isolate;
+  border: 0;
+  background: none;
+  color: color-mix(in srgb, var(--status) 30%, var(--text-muted));
+  font-family: "Space Grotesk", var(--font-display);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.4;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.step-dates::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 45% 0;
+  z-index: -1;
+  border-radius: 999px 999px 0 0;
+  background: var(--panel);
+  box-shadow: inset 0 2px 0 color-mix(in srgb, #fff 15%, transparent);
+  transition: background-color 0.35s ease-in-out;
+}
+
+.step-dates:hover:not(:disabled) {
+  color: var(--status);
+}
+
+.step-dates:disabled {
+  cursor: not-allowed;
+}
+
+/* Withdrawn's grey is close to the resting color, so its date brightens most of the way to the text color instead */
+.zpage.status-withdrawn .step-dates:hover:not(:disabled) {
+  color: color-mix(in srgb, var(--text) 70%, var(--text-muted));
+}
+
+/* A page's ×: deletes the application on the current page, removes the step on an earlier one */
+.zone .zone-x {
+  position: absolute;
+  top: 4px;
+  right: 7px;
+  width: 20px;
+  height: 20px;
+  color: color-mix(in srgb, var(--text-muted) 45%, transparent);
+}
+
+.zone .zone-x svg {
+  width: 13px;
+  height: 13px;
+}
+
+.app-card:hover .zone .zone-x,
+.zone .zone-x:focus-visible {
+  color: var(--text-muted);
+}
+
+.zone .zone-x:hover:not(:disabled) {
+  color: var(--rejected);
+  background: transparent;
+}
+
+.zone .zone-x:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Controls that are off only while a change saves keep their look, so they don't flicker dim during the fold */
+.zone .status-select.waiting:disabled,
+.zone .step-dates.waiting:disabled,
+.zone .zone-x.waiting:disabled {
+  opacity: 1;
+  cursor: progress;
+}
+
+/* Inline confirm, in place of a page's controls */
+.zone-confirm {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transform: translateY(-50%);
+}
+
+.zone-confirm-text {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.zone-confirm-buttons {
+  display: flex;
+  gap: 5px;
+}
+
+.zone-confirm .btn-sm {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 0.85rem;
+}
+
+/* The folded corner's button: a triangle at the bottom-right, shown when there's a step to fold back to */
+.zone-hit {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+  display: none;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 0 0 var(--radius) 0;
+  background: transparent;
+  appearance: none;
+  cursor: pointer;
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+
+.zone-hit:focus-visible {
+  outline: none;
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.zone.can-fold .zone-hit {
+  display: block;
+}
+
+/* Status menus drawn on the page body, outside the folding pages, with greyed-out options and Undo set apart */
+.dropdown-list.dropdown-list-floating {
+  position: fixed;
+  right: auto;
+  z-index: 200;
+  width: max-content;
+}
+
+.dropdown-option.is-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.dropdown-option.is-disabled.is-active {
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.dropdown-option.dropdown-action {
+  margin-top: 4px;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 6px 6px;
+  color: var(--text);
+}
+
+/* Date box: picks when a step happened */
+.date-box {
+  position: fixed;
+  z-index: 200;
+  padding: 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  animation: fade-in 0.12s ease-out;
+}
+
+.date-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* The field fits a full date with its calendar icon, so the box keeps its size and never trims the date */
+.date-box input {
+  flex: none;
+  width: 10.4em;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.date-box input:focus {
+  outline: none;
+  border-color: var(--focus-border);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.date-box input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.date-box input::-webkit-calendar-picker-indicator {
+  opacity: 0.55;
+  cursor: pointer;
+}
+
+.date-box input::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+.date-box .btn-sm {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 0.85rem;
 }
 
 /* Status badges */
@@ -4255,71 +4633,45 @@ a {
     gap: 8px;
   }
 
-  .app-card .app-actions .btn-sm {
-    height: 34px;
-    padding: 0 14px;
-  }
-
-  .app-card:has(> .app-actions) {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    column-gap: 10px;
-    row-gap: 2px;
-    align-items: center;
-    padding: 10px 12px;
+  /* The status area on a phone: narrower, with thinner strips, a bigger corner to tap and a menu without its arrow.
+     Strips are only a trail here: taps pass through them to the card */
+  .app-card:has(> .zone) {
+    --zone: 170px;
+    --slant: 14px;
+    --strip: 4px;
+    --ear: 28px;
+    padding: 10px calc(var(--zone) + 2px) 10px 12px;
     cursor: pointer;
   }
 
-  .app-card:has(> .app-actions) > .app-main {
-    display: contents;
+  .zone .slot {
+    right: 22px;
+    gap: 6px;
   }
 
-  .app-card:has(> .app-actions) .app-title {
-    grid-column: 1;
-    grid-row: 1;
-    align-self: end;
-  }
-
-  .app-card:has(> .app-actions) .app-meta {
-    grid-column: 1;
-    grid-row: 2;
-    align-self: start;
-  }
-
-  .app-card:has(> .app-actions) .app-notes {
-    grid-column: 1 / -1;
-    grid-row: 3;
-  }
-
-  .app-card:has(> .app-actions) > .app-actions {
-    grid-column: 2;
-    grid-row: 1 / span 2;
-    align-self: center;
-    gap: 8px;
-    margin-right: 14px;
-  }
-
-  .app-card > .app-actions .dropdown {
-    margin-right: 0;
-  }
-
-  .app-card > .app-actions .status-select {
-    width: auto;
-    flex-shrink: 0;
-    height: 28px;
+  .zone .select-trigger.status-select {
+    height: 30px;
     padding: 0 8px;
     gap: 5px;
   }
 
-  .app-card > .app-actions .status-select::after {
+  .zone .select-trigger.status-select::after {
     display: none;
   }
 
-  .app-card > .app-actions .icon-btn:not(.app-delete),
-  .app-card > .app-actions .app-cv-btn {
+  .zone .slot .icon-btn {
     width: 28px;
     height: 28px;
     margin: 0;
+  }
+
+  .zone-hit {
+    width: 40px;
+    height: 40px;
+  }
+
+  .zpage.turned .zfront {
+    pointer-events: none;
   }
 
   :is(.app-meta, .job-meta)[data-fit] .workplace-tag {

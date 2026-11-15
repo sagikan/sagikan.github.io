@@ -1,7 +1,7 @@
 import { useId, useMemo, useState } from "react";
 import { useMachine } from "../../hooks/useMachine";
-import { STATUSES, WORKPLACE_MODELS, localISO, toDateInput } from "../../lib/api";
-import { NOTE, noteStateOf } from "../../utils/applications/applicationMachines";
+import { WORKPLACE_MODELS, localISO, toDateInput } from "../../lib/api";
+import { FIRST_STATUS, NOTE, dateBounds, formStatuses, noteStateOf } from "../../utils/applications/applicationMachines";
 import { duplicateKey, duplicateNote, findLatestDuplicate, suggestNote } from "../../utils/applications/duplicates";
 import { lastLocationFor, suggestionsFor } from "../../utils/forms/suggestions";
 import Alert from "../ui/Alert";
@@ -13,7 +13,6 @@ import DuplicateWarning from "./DuplicateWarning";
 
 const WORKPLACE_OPTIONS = [{ value: "", label: "Not specified" }, ...WORKPLACE_MODELS.map((model) => ({ value: model, label: model }))];
 const MAX_LENGTH = { position: 200, company: 200, location: 200, job_url: 500, notes: 2000 };
-const STATUS_OPTIONS = STATUSES.map((status) => ({ value: status, label: status }));
 
 // Returns the form's starting values for a job, or empty ones
 function initialValues(job) {
@@ -22,7 +21,7 @@ function initialValues(job) {
     position: job?.position || "",
     location: job?.location || "",
     workplace_model: job?.workplace_model || "",
-    status: job?.status || "Applied",
+    status: job?.status || FIRST_STATUS,
     job_url: job?.job_url || "",
     applied_at: job ? toDateInput(job.applied_at) : new Date().toLocaleDateString("en-CA"),
     notes: job?.notes || "",
@@ -47,6 +46,8 @@ function ApplicationForm({ job, applications, onSubmit, active = true }) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [autoLocation, setAutoLocation] = useState("");
+  const statusOptions = useMemo(() => formStatuses(job?.steps).map((status) => ({ value: status, label: status })), [job]);
+  const appliedMax = job?.steps?.length ? dateBounds(job.steps, 0, localISO(new Date())).max : localISO(new Date());
   const suggestions = useMemo(() => ({
     position: suggestionsFor(applications, "position"),
     company: suggestionsFor(applications, "company"),
@@ -198,12 +199,12 @@ function ApplicationForm({ job, applications, onSubmit, active = true }) {
 
         <label className="field">
           <span>Status</span>
-          <SelectInput value={values.status} onChange={(value) => setField("status", value)} options={STATUS_OPTIONS} openUp />
+          <SelectInput value={values.status} onChange={(value) => setField("status", value)} options={statusOptions} openUp />
         </label>
 
         <label className="field">
-          <span>Date Applied <small className="optional">&ensp;optional</small></span>
-          <input type="date" value={values.applied_at} onChange={update("applied_at")} />
+          <span>Date Applied {!job?.id && <small className="optional">&ensp;optional</small>}</span>
+          <input type="date" value={values.applied_at} max={appliedMax} required={Boolean(job?.id)} onChange={update("applied_at")} />
         </label>
 
         <label className="field field-full">

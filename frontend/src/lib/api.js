@@ -1,5 +1,7 @@
+import { STATUSES } from "../utils/applications/applicationMachines";
+
+export { STATUSES };
 export const API_URL = import.meta.env.VITE_API_URL;
-export const STATUSES = ["Applied", "Interview", "Offer", "Rejected", "Withdrawn"];
 export const WORKPLACE_MODELS = ["On-site", "Hybrid", "Remote"];
 // Answers from the host in front of the server when the server itself is down
 const SERVER_DOWN_STATUSES = [502, 503, 504];
@@ -64,6 +66,21 @@ export async function apiRequest(path, { method = "GET", body, csrfToken } = {})
   const data = await response.json().catch(() => ({}));
 
   return { response, data };
+}
+
+// Adds a new current status step to an application, dated the given day
+export function addStep(applicationId, { status, date }, csrfToken) {
+  return apiRequest(`/api/applications/${applicationId}/steps`, { method: "POST", body: { status, date }, csrfToken });
+}
+
+// Changes a step's status or date
+export function changeStep(applicationId, stepId, changes, csrfToken) {
+  return apiRequest(`/api/applications/${applicationId}/steps/${stepId}`, { method: "PATCH", body: changes, csrfToken });
+}
+
+// Removes a step: an earlier one, or the current one (undo)
+export function removeStep(applicationId, stepId, csrfToken) {
+  return apiRequest(`/api/applications/${applicationId}/steps/${stepId}`, { method: "DELETE", csrfToken });
 }
 
 // Uploads a file as the request body

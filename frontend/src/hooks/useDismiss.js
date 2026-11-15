@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 
-/* Closes a small menu when the user clicks outside `ref` or presses Escape. Escape is stopped
+/* Closes a small menu when the user clicks outside `ref` (or every ref in a list) or presses Escape. Escape is stopped
    there, so it closes only the menu and not a window the menu sits in */
 export function useDismiss(open, close, ref) {
   useEffect(() => {
@@ -8,7 +8,7 @@ export function useDismiss(open, close, ref) {
 
     // Closes when clicking outside
     const onPointer = (event) => {
-      if (!ref.current?.contains(event.target)) close();
+      if (![ref].flat().some((each) => each.current?.contains(event.target))) close();
     };
 
     // Closes on Escape

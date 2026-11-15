@@ -269,3 +269,51 @@ describe("ApplicationForm duplicates", () => {
     expect(notes()).toHaveValue(`Rejected on Jun 21st, ${THIS_YEAR - 1}: https://orbit.example/jobs/2`);
   });
 });
+
+describe("ApplicationForm status", () => {
+  const journey = {
+    ...OTHER,
+    status: "Offer",
+    steps: [
+      { id: "1", status: "Applied", date: `${THIS_YEAR - 1}-01-02` },
+      { id: "2", status: "Offer", date: `${THIS_YEAR - 1}-01-20` }
+    ]
+  };
+
+  // Opens the status menu and lists its options
+  async function statusOptions(user) {
+    await user.click(screen.getAllByRole("combobox").filter((box) => box.tagName === "BUTTON")[1]);
+
+    return screen.getAllByRole("option").map((option) => option.textContent);
+  }
+
+  it("offers every status for a new application", async () => {
+    const user = userEvent.setup();
+
+    renderForm();
+
+    expect(await statusOptions(user)).toEqual(["Applied", "Interview", "Offer", "Rejected", "Withdrawn"]);
+  });
+
+  it("offers an edited application only its current status and what may follow it, since saving adds a step", async () => {
+    const user = userEvent.setup();
+
+    renderForm({ job: journey });
+
+    expect(await statusOptions(user)).toEqual(["Offer", "Rejected", "Withdrawn"]);
+  });
+
+  it("keeps the date applied before the next step's date", () => {
+    const { container } = renderForm({ job: journey });
+
+    expect(container.querySelector('input[type="date"]')).toHaveAttribute("max", `${THIS_YEAR - 1}-01-20`);
+  });
+
+  it("requires the date applied of a saved application, which is its first step's, and leaves a new one's optional", () => {
+    const { container: saved } = renderForm({ job: journey });
+    const { container: fresh } = renderForm();
+
+    expect(saved.querySelector('input[type="date"]').required).toBe(true);
+    expect(fresh.querySelector('input[type="date"]').required).toBe(false);
+  });
+});

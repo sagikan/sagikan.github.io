@@ -1,17 +1,15 @@
-import { Fragment, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useMemo, useRef, useState } from "react";
 import { downloadApplicationsCsv } from "../utils/applications/exportCsv";
-import { STATUSES, formatDate, jobDay, localISO, toDateInput } from "../lib/api";
+import { STATUSES, formatDate, jobDay, localISO } from "../lib/api";
 import { navigate } from "../lib/router";
-import AppNote from "../components/applications/AppNote";
-import FitMeta from "../components/applications/FitMeta";
 import ChipRow from "../components/ui/ChipRow";
 import ApplicationForm from "../components/applications/ApplicationForm";
 import JobPostForm from "../components/jobs/JobPostForm";
-import { ExternalIcon } from "../components/jobs/JobIcons";
 import CompanyAvatar from "../components/ui/CompanyAvatar";
 import Modal from "../components/ui/Modal";
 import SelectInput from "../components/ui/SelectInput";
 import ApplicationStats from "../components/applications/ApplicationStats";
+import ApplicationCard from "../components/applications/ApplicationCard";
 import { downloadSavedCv } from "../utils/resume/cvPdf";
 import Alert from "../components/ui/Alert";
 import { useMachine } from "../hooks/useMachine";
@@ -25,7 +23,7 @@ const SORTS = {
     compare: (a, b) => byNewest(a, b) || byStatus(a, b)
   },
   newest: { label: "Newest First", compare: byNewest },
-  oldest: { label: "Oldest First", compare: (a, b) => sortDate(a).localeCompare(sortDate(b)) },
+  oldest: { label: "Oldest First", compare: (a, b) => jobDay(a).localeCompare(jobDay(b)) },
   status: { label: "Status", compare: (a, b) => byStatus(a, b) || byNewest(a, b) },
   company: { label: "Company A–Z", compare: (a, b) => a.company.localeCompare(b.company) }
 };
@@ -38,19 +36,15 @@ const DATE_RANGES = [
   { key: "month", label: "Last Month", days: 30 }
 ];
 
-// Sorts applications newest first
+/* Sorts applications newest first, by the day they're grouped under (without a time, so applications from the same
+   day tie and the next order decides) */
 function byNewest(a, b) {
-  return sortDate(b).localeCompare(sortDate(a));
+  return jobDay(b).localeCompare(jobDay(a));
 }
 
 // Sorts applications by status
 function byStatus(a, b) {
   return STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status);
-}
-
-// Returns the date an application is sorted by
-function sortDate(job) {
-  return toDateInput(job.applied_at) || String(job.created_at || "");
 }
 
 // Returns the date a number of days ago
@@ -137,7 +131,8 @@ function Chevron() {
 
 // Applications page with filters, email updates and the list by day
 function Applications({
-  csrfToken, applications, emailUpdates, onResolveEmailUpdate, error, onDismissError, onSave, onDelete, onQuickStatus, onUnauthorized
+  csrfToken, applications, emailUpdates, onResolveEmailUpdate, error, onDismissError, onSave, onDelete, onUnauthorized,
+  savingIds, onAddStep, onChangeStep, onRemoveStep
 }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -147,19 +142,20 @@ function Applications({
   const [editor, sendEditor] = useMachine(APPLICATION_EDITOR);
   const [editing, setEditing] = useState(null);
   const [newKind, setNewKind] = useState("application");
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [foldedId, setFoldedId] = useState(null);
   const [collapsedDays, setCollapsedDays] = useState([]);
   const [resolvingId, setResolvingId] = useState(null);
   const [reviewError, setReviewError] = useState("");
   const [reviewOpen, setReviewOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
+  const [activityError, setActivityError] = useState("");
   const [moreOpenId, setMoreOpenId] = useState(null);
   const [cvBusyId, setCvBusyId] = useState(null);
   const [cvError, setCvError] = useState("");
   const dateInput = useRef(null);
 
   // Downloads the resume sent with an application
-  async function downloadCv(job) {
+  const downloadCv = useCallback(async (job) => {
     setCvBusyId(job.id);
     setCvError("");
 
@@ -170,7 +166,12 @@ function Applications({
     } finally {
       setCvBusyId(null);
     }
-  }
+  }, []);
+
+  // Keeps the one folded card: folding one makes it the folded card, unfolding it leaves none
+  const changeFold = useCallback((id, isFolded) => {
+    setFoldedId((current) => (isFolded ? id : current === id ? null : current));
+  }, []);
 
   // Collapses or expands a day
   function toggleDay(day) {
@@ -272,15 +273,18 @@ function Applications({
 
   const total = applications.length;
 
-  // Resolves an email update and shows any error
+  // Resolves an email update, showing any error where it was clicked: undo in recent updates, the rest in review
   async function resolveUpdate(id, action, body) {
+    const showError = action === "undo" ? setActivityError : setReviewError;
+
     setResolvingId(id);
     setReviewError("");
+    setActivityError("");
 
     const message = await onResolveEmailUpdate(id, action, body);
 
     setResolvingId(null);
-    setReviewError(message);
+    showError(message);
   }
 
   // Opens the form to add an application from an email update
@@ -295,10 +299,24 @@ function Applications({
   }
 
   // Opens the form to edit an application
-  function editApplication(job) {
+  const editApplication = useCallback((job) => {
     setEditing(job);
     sendEditor("edit");
-  }
+  }, [sendEditor]);
+
+  /* Handles a click or tap on a card away from its own controls: a folded card returns to its current status first,
+     and only an unfolded one opens the editor, on a phone */
+  const handleCardClick = useCallback((event, job, folded) => {
+    if (event.target.closest("button, a, input, .dropdown, .app-notes.is-expandable")) {
+      return;
+    }
+
+    if (folded) {
+      setFoldedId(null);
+    } else if (window.matchMedia("(max-width: 640px)").matches) {
+      editApplication(job);
+    }
+  }, [editApplication]);
 
   // Opens the blank form for a new application or job post
   function createEntry() {
@@ -441,161 +459,39 @@ function Applications({
     );
   }
 
-  // Opens the editor when a phone user taps a card away from its own controls
-  function openOnTap(event, job) {
-    if (!window.matchMedia("(max-width: 640px)").matches) {
-      return;
-    }
-
-    if (!event.target.closest("button, a, input, .dropdown, .app-notes.is-expandable")) {
-      editApplication(job);
-    }
-  }
-
-  // Renders the edit button of an application card
-  function renderEditButton(job) {
-    return (
-      <button
-        type="button"
-        className="icon-btn app-edit"
-        onClick={() => editApplication(job)}
-        aria-label={`Edit ${job.company} application`}
-        title="Edit"
-      >
-        <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
-          <path d="M3 6h6.5M14.5 6H17M3 14h2.5M10.5 14H17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          <circle cx="12" cy="6" r="2.3" fill="none" stroke="currentColor" strokeWidth="1.8" />
-          <circle cx="8" cy="14" r="2.3" fill="none" stroke="currentColor" strokeWidth="1.8" />
-        </svg>
-      </button>
-    );
-  }
-
-  // Renders an application card
+  // Renders an application card; one waiting on an email update shows the update's panel in place of its status area
   function renderCard(job, hidden = false) {
     const update = pendingByApp.get(job.id);
 
     return (
-        <li
-          key={job.id}
-          className={`app-card status-${job.status.toLowerCase()}${update ? " needs-review" : ""}`}
-          hidden={hidden}
-          onClick={update ? undefined : (event) => openOnTap(event, job)}
-        >
-          <CompanyAvatar company={job.company} />
-
-          <div className="app-main">
-            <div className="app-title">
-              <h3>{job.position}</h3>
-              {!update && renderEditButton(job)}
-            </div>
-            <FitMeta>
-              <span className="app-company">{job.company}</span>
-              {job.location && (
-                <span className="app-meta-item app-location-item">
-                  <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
-                    <path d="M10 17.5s5.5-4.9 5.5-9.25a5.5 5.5 0 0 0-11 0C4.5 12.6 10 17.5 10 17.5z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-                    <circle cx="10" cy="8.25" r="2" fill="none" stroke="currentColor" strokeWidth="1.7" />
-                  </svg>
-                  <span className="app-location">{job.location}</span>
-                </span>
-              )}
-              {job.workplace_model && (
-                <span
-                  className={`app-tag workplace-tag mix-${job.workplace_model.toLowerCase()}`}
-                  title={job.workplace_model}
-                >
-                  {job.workplace_model}
-                </span>
-              )}
-              {job.applied_at && (!hideCardDate || update) && (
-                <span className="app-meta-item app-date-item">
-                  <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
-                    <rect x="3.5" y="4.5" width="13" height="12" rx="2" fill="none" stroke="currentColor" strokeWidth="1.7" />
-                    <path d="M3.5 8.5h13M7 2.75v3.5M13 2.75v3.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-                  </svg>
-                  {formatDate(job.applied_at)}
-                </span>
-              )}
-              {job.job_url && (
-                <a className="job-posting-link" href={job.job_url} target="_blank" rel="noreferrer" aria-label="View posting">
-                  <span className="view-posting-text">View posting</span> <ExternalIcon />
-                </a>
-              )}
-            </FitMeta>
-            {job.notes && <AppNote notes={job.notes} auto={job.notes_auto} />}
+      <ApplicationCard
+        key={job.id}
+        job={job}
+        hidden={hidden}
+        hideCardDate={hideCardDate}
+        folded={foldedId === job.id}
+        busy={savingIds.has(job.id)}
+        cvBusy={cvBusyId === job.id}
+        review={update && (
+          <div
+            className={`app-suggestion status-${update.suggested_status.toLowerCase()}`}
+            role="group"
+            aria-label={`${job.status} to ${update.suggested_status}`}
+          >
+            <MailHint update={update} />
+            {renderDecision(update)}
           </div>
-
-          {update ? (
-            <div
-              className={`app-suggestion status-${update.suggested_status.toLowerCase()}`}
-              role="group"
-              aria-label={`${job.status} to ${update.suggested_status}`}
-            >
-              <MailHint update={update} />
-              {renderDecision(update)}
-            </div>
-          ) : (
-          <div className="app-actions">
-            {confirmDeleteId === job.id ? (
-              <div className="confirm">
-                <button
-                  type="button"
-                  className="btn btn-danger btn-sm"
-                  onClick={() => {
-                    setConfirmDeleteId(null);
-                    onDelete(job.id);
-                  }}
-                >
-                  Delete
-                </button>
-                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setConfirmDeleteId(null)}>
-                  Keep
-                </button>
-              </div>
-            ) : (
-              <>
-                {job.cv_job_id && (
-                  <button
-                    type="button"
-                    className="icon-btn app-cv-btn"
-                    disabled={cvBusyId === job.id}
-                    onClick={() => downloadCv(job)}
-                    aria-label={`Download the resume you sent to ${job.company}`}
-                    title="Download the resume you sent"
-                  >
-                    <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
-                      <path d="M5.5 2.75h6l3.75 3.75v9.25a1.5 1.5 0 0 1-1.5 1.5h-8.25a1.5 1.5 0 0 1-1.5-1.5v-11.5a1.5 1.5 0 0 1 1.5-1.5z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-                      <path d="M11.5 2.75v3.75h3.75M10 9v5M7.75 11.75 10 14l2.25-2.25" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </button>
-                )}
-                <SelectInput
-                  className="status-select"
-                  fitWidest
-                  value={job.status}
-                  onChange={(value) => onQuickStatus(job.id, value)}
-                  options={STATUSES.map((status) => ({ value: status, label: status }))}
-                  aria-label={`Change status for ${job.company}`}
-                />
-                <button
-                  type="button"
-                  className="icon-btn app-delete"
-                  onClick={() => setConfirmDeleteId(job.id)}
-                  aria-label={`Delete ${job.company} application`}
-                  title="Delete"
-                >
-                  <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
-                    <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                </button>
-              </>
-            )}
-          </div>
-          )}
-
-          {update && <MailLine update={update} />}
-        </li>
+        )}
+        footer={update && <MailLine update={update} />}
+        onEdit={editApplication}
+        onCardClick={handleCardClick}
+        onDownloadCv={downloadCv}
+        onFoldChange={changeFold}
+        onAddStep={onAddStep}
+        onChangeStep={onChangeStep}
+        onRemoveStep={onRemoveStep}
+        onDelete={onDelete}
+      />
     );
   }
 
@@ -711,6 +607,8 @@ function Applications({
               <Chevron />
             </button>
           </h2>
+
+          {activityOpen && activityError && <Alert type="error">{activityError}</Alert>}
 
           {activityOpen && (
             <ul className="app-list">

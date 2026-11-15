@@ -50,6 +50,9 @@ sendLight("switchOff");
 | [`ACCOUNT_PANEL`](#account-panels-account_panel) | [`utils/auth/authMachines.js`](src/utils/auth/authMachines.js) | `pages/Account.jsx` |
 | [`APPLICATION_EDITOR`](#application-form-application_editor) | [`utils/applications/applicationMachines.js`](src/utils/applications/applicationMachines.js) | `pages/Applications.jsx` |
 | [`NOTE`](#application-note-note) | [`utils/applications/applicationMachines.js`](src/utils/applications/applicationMachines.js) | `components/applications/ApplicationForm.jsx` |
+| [`APPLICATION_STATUS`](#application-status-journey-application_status) | [`utils/applications/applicationMachines.js`](src/utils/applications/applicationMachines.js) | `components/applications/StatusStack.jsx`, `ApplicationForm.jsx` (rules only; the steps live on the server) |
+| [`STATUS_STACK`](#status-area-folds-status_stack) | [`utils/applications/applicationMachines.js`](src/utils/applications/applicationMachines.js) | `components/applications/StatusStack.jsx` |
+| [`STEP_ACTION`](#status-area-page-actions-step_action) | [`utils/applications/applicationMachines.js`](src/utils/applications/applicationMachines.js) | `components/applications/StatusStack.jsx` |
 | [`JOB_MODAL`](#jobs-page-dialogs-job_modal) | [`utils/jobs/jobMachines.js`](src/utils/jobs/jobMachines.js) | `pages/Jobs.jsx` |
 | [`TAILOR`](#tailored-resume-tailor) | [`utils/resume/resumeMachines.js`](src/utils/resume/resumeMachines.js) | `components/jobs/TailorModal.jsx` |
 | [`RESUME_FILE`](#profile-resume-and-grade-sheet-resume_file-grade_sheet) | [`utils/resume/resumeMachines.js`](src/utils/resume/resumeMachines.js) | `components/jobs/ProfileModal.jsx` |
@@ -251,6 +254,105 @@ stateDiagram-v2
 - **Reverted warning.** After a revert the warning stays hidden, and an empty note stays empty, for that position and
   company (`revertedKey`). A different pair brings both back.
 
+## Application status journey (`APPLICATION_STATUS`)
+
+The same table as the backend's
+[`APPLICATION_STATUS`](../backend/STATE_MACHINES.md#application-status-journey-application_status): which status may
+follow which in an application's steps. The server checks every rule again; the frontend uses the table to offer only
+what the server will accept.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Applied
+  Applied --> Interview: follow
+  Applied --> Offer: follow
+  Applied --> Rejected: follow
+  Applied --> Withdrawn: follow
+  Interview --> Interview: follow
+  Interview --> Offer: follow
+  Interview --> Rejected: follow
+  Interview --> Withdrawn: follow
+  Offer --> Rejected: follow
+  Offer --> Withdrawn: follow
+```
+
+| Helper | Used for |
+|---|---|
+| `menuOptions(steps, index)` | A page's status menu. The current page's menu adds a step: it offers what may follow, "Another interview" for Interview → Interview, and "Undo …" when a step comes before it. At `MAX_STEPS` (10) only Undo is enabled. An earlier page's menu changes that step: it offers what `allowedAt` allows between its neighbors. The rest is greyed out |
+| `allowedAt(steps, index)` | The statuses a step may have: Applied for the first, otherwise what may follow the step before it and be followed by the step after it |
+| `removeBlocked(steps, index)` | Why a step's × is off: the first step is never removed, and a middle one only when its neighbors may follow each other |
+| `dateBounds`, `checkDate` | The date box: between the neighbors' dates, never after today; Save only for a new valid date |
+| `formStatuses(steps)` | The form's Status field: the current status, or one that may follow it (saving a new one adds a step) |
+| `STATUSES`, `FIRST_STATUS`, `MAX_STEPS` | The table's states, its first state and the cap; `lib/api.js` re-exports `STATUSES` |
+
+- **Mirrors the backend.** Change both tables together (see "Backend tables" below).
+- **Saving.** [`hooks/useStepSaves.js`](src/hooks/useStepSaves.js) sends each change through `lib/api.js` (`addStep`,
+  `changeStep`, `removeStep`). It shows the change at once with the copies in `utils/applications/journeyEdits.js`,
+  then takes the server's answer. When a save fails, the card goes back to how it was and the page's error alert shows
+  the server's message. While a card is saving, its controls are off (`savingIds`, the status area's `busy`).
+- **Email updates.** A saved change reloads the email updates (`onSaved`), since a new current step can take away an
+  update's Undo. A failed accept, dismiss or undo reloads them too, so an update that no longer applies loses its
+  buttons; its message shows in the section it was clicked in.
+
+## Status area folds (`STATUS_STACK`)
+
+A card's status area is a stack of pages, one per step, the current status on top. The table says whether the card is
+folded back to an earlier step.
+
+```mermaid
+stateDiagram-v2
+  [*] --> flat
+  flat --> folded: fold
+  folded --> folded: fold, unfold*
+  folded --> flat: unfold*
+```
+
+> `unfold` is a list move: `folded` while pages stay folded, `flat` once the current status is on top again
+
+| Move | Made by |
+|---|---|
+| `fold` | The folded corner (`foldNext`): the top page folds back one step and stays folded |
+| `unfold` | A strip (desktop), Escape, a click on the card, or another card folding (`unfoldTo`, `returnTo`) |
+
+- **Data.** Which pages are folded is kept by step ID (`turnedIds`), so removing a step, or a server ID replacing a
+  temporary one, keeps the right pages folded.
+- **One folded card.** `Applications.jsx` keeps `foldedId`. Folding a card sets it, which unfolds any other (its
+  `folded` prop turns false). A click or tap on a folded card returns it to the current status; on a phone, only a
+  tap on an unfolded card opens the editor.
+- **Screen readers.** Folding and unfolding are announced in the area's `aria-live` text.
+
+## Status area page actions (`STEP_ACTION`)
+
+An action on one page of the status area, asked first with an inline confirm in place of the page's controls.
+
+```mermaid
+stateDiagram-v2
+  [*] --> idle
+  idle --> delete: askDelete
+  idle --> remove: askRemove
+  idle --> undo: askUndo
+  delete --> idle: keep, confirm
+  remove --> idle: keep
+  remove --> removing: confirm
+  undo --> idle: keep
+  undo --> undoing: confirm
+  removing --> idle: finish
+  undoing --> idle: finish
+```
+
+| State | Opened by | Shows | Confirm |
+|---|---|---|---|
+| `delete` | The current page's × | "Delete this application?" | Deletes the application |
+| `remove` | An earlier page's × | "Remove Interview?" | `removing`: the page fades out (0.2s), then the step is removed |
+| `undo` | "Undo …" in the current page's menu | "Back to Applied?" | `undoing`: the page folds away, then the step is removed |
+
+- **Data.** `actionId` is the step whose page the action is on.
+- **One at a time.** While a removal or an undo runs, nothing new can be asked and Keep isn't offered (`ask` checks
+  the table first), and the pages don't fold or unfold (`actionUnderWay`, a state with a `finish` move). Folding, or
+  opening a date, closes a confirm that's only asking.
+- **Focus.** Keep returns focus to the × that asked; after a removal or an undo it goes to the status menu of the step
+  before, which is now on top.
+
 ## Jobs page dialogs (`JOB_MODAL`)
 
 The Jobs page shows one dialog at a time.
@@ -346,5 +448,6 @@ stateDiagram-v2
 1. **Put the table** in the feature's `utils/<feature>/*Machines.js`, with a comment saying what it tracks.
 2. **Use it** in the component with `useMachine`, and keep any data that goes with the state next to it.
 3. **Tests.** Add or update the table's tests in that folder's `__tests__/`.
-4. **Backend tables.** If the table mirrors a backend one (the sign-in steps do), change both together.
+4. **Backend tables.** If the table mirrors a backend one (the sign-in steps and `APPLICATION_STATUS` do), change both
+   together.
 5. **This page.** Update it.

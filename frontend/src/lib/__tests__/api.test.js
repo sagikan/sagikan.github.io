@@ -157,6 +157,45 @@ describe("apiRequest", () => {
   });
 });
 
+describe("addStep", () => {
+  it("posts the new status and its date to the application's steps", async () => {
+    const fetchMock = mockFetch(json({ id: "5" }, { status: 201 }));
+    const { addStep } = await freshModule();
+    const { data } = await addStep("5", { status: "Offer", date: "2026-11-11" }, "token-1");
+
+    expect(fetchMock).toHaveBeenCalledWith(`${API}/api/applications/5/steps`, expect.objectContaining({
+      method: "POST",
+      body: "{\"status\":\"Offer\",\"date\":\"2026-11-11\"}",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": "token-1" }
+    }));
+    expect(data).toEqual({ id: "5" });
+  });
+});
+
+describe("changeStep", () => {
+  it("patches one step with the changes", async () => {
+    const fetchMock = mockFetch(json({}));
+    const { changeStep } = await freshModule();
+
+    await changeStep("5", "12", { date: "2026-10-01" }, "token-1");
+
+    expect(fetchMock.mock.calls[0][0]).toBe(`${API}/api/applications/5/steps/12`);
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: "PATCH", body: "{\"date\":\"2026-10-01\"}" });
+  });
+});
+
+describe("removeStep", () => {
+  it("deletes one step", async () => {
+    const fetchMock = mockFetch(json({}));
+    const { removeStep } = await freshModule();
+
+    await removeStep("5", "12", "token-1");
+
+    expect(fetchMock.mock.calls[0][0]).toBe(`${API}/api/applications/5/steps/12`);
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: "DELETE", headers: { "X-CSRF-Token": "token-1" } });
+  });
+});
+
 describe("apiUpload", () => {
   const file = new File(["%PDF-"], "my résumé.pdf", { type: "application/pdf" });
 
