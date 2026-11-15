@@ -59,7 +59,10 @@ describe("collectRoutes", () => {
       "GET /api/applications",
       "POST /api/applications",
       "DELETE /api/applications/:id",
-      "PATCH /api/applications/:id"
+      "PATCH /api/applications/:id",
+      "POST /api/applications/:id/steps",
+      "PATCH /api/applications/:id/steps/:stepId",
+      "DELETE /api/applications/:id/steps/:stepId"
     ]);
   });
 });
