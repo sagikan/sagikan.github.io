@@ -8,7 +8,8 @@ const POSITION_MATCH_MIN = 0.5;
 const POSITION_GAP_MIN = 0.15;
 const MAX_CANDIDATES = 8;
 /* The status moves an email update can make: "auto" is applied when the match is confident, "review" always waits
-   for the user, and a move that isn't listed is ignored. Hand edits aren't limited by this: the user can set any status */
+   for the user, and a move that isn't listed is ignored. Every move here must also be allowed by APPLICATION_STATUS
+   (statusStates), since applying one adds a step to the application's journey */
 const EMAIL_MOVES = {
   Applied: { Interview: "auto", Offer: "auto", Rejected: "auto" },
   Interview: { Offer: "auto", Rejected: "auto" },

@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 import { describe, expect, it, vi } from "vitest";
-import { api, createApplication, createUser, signedInClient } from "../../../tests/db/helpers";
+import { api, createApplication, createUser, signedInClient, stepsOf } from "../../../tests/db/helpers";
 
 const require = createRequire(import.meta.url);
 const db = require("../../config/db");
@@ -24,16 +24,27 @@ async function createEvent(userId, values = {}) {
     previous_status: null,
     state: "pending",
     resolved_at: null,
+    step_id: null,
     ...values
   };
   const { rows } = await db.query(
     `INSERT INTO email_events
        (user_id, message_id, received_at, sender, subject, snippet, event_type, company, position, confidence,
-        suggested_status, application_id, candidate_ids, previous_status, state, resolved_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        suggested_status, application_id, candidate_ids, previous_status, state, resolved_at, step_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
      RETURNING id`,
     [userId, row.message_id, row.received_at, row.sender, row.subject, row.snippet, row.event_type, row.company, row.position, row.confidence,
-      row.suggested_status, row.application_id, row.candidate_ids, row.previous_status, row.state, row.resolved_at]
+      row.suggested_status, row.application_id, row.candidate_ids, row.previous_status, row.state, row.resolved_at, row.step_id]
+  );
+
+  return rows[0].id;
+}
+
+// Returns the ID of an application's current step
+async function currentStepId(applicationId) {
+  const { rows } = await db.query(
+    "SELECT id::text AS id FROM application_steps WHERE application_id = $1 ORDER BY position DESC LIMIT 1",
+    [applicationId]
   );
 
   return rows[0].id;
@@ -259,6 +270,22 @@ describe("GET /api/email/events", () => {
     expect(recent[0]).toMatchObject({ application_company: "Globex", undoable: false });
     expect(recent[1]).toMatchObject({ application_company: "Acme", application_position: "Backend Engineer", undoable: true });
   });
+
+  it("marks an update undoable only while the step it added is the current one", async () => {
+    const { client, user } = await signedInClient();
+    const application = await createApplication(user.id, { status: "Interview" });
+    const stepId = await currentStepId(application.id);
+    const resolved = new Date(Date.now() - 3600 * 1000);
+
+    await createEvent(user.id, { state: "auto_applied", application_id: application.id, step_id: stepId, resolved_at: resolved });
+    const before = (await client.get("/api/email/events")).body.recent[0].undoable;
+
+    await client.post(`/api/applications/${application.id}/steps`).send({ status: "Offer" });
+    const after = (await client.get("/api/email/events")).body.recent[0].undoable;
+
+    expect(before).toBe(true);
+    expect(after).toBe(false);
+  });
 });
 
 describe("POST /api/email/events/:id/accept", () => {
@@ -272,6 +299,31 @@ describe("POST /api/email/events/:id/accept", () => {
     expect(res.body.application).toMatchObject({ id: application.id, status: "Interview" });
     expect(await eventRow(event)).toMatchObject({ state: "accepted", previous_status: "Applied" });
     expect((await eventRow(event)).resolved_at).toBeTruthy();
+  });
+
+  it("adds the status as a new step and records which step it added", async () => {
+    const { client, user } = await signedInClient();
+    const application = await createApplication(user.id, { applied_at: "2026-03-01" });
+    const event = await createEvent(user.id, { application_id: application.id });
+    const res = await client.post(`/api/email/events/${event}/accept`);
+    const today = new Date().toISOString().slice(0, 10);
+
+    expect(res.body.application.steps.map(({ status }) => status)).toEqual(["Applied", "Interview"]);
+    expect(await stepsOf(application.id)).toEqual([["Applied", "2026-03-01"], ["Interview", today]]);
+    expect(String((await eventRow(event)).step_id)).toBe(await currentStepId(application.id));
+  });
+
+  it("refuses an update for an application with ten steps", async () => {
+    const { client, user } = await signedInClient();
+    const journey = [["Applied", "2026-03-01"], ...Array.from({ length: 9 }, (_, i) => ["Interview", `2026-03-${String(i + 2).padStart(2, "0")}`])];
+    const application = await createApplication(user.id, { journey });
+    const event = await createEvent(user.id, { application_id: application.id, suggested_status: "Offer" });
+    const res = await client.post(`/api/email/events/${event}/accept`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("This application already has 10 steps. Remove one to add this update.");
+    expect(await stepsOf(application.id)).toHaveLength(10);
+    expect((await eventRow(event)).state).toBe("pending");
   });
 
   it("applies it to the application the user chose among the candidates", async () => {
@@ -395,6 +447,29 @@ describe("POST /api/email/events/:id/undo", () => {
 
     expect(res.body.application).toMatchObject({ id: application.id, status: "Applied" });
     expect((await eventRow(event)).state).toBe("undone");
+  });
+
+  it("removes the step the update added", async () => {
+    const { client, user } = await signedInClient();
+    const application = await createApplication(user.id, { journey: [["Applied", "2026-03-01"], ["Interview", "2026-03-10"], ["Interview", "2026-03-20"]] });
+    const event = await createEvent(user.id, { state: "auto_applied", application_id: application.id, step_id: await currentStepId(application.id) });
+    const res = await client.post(`/api/email/events/${event}/undo`);
+
+    expect(res.status).toBe(200);
+    expect(await stepsOf(application.id)).toEqual([["Applied", "2026-03-01"], ["Interview", "2026-03-10"]]);
+    expect(await statusOf(application.id)).toBe("Interview");
+  });
+
+  it("refuses when the step the update added is no longer the current one, even with the same status", async () => {
+    const { client, user } = await signedInClient();
+    const application = await createApplication(user.id, { journey: [["Applied", "2026-03-01"], ["Interview", "2026-03-10"]] });
+    const event = await createEvent(user.id, { state: "auto_applied", application_id: application.id, step_id: await currentStepId(application.id) });
+
+    await client.post(`/api/applications/${application.id}/steps`).send({ status: "Interview" });
+    const res = await client.post(`/api/email/events/${event}/undo`);
+
+    expect(res.status).toBe(409);
+    expect(await stepsOf(application.id)).toHaveLength(3);
   });
 
   it("refuses when the status has changed since, so newer changes aren't lost", async () => {

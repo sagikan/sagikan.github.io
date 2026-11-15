@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 const require = createRequire(import.meta.url);
 const { EMAIL_MOVES, companyScore, matchApplication, movesStatusSql, positionScore, transition } = require("../emailMatcher");
 const { STATUSES } = require("../../applications/applicationFields");
+const { canFollow } = require("../../applications/statusStates");
 
 const BACKEND = { id: 1, company: "Acme", position: "Backend Engineer", applied_at: "2026-03-01" };
 const FRONTEND = { id: 2, company: "Acme Inc.", position: "Frontend Developer", applied_at: "2026-03-10" };
@@ -136,6 +137,12 @@ describe("EMAIL_MOVES", () => {
     const targets = Object.values(EMAIL_MOVES).flatMap((moves) => Object.keys(moves));
 
     expect(targets.every((status) => STATUSES.includes(status))).toBe(true);
+  });
+
+  it("never makes a move the journey rules refuse", () => {
+    const moves = Object.entries(EMAIL_MOVES).flatMap(([from, targets]) => Object.keys(targets).map((to) => [from, to]));
+
+    expect(moves.filter(([from, to]) => !canFollow(from, to))).toEqual([]);
   });
 });
 

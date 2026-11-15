@@ -1,7 +1,7 @@
 import { createRequire } from "node:module";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createApplication, createUser } from "../../../tests/db/helpers";
+import { createApplication, createUser, stepsOf } from "../../../tests/db/helpers";
 import { jsonResponse } from "../../../tests/helpers/network";
 
 const require = createRequire(import.meta.url);
@@ -150,6 +150,7 @@ describe("receiving emails", () => {
     expect(res.body).toMatchObject({ autoApplied: 1, pending: 0 });
     expect((await db.query("SELECT status FROM applications WHERE id = $1", [application.id])).rows[0].status).toBe("Interview");
     expect(await storedEvents()).toEqual([expect.objectContaining({ state: "auto_applied", suggested_status: "Interview", application_id: String(application.id) })]);
+    expect((await stepsOf(application.id)).map(([status]) => status)).toEqual(["Applied", "Interview"]);
   });
 
   it("leaves the update for the user when automatic updates are off", async () => {

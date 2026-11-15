@@ -5,6 +5,8 @@ const { classifyEmail } = require("./emailClassifier");
 const { matchApplication, transition } = require("./emailMatcher");
 const { APPLICATION_FIELDS } = require("../applications/applicationFields");
 const { createMachine } = require("../shared/stateMachine");
+const { MAX_STEPS } = require("../applications/statusStates");
+const steps = require("../applications/applicationSteps");
 
 /* An email event is recorded as ignored, pending (waiting for the user's review) or auto-applied. The user accepts
    or dismisses a pending one, and can undo one that changed an application's status. A pending one nobody reviews
@@ -77,9 +79,9 @@ async function insertEvent(client, userId, message, classified, outcome) {
   await client.query(
     `INSERT INTO email_events
        (user_id, message_id, received_at, sender, subject, snippet, event_type, company, position, confidence,
-        suggested_status, application_id, candidate_ids, previous_status, state, resolved_at)
+        suggested_status, application_id, candidate_ids, previous_status, state, resolved_at, step_id)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-             CASE WHEN $15 = 'auto_applied' THEN NOW() END)
+             CASE WHEN $15 = 'auto_applied' THEN NOW() END, $16)
      ON CONFLICT (user_id, message_id) DO NOTHING`,
     [
       userId,
@@ -96,9 +98,15 @@ async function insertEvent(client, userId, message, classified, outcome) {
       outcome.applicationId ?? null,
       outcome.candidateIds ?? [],
       outcome.previousStatus ?? null,
-      outcome.state
+      outcome.state,
+      outcome.stepId ?? null
     ]
   );
+}
+
+// Decides what an email update does to an application: what EMAIL_MOVES says, or ignored once its journey is full
+function decide(application, status) {
+  return application.steps.length >= MAX_STEPS ? "ignore" : transition(application.status, status);
 }
 
 // Matches a classified email to an application and records the outcome
@@ -126,7 +134,7 @@ async function recordOutcome(userId, autoUpdate, applications, message, classifi
   }
 
   if (match.kind === "ambiguous") {
-    const candidates = match.candidates.filter(({ status: current }) => transition(current, status) !== "ignore");
+    const candidates = match.candidates.filter((candidate) => decide(candidate, status) !== "ignore");
 
     if (candidates.length === 0) {
       await insertEvent(db, userId, message, classified, { state: "ignored" });
@@ -144,7 +152,7 @@ async function recordOutcome(userId, autoUpdate, applications, message, classifi
   }
 
   const { application } = match;
-  const action = transition(application.status, status);
+  const action = decide(application, status);
 
   if (action === "ignore") {
     await insertEvent(db, userId, message, classified, { state: "ignored" });
@@ -170,19 +178,29 @@ async function recordOutcome(userId, autoUpdate, applications, message, classifi
   }
 
   const previousStatus = application.status;
+  // The step is dated the day the email came, but never after today, which the step rules would refuse on every sync
+  const day = message.date.toISOString().slice(0, 10);
+  const stepDay = day < steps.serverToday() ? day : steps.serverToday();
 
-  await auth.withTransaction(async (client) => {
-    await client.query(`UPDATE applications SET status = $3 WHERE id = $1 AND user_id = $2`, [
-      application.id,
+  application.steps = await auth.withTransaction(async (client) => {
+    const journey = await steps.lockSteps(client, application.id, userId);
+    const stepId = await steps.addStep(client, {
+      applicationId: application.id,
       userId,
-      status
-    ]);
+      steps: journey,
+      status,
+      date: steps.nextStepDate(journey, stepDay)
+    });
+
     await insertEvent(client, userId, message, classified, {
       state: "auto_applied",
       status,
       applicationId: application.id,
-      previousStatus
+      previousStatus,
+      stepId
     });
+
+    return journey;
   });
 
   application.status = status;

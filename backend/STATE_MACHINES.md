@@ -45,7 +45,8 @@ const DOOR = createMachine("door", {
 | [`JOB`](#jobs-job) | [`services/jobs/jobStates.js`](src/services/jobs/jobStates.js) | `jobs.state` + `jobs.hidden` |
 | [`SEARCH`](#job-searches-search) | [`services/jobs/jobStates.js`](src/services/jobs/jobStates.js) | `job_searches.status` |
 | [`EMAIL_EVENT`](#email-events-email_event) | [`services/email/emailService.js`](src/services/email/emailService.js) | `email_events.state` |
-| [`EMAIL_MOVES`](#application-status-from-email-email_moves) | [`services/email/emailMatcher.js`](src/services/email/emailMatcher.js) | `applications.status` |
+| [`APPLICATION_STATUS`](#application-status-journey-application_status) | [`services/applications/statusStates.js`](src/services/applications/statusStates.js) | `application_steps` (one row per step); `applications.status` copies the current step |
+| [`EMAIL_MOVES`](#application-status-from-email-email_moves) | [`services/email/emailMatcher.js`](src/services/email/emailMatcher.js) | A new step in `application_steps` (see `APPLICATION_STATUS`) |
 | [`SIGN_IN`](#sign-in-sign_in) | [`services/auth/authStates.js`](src/services/auth/authStates.js) | The `pending_auth` cookie (`stage`) |
 | [`LOCKOUT`](#lockouts-lockout) | [`services/auth/authStates.js`](src/services/auth/authStates.js) | `users.*_failed_attempts` + `users.*_locked_until` |
 | [`EMAIL_CODE`](#emailed-codes-email_code) | [`services/auth/authStates.js`](src/services/auth/authStates.js) | `email_verifications`, `password_resets` |
@@ -173,18 +174,18 @@ stateDiagram-v2
 
 | Starting state | When |
 |---|---|
-| `ignored` | Not job-related; no status for the event type; confidence below `MIN_CONFIDENCE` (0.5); the email predates the application; or `EMAIL_MOVES` ignores the change for every candidate |
+| `ignored` | Not job-related; no status for the event type; confidence below `MIN_CONFIDENCE` (0.5); the email predates the application; or `EMAIL_MOVES` ignores the change for every candidate (an application with `MAX_STEPS` steps counts as ignored) |
 | `pending` | No matching application; several possible matches (`candidate_ids`); or a match that isn't confident enough for an automatic change |
-| `auto_applied` | Auto-update is on, `EMAIL_MOVES` says `auto`, the match is sure, the company score is at least `AUTO_COMPANY_SCORE` (0.9) and confidence is at least `AUTO_CONFIDENCE` (0.85). The application's status changes in the same transaction, and `previous_status` keeps the old one |
+| `auto_applied` | Auto-update is on, `EMAIL_MOVES` says `auto`, the match is sure, the company score is at least `AUTO_COMPANY_SCORE` (0.9) and confidence is at least `AUTO_CONFIDENCE` (0.85). In the same transaction the status is added as a step (dated the day the email arrived, never before the current step and never after today), `step_id` records that step, and `previous_status` keeps the old status |
 
 **Moves.** All three routes lock the event (`lockEvent`) and answer 409 "already handled" when the table doesn't
 allow the move from its current state.
 
 | Move | Route | Also |
 |---|---|---|
-| `accept` | `POST /email/events/:id/accept` | Sets the application's status; asks the user to choose an application when the event has several candidates; 409 when `EMAIL_MOVES` would now ignore the change (the status moved on since) |
+| `accept` | `POST /email/events/:id/accept` | Adds the status as a step dated today and records it in `step_id`; asks the user to choose an application when the event has several candidates; 409 when `EMAIL_MOVES` would now ignore the change (the status moved on since) or the application already has `MAX_STEPS` steps |
 | `dismiss` | `POST /email/events/:id/dismiss` | — |
-| `undo` | `POST /email/events/:id/undo` | Restores `previous_status`, only if the application's status is still the suggested one (409 otherwise) |
+| `undo` | `POST /email/events/:id/undo` | Removes the step the update added, only while it's still the current step (409 otherwise). Events from before steps existed have no `step_id`: for them the current step must have the suggested status, with a step before it |
 | `expire` | `cleanUpEvents` in the daily cleanup | Pending events recorded more than `PENDING_DAYS` (30) ago; sets `resolved_at` |
 | `remove` | `cleanUpEvents` in the daily cleanup | Deletes ignored, dismissed, undone and expired events resolved (or, for ignored ones, recorded) more than `KEEP_DAYS` (90) ago |
 
@@ -201,7 +202,64 @@ allow the move from its current state.
 **Lists.** `GET /email/events` builds its lists from the table:
 
 - **Pending:** events that can be accepted, unless their application's current status makes the change one `EMAIL_MOVES` ignores (already there, or moved past it). The condition comes from `movesStatusSql`.
-- **Recent:** events that can be undone, resolved in the last 24 hours, with `undoable` set when the status hasn't changed since.
+- **Recent:** events that can be undone, resolved in the last 24 hours, with `undoable` set by the same rule as `undo` (the update's step is still the current one).
+
+## Application status journey (`APPLICATION_STATUS`)
+
+An application's status history: a list of steps, each a status with a date, the last one the current status. The
+table says which status may follow which; the journey is the path through it.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Applied
+  Applied --> Interview: follow
+  Applied --> Offer: follow
+  Applied --> Rejected: follow
+  Applied --> Withdrawn: follow
+  Interview --> Interview: follow
+  Interview --> Offer: follow
+  Interview --> Rejected: follow
+  Interview --> Withdrawn: follow
+  Offer --> Rejected: follow
+  Offer --> Withdrawn: follow
+```
+
+> `follow` is a list move: the caller picks the next status. Interview → Interview is another interview round
+
+**Rules.** `statusStates.js` checks each one, and returns the reason as the error message when it fails:
+
+| Rule | Checked by |
+|---|---|
+| The first step is always `initial` (Applied): its status can't change and it can't be removed | `checkAddStep`, `checkChangeStep`, `checkRemoveStep` |
+| A new step is a status that may follow the current one, and only while there are fewer than `MAX_STEPS` (10) | `checkAddStep` |
+| An earlier step's status may change only to one that may follow the step before it and be followed by the step after it | `checkChangeStep` (`allowedAt`) |
+| A middle step may be removed only when the step after it may follow the step before it (always true with this table; checked anyway) | `checkRemoveStep` |
+| Removing the current step (undo) makes the step before it current; allowed whenever a step comes before it | `checkRemoveStep` |
+| Each step's date is between its neighbors' dates, and the current step's is not after today | `dateBounds`, used by `checkAddStep` and `checkChangeStep` |
+
+**Stored in** `application_steps` (`position` orders the steps; gaps are fine). `applications.status` is a copy of
+the current step's status, written by `syncStatus` in the same transaction as every step change, so filters, counts and
+email matching keep reading it. The first step's date is also `applications.applied_at`, always: an application
+created without one gets today's, and `PATCH /applications/:id` with `applied_at: null` keeps it.
+
+**Every change goes through `applicationSteps.js`.** It locks the application (`lockSteps`), runs the check above,
+writes the step and copies the status:
+
+| Change | Made by |
+|---|---|
+| `startJourney` (Applied, then the chosen status when it's another one) | `POST /applications`, `POST /jobs/:id/apply` |
+| `addStep` | `POST /applications/:id/steps`; `PATCH /applications/:id` with a new `status` (the form); an email update (`auto_applied`, `accept`) |
+| `changeStep` | `PATCH /applications/:id/steps/:stepId`; `PATCH /applications/:id` with a new `applied_at` (the first step's date) |
+| `removeStep` | `DELETE /applications/:id/steps/:stepId` (an earlier step, or undo of the current one); undoing an email update |
+
+> • "Today" on the server is its UTC date plus one day (`latestDate`), so a user ahead of UTC can date a step on their
+>  own today<br>
+> • A step added without a date (the form, an accepted email update) is dated today, never before the current step
+>  (`nextStepDate`); an automatic email update is dated the day the email arrived, or today if it claims a later day<br>
+> • `schema.sql` backfills applications that have no steps: Applied on `applied_at` (or the day it was created), then
+>  its status, dated the day it was created, when that isn't Applied; it then copies every first step's date into
+>  `applied_at` where they differ<br>
+> • The `application_steps` status `CHECK` in `schema.sql` lists the statuses by hand
 
 ## Application status from email (`EMAIL_MOVES`)
 
@@ -221,8 +279,9 @@ rather than a next state.
 - **—:** ignored. This covers moving backwards, staying in place, anything from Rejected or Withdrawn, and email
   never suggesting Applied or Withdrawn.
 
-`transition(current, target)` reads the table, and `movesStatusSql(current, target)` builds the same rule as an SQL condition. Hand edits aren't limited by it: the user can set any of the five
-`STATUSES` from the application form.
+> • `transition(current, target)` reads the table, and `movesStatusSql(current, target)` builds the same rule as an SQL condition<br>
+> • Every move here must also be one [`APPLICATION_STATUS`](#application-status-journey-application_status) allows, since applying it adds a step; `emailMatcher.test.js` checks this<br>
+> • Hand edits aren't limited by `EMAIL_MOVES`, only by `APPLICATION_STATUS`.
 
 ## Sign-in (`SIGN_IN`)
 
@@ -414,8 +473,8 @@ stateDiagram-v2
 2. **Change state through the table:** `move` or `can` in code, `sources`, `targets`, `sqlList` or the jobs helpers in SQL.
 3. **Stored states.** If the state is stored, check the column's `CHECK` constraints (such as `jobs_hidden_check`) and any partial index in
    `schema.sql`. Both list state names by hand.
-4. **Tests.** Update the table's tests (`__tests__/jobStates.test.js`, `authStates.test.js`, `emailService.test.js`,
-   `emailMatcher.test.js`). If a route's behavior changes, update its database test too.
+4. **Tests.** Update the table's tests (`__tests__/jobStates.test.js`, `authStates.test.js`, `statusStates.test.js`,
+   `emailService.test.js`, `emailMatcher.test.js`). If a route's behavior changes, update its database test too.
 5. **This page.** Update it, along with the frontend's page if the change shows there.
 
 ## Application note (`NOTE`)

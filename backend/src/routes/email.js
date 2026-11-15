@@ -4,8 +4,10 @@ const requireAuth = require("../middleware/auth");
 const { requireCsrf } = require("../middleware/csrf");
 const auth = require("../services/auth/authService");
 const classifier = require("../services/email/emailClassifier");
-const { APPLICATION_FIELDS, EMAIL_EVENT, generateToken, hashToken } = require("../services/email/emailService");
+const { EMAIL_EVENT, generateToken, hashToken } = require("../services/email/emailService");
 const { movesStatusSql, transition } = require("../services/email/emailMatcher");
+const { MAX_STEPS } = require("../services/applications/statusStates");
+const steps = require("../services/applications/applicationSteps");
 
 const router = express.Router();
 const ID_PATTERN = /^[1-9]\d*$/;
@@ -25,9 +27,9 @@ class HttpError extends Error {
 
 router.use(requireAuth, requireCsrf);
 
-// Sends the error's status, or logs it and sends a generic message
+// Sends the status of an HTTP or step error, or logs any other error and sends a generic message
 function fail(res, err, fallback) {
-  if (err instanceof HttpError) {
+  if (err instanceof HttpError || err instanceof steps.StepError) {
     return res.status(err.status).json({ error: err.message });
   }
 
@@ -128,9 +130,19 @@ router.get("/events", async (req, res) => {
     const recent = await db.query(
       `SELECT ${eventFields},
               a.company AS application_company, a.position AS application_position,
-              a.status = e.suggested_status AS undoable
+              COALESCE(current_step.step_count > 1 AND CASE
+                WHEN e.step_id IS NULL THEN a.status = e.suggested_status
+                ELSE e.step_id = current_step.id
+              END, FALSE) AS undoable
        FROM email_events e
        JOIN applications a ON a.id = e.application_id
+       LEFT JOIN LATERAL (
+         SELECT s.id, COUNT(*) OVER () AS step_count
+         FROM application_steps s
+         WHERE s.application_id = a.id
+         ORDER BY s.position DESC
+         LIMIT 1
+       ) AS current_step ON TRUE
        WHERE e.user_id = $1 AND e.state IN (${EMAIL_EVENT.sqlList(EMAIL_EVENT.sources("undo"))})
          AND e.resolved_at > NOW() - make_interval(hours => $2)
        ORDER BY e.resolved_at DESC
@@ -174,23 +186,16 @@ async function lockEvent(client, id, userId, move) {
   return { event, next: EMAIL_EVENT.move(event.state, move) };
 }
 
-// Locks an application row and checks that it belongs to the user
-async function lockApplication(client, id, userId) {
-  const result = await client.query(
-    `SELECT id, status FROM applications WHERE id = $1 AND user_id = $2 FOR UPDATE`,
-    [id, userId]
-  );
+/* Tells whether an event's step is still the application's current step, so undoing it removes that step. Events
+   from before steps were recorded have none: for them the current step must have the event's status */
+function isUpdateStep(event, journey) {
+  const current = journey[journey.length - 1];
 
-  if (!result.rows[0]) {
-    throw new HttpError(404, "Application not found.");
+  if (journey.length < 2) {
+    return false;
   }
 
-  return result.rows[0];
-}
-
-// Loads an application's returned fields
-async function loadApplication(client, id) {
-  return (await client.query(`SELECT ${APPLICATION_FIELDS} FROM applications WHERE id = $1`, [id])).rows[0];
+  return event.step_id ? current.id === String(event.step_id) : current.status === event.suggested_status;
 }
 
 // Applies a pending event's status to an application
@@ -211,21 +216,33 @@ router.post("/events/:id/accept", async (req, res) => {
         applicationId = chosen;
       }
 
-      const current = await lockApplication(client, applicationId, req.user.id);
+      const journey = await steps.lockSteps(client, applicationId, req.user.id);
+      const current = journey[journey.length - 1];
 
       if (transition(current.status, event.suggested_status) === "ignore") {
         throw new HttpError(409, "The application's status changed, so this update no longer applies.");
       }
 
-      await client.query(`UPDATE applications SET status = $2 WHERE id = $1`, [applicationId, event.suggested_status]);
+      if (journey.length >= MAX_STEPS) {
+        throw new HttpError(409, `This application already has ${MAX_STEPS} steps. Remove one to add this update.`);
+      }
+
+      const stepId = await steps.addStep(client, {
+        applicationId,
+        userId: req.user.id,
+        steps: journey,
+        status: event.suggested_status,
+        date: steps.nextStepDate(journey)
+      });
+
       await client.query(
         `UPDATE email_events
-         SET state = $4, application_id = $2, previous_status = $3, resolved_at = NOW()
+         SET state = $4, application_id = $2, previous_status = $3, resolved_at = NOW(), step_id = $5
          WHERE id = $1`,
-        [id, applicationId, current.status, next]
+        [id, applicationId, current.status, next, stepId]
       );
 
-      return loadApplication(client, applicationId);
+      return steps.loadApplication(client, applicationId);
     });
 
     res.json({ application });
@@ -262,16 +279,17 @@ router.post("/events/:id/undo", async (req, res) => {
         throw new HttpError(404, "Application not found.");
       }
 
-      const current = await lockApplication(client, event.application_id, req.user.id);
+      const journey = await steps.lockSteps(client, event.application_id, req.user.id);
+      const index = journey.length - 1;
 
-      if (current.status !== event.suggested_status) {
+      if (!isUpdateStep(event, journey)) {
         throw new HttpError(409, "The status changed since this update, so it can't be undone.");
       }
 
-      await client.query(`UPDATE applications SET status = $2 WHERE id = $1`, [event.application_id, event.previous_status]);
+      await steps.removeStep(client, { applicationId: event.application_id, steps: journey, index });
       await client.query(`UPDATE email_events SET state = $2, resolved_at = NOW() WHERE id = $1`, [id, next]);
 
-      return loadApplication(client, event.application_id);
+      return steps.loadApplication(client, event.application_id);
     });
 
     res.json({ application });

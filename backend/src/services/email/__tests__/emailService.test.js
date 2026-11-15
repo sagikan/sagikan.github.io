@@ -7,8 +7,9 @@ const db = require("../../../config/db");
 const { APPLICATION_FIELDS } = require("../../applications/applicationFields");
 const emailService = require("../emailService");
 
-const ACME = { id: 1, company: "Acme", position: "Backend Engineer", status: "Applied", applied_at: "2026-03-01" };
-const GLOBEX = { id: 2, company: "Globex", position: "Data Analyst", status: "Applied", applied_at: "2026-03-01" };
+const APPLIED_STEP = { id: "10", status: "Applied", date: "2026-03-01" };
+const ACME = { id: 1, company: "Acme", position: "Backend Engineer", status: "Applied", applied_at: "2026-03-01", steps: [APPLIED_STEP] };
+const GLOBEX = { id: 2, company: "Globex", position: "Data Analyst", status: "Applied", applied_at: "2026-03-01", steps: [APPLIED_STEP] };
 
 // Builds an email as the sync script sends it
 function email(id, subject, extra = {}) {
@@ -123,12 +124,39 @@ describe("ingest", () => {
   function storedEvents() {
     const calls = [...db.query.mock.calls, ...client.query.mock.calls].filter(([sql]) => sql.includes("INSERT INTO email_events"));
 
-    return calls.map(([, p]) => ({ id: p[1], state: p[14], status: p[10], applicationId: p[11], candidateIds: p[12], previousStatus: p[13] }));
+    return calls.map(([, p]) => ({ id: p[1], state: p[14], status: p[10], applicationId: p[11], candidateIds: p[12], previousStatus: p[13], stepId: p[15] }));
+  }
+
+  // Answers the transaction's queries, keeping each application's steps (an Applied step to start) between emails
+  function stepsClient() {
+    const journeys = new Map();
+    let nextId = 11;
+
+    return vi.fn(async (sql, params) => {
+      if (sql.includes("SELECT id FROM applications")) return rows({ id: params[0] });
+
+      if (sql.includes("FROM application_steps")) {
+        if (!journeys.has(params[0])) journeys.set(params[0], [{ ...APPLIED_STEP, position: 0 }]);
+
+        return rows(...journeys.get(params[0]).map((step) => ({ ...step })));
+      }
+
+      if (sql.includes("INSERT INTO application_steps")) {
+        const [applicationId, , position, status, date] = params;
+        const id = String(nextId++);
+
+        journeys.get(applicationId).push({ id, position, status, date });
+
+        return rows({ id });
+      }
+
+      return rows();
+    });
   }
 
   beforeEach(() => {
     vi.stubEnv("ANTHROPIC_API_KEY", "test-key");
-    client = { query: vi.fn().mockResolvedValue(rows()), release: vi.fn() };
+    client = { query: stepsClient(), release: vi.fn() };
     vi.spyOn(db, "connect").mockResolvedValue(client);
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
@@ -195,14 +223,32 @@ describe("ingest", () => {
     expect(await emailService.ingest(7, true, [email("a", "Mail", { date: new Date("2026-02-01T09:00:00Z") })])).toMatchObject({ ignored: 1 });
   });
 
-  it("updates the application's status when everything matches with confidence", async () => {
+  it("adds a step dated the day of the email when everything matches with confidence, and records it", async () => {
     mockDatabase();
     mockClaude({ Mail: verdict("interview") });
 
     expect(await emailService.ingest(7, true, [email("a", "Mail")])).toMatchObject({ autoApplied: 1, pending: 0 });
-    expect(storedEvents()).toEqual([{ id: "a", state: "auto_applied", status: "Interview", applicationId: 1, candidateIds: [], previousStatus: "Applied" }]);
-    expect(client.query.mock.calls.map(([sql]) => sql.trim().split(/\s+/)[0])).toEqual(["BEGIN", "UPDATE", "INSERT", "COMMIT"]);
-    expect(client.query.mock.calls[1][1]).toEqual([1, 7, "Interview"]);
+    expect(storedEvents()).toEqual([{ id: "a", state: "auto_applied", status: "Interview", applicationId: 1, candidateIds: [], previousStatus: "Applied", stepId: "11" }]);
+    expect(client.query.mock.calls.map(([sql]) => sql.trim().split(/\s+/)[0])).toEqual(["BEGIN", "SELECT", "SELECT", "INSERT", "UPDATE", "INSERT", "COMMIT"]);
+    expect(client.query.mock.calls[3][1]).toEqual([1, 7, 1, "Interview", "2026-04-10"]);
+  });
+
+  it("dates the step today when the email claims a later date", async () => {
+    mockDatabase();
+    mockClaude({ Mail: verdict("interview") });
+
+    expect(await emailService.ingest(7, true, [email("a", "Mail", { date: new Date("2099-01-01T09:00:00Z") })])).toMatchObject({ autoApplied: 1 });
+    expect(client.query.mock.calls[3][1]).toEqual([1, 7, 1, "Interview", new Date().toISOString().slice(0, 10)]);
+  });
+
+  it("ignores an email for an application whose journey is full", async () => {
+    const steps = Array.from({ length: 10 }, (_, index) => ({ ...APPLIED_STEP, id: String(index) }));
+
+    mockDatabase({ applications: [{ ...ACME, steps }] });
+    mockClaude({ Mail: verdict("interview") });
+
+    expect(await emailService.ingest(7, true, [email("a", "Mail")])).toMatchObject({ ignored: 1, autoApplied: 0 });
+    expect(client.query).not.toHaveBeenCalled();
   });
 
   it("asks the user first when automatic updates are off", async () => {
