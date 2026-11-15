@@ -23,6 +23,7 @@ function isCut(row) {
 // Info line of a card (an application's or a job's) that gives up details one step at a time as the row runs out of room
 function FitMeta({ as: Tag = "div", className = "app-meta", children }) {
   const rowRef = useRef(null);
+  const fittedText = useRef(null);
 
   // Picks the first step at which nothing is cut off, where the last step leaves the text to be trimmed
   const fit = useCallback(() => {
@@ -37,8 +38,15 @@ function FitMeta({ as: Tag = "div", className = "app-meta", children }) {
     }
   }, []);
 
+  /* Fits the row again when its text changed (its width changing is the observer's below). Fitting writes and then
+     measures, which forces a layout, so a list re-rendered with the same text skips it */
   useLayoutEffect(() => {
-    fit();
+    const text = rowRef.current.textContent;
+
+    if (text !== fittedText.current) {
+      fittedText.current = text;
+      fit();
+    }
   });
 
   useEffect(() => {

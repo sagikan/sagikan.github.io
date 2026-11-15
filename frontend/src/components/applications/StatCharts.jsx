@@ -104,12 +104,11 @@ function areaPoints(ys) {
 // Formats a date as a short month and day
 const shortDate = (date) => date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 
-// Groups applications into chart points by day or week
-function pulsePoints(applications, { days, bucket }) {
+// Groups applications, given as the day each was made, into chart points by day or week
+function pulsePoints(appliedDays, { days, bucket }) {
   const perDay = new Map();
 
-  applications.forEach((job) => {
-    const day = jobDay(job);
+  appliedDays.forEach((day) => {
     perDay.set(day, (perDay.get(day) || 0) + 1);
   });
 
@@ -137,8 +136,8 @@ function pulsePoints(applications, { days, bucket }) {
 }
 
 // Builds the drawing of one range: its smooth line, how far it reaches and what colors its ends take
-function pulseShape(applications, range) {
-  const perPoint = pulsePoints(applications, range);
+function pulseShape(appliedDays, range) {
+  const perPoint = pulsePoints(appliedDays, range);
   const most = Math.max(...perPoint.map(({ count }) => count), 1);
   const step = PULSE_WIDTH / perPoint.length;
   const points = perPoint.map(({ count, label }, index) => ({
@@ -179,10 +178,13 @@ export function PulseChart({ applications, bare = false }) {
   const [hoverKey, setHoverKey] = useState(null);
   const [cursor, setCursor] = useState(null);
   const shownKey = hoverKey ?? rangeKey;
-  const shapes = useMemo(
-    () => Object.fromEntries(PULSE_RANGES.map((range) => [range.key, pulseShape(applications, range)])),
-    [applications]
-  );
+  // The chart depends only on the days applied: a status change or a save leaves it as it is
+  const dayKey = applications.map(jobDay).join(" ");
+  const shapes = useMemo(() => {
+    const appliedDays = dayKey.split(" ");
+
+    return Object.fromEntries(PULSE_RANGES.map((range) => [range.key, pulseShape(appliedDays, range)]));
+  }, [dayKey]);
   const shown = shapes[shownKey];
   const settled = useRef({ source: shown, current: shown });
   const frame = useRef(0);

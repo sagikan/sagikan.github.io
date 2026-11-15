@@ -1,8 +1,8 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { STATUSES } from "../../lib/api";
 import { PulseChart, WorkMix } from "./StatCharts";
 
-// Shows the stat cards, charts and status breakdown
+// Shows the stat cards, charts and status breakdown; re-renders only when the applications change (memo)
 function ApplicationStats({ applications }) {
   const total = applications.length;
   const overall = useMemo(() => {
@@ -51,4 +51,4 @@ function ApplicationStats({ applications }) {
   );
 }
 
-export default ApplicationStats;
+export default memo(ApplicationStats);
