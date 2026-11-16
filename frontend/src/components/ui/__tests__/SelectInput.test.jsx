@@ -78,7 +78,7 @@ describe("SelectInput", () => {
 
     expect(parent).toBe(document.body);
     expect(list).toHaveClass("dropdown-list-floating");
-    expect(list).toHaveStyle({ top: "44px", left: "300px", minWidth: "100px" });
+    expect(list.style).toMatchObject({ top: "44px", left: "300px", minWidth: "100px" });
     expect(screen.queryByRole("listbox")).toBeNull();
   });
 });
