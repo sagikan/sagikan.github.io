@@ -143,7 +143,7 @@ function SelectInput({
         aria-activedescendant={open ? `${listId}-${active}` : undefined}
       >
         <span className="select-value">
-          {options[selected]?.label}
+          <span className="select-label" data-value={options[selected]?.value}>{options[selected]?.label}</span>
           {fitWidest && options.filter((option) => !option.action && !option.repeat).map((option) => (
             <span key={option.value} className="select-sizer" aria-hidden="true">{option.label}</span>
           ))}

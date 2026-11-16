@@ -701,7 +701,7 @@ function FeatureTabs() {
 function O({ start }) {
   const color = start === undefined
     ? undefined
-    : `color-mix(in srgb, var(--gradient-start) ${start}%, var(--gradient-end))`;
+    : `color-mix(in srgb, var(--hero-o-start) ${start}%, var(--hero-o-end))`;
 
   return (
     <span className="pixel-o">
@@ -724,7 +724,7 @@ function Landing({ authenticated }) {
             {/* Words with a pixel zero are kept whole, or the line could break inside them */}
             Keep track <span className="nowrap"><O />f</span> <i>every</i> <span className="nowrap">applicati<O />n</span>{" "}
             <span className="gradient-text">
-              until <span className="nowrap">y<O start={75} />u</span> get the <span className="nowrap"><O start={30} />ffer.</span>
+              until <span className="nowrap">y<O start={75} />u</span> <span className="hero-keep">get the <span className="nowrap"><O start={30} />ffer.</span></span>
             </span>
           </h1>
           <div className="hero-actions hero-rise">
@@ -750,7 +750,7 @@ function Landing({ authenticated }) {
         <div className="showcase">
           <Story
             id="story-track"
-            title={<><span className="title-mark">Every</span> application, <span className="title-mark">one</span> place</>}
+            title={<><span className="title-mark" data-mark="every">Every</span> application, <span className="title-mark" data-mark="one">one</span> place</>}
             points={[
               "See where your search stands with advanced stats",
               "Filter your applications and search across everything",
@@ -763,7 +763,7 @@ function Landing({ authenticated }) {
           <Story
             id="story-find"
             flip
-            title={<>Openings picked <span className="title-mark">for you</span></>}
+            title={<>Openings picked <span className="title-mark" data-mark="for-you">for you</span></>}
             points={[
               "Automated search across the most popular job boards",
               "AI-powered, profile-based score and analysis for each post",
@@ -775,7 +775,7 @@ function Landing({ authenticated }) {
 
           <Story
             id="story-tailor"
-            title={<>Resume tailored <span className="title-mark">for each</span> opening</>}
+            title={<>Resume tailored <span className="title-mark" data-mark="for-each">for each</span> opening</>}
             points={[
               "Observe changes: rewording, reordering, additions, removals",
               "Attach any additional PDF document (e.g. Gradesheet)",

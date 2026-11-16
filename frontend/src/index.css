@@ -11,7 +11,13 @@
   --accent: #4e46e5;
   --accent-2: #0ea5e9;
   --accent: #f4b400;
-  --accent-ink: #8f6200;
+  --accent-ink: #a06600;
+  /* Text gold stays at 4.5:1 on the page; icons can be lighter */
+  --accent-icon: #d29200;
+  --showcase-link-color: var(--text);
+  /* Tag text stays at 4.5:1 on the stronger tag yellow */
+  --tag-bg: color-mix(in srgb, var(--accent) 24%, var(--surface));
+  --tag-ink: #8a5200;
   --accent-soft: color-mix(in srgb, var(--accent) 14%, var(--surface));
   --danger: #dc2626;
   --danger-soft: #fdecec;
@@ -20,10 +26,58 @@
   --shadow-sm: 0 1px 2px rgb(16 24 40 / 0.06);
   --shadow-md: 0 6px 24px -6px rgb(16 24 40 / 0.12), 0 2px 6px rgb(16 24 40 / 0.05);
   --shadow-card-hover: 0 4px 14px -6px rgb(16 24 40 / 0.1), 0 1px 3px rgb(16 24 40 / 0.04);
-  --shadow-lg: 0 24px 60px -12px rgb(16 16 20 / 0.25);
-  --gradient-start: #e0a100;
-  --gradient-end: #b87700;
-  --focus-border: color-mix(in srgb, var(--accent) 60%, var(--border-strong));
+  --shadow-lg: 0 24px 56px -16px rgb(16 24 40 / 0.2), 0 2px 8px rgb(16 24 40 / 0.05);
+  --gradient-start: #c98600;
+  --gradient-end: #a35c00;
+  --hero-glow: none;
+  --auth-glow: none;
+  --margin-dots: var(--text);
+  --margin-dots-opacity: 0.15;
+  --cta-fill: #17171b;
+  --cta-text: #ececee;
+  /* Continues the card's top line on a tag that sits on its edge */
+  --coat-line: color-mix(in srgb, var(--text) 14%, transparent);
+  --job-tint: 16%;
+  --job-tint-high: 12%;
+  /* A repeated tile keeps the lines an even width; dividing by --zoom cancels the page's scaling */
+  --stat-card-bg:
+    linear-gradient(
+      -45deg,
+      color-mix(in srgb, var(--accent) 4%, var(--surface)) 0 11.1%,
+      transparent 11.1% 50%,
+      color-mix(in srgb, var(--accent) 4%, var(--surface)) 50% 61.1%,
+      transparent 61.1%
+    ) 0 0 / calc(12px / var(--zoom)) calc(12px / var(--zoom)),
+    var(--surface);
+  --option-highlight: color-mix(in srgb, var(--accent) 26%, var(--surface));
+  /* Shared by the navbar, bottom bar and landing tab bar */
+  --bar-stripes:
+    linear-gradient(
+      -45deg,
+      color-mix(in srgb, var(--text) 0.75%, transparent) 0 11.1%,
+      transparent 11.1% 50%,
+      color-mix(in srgb, var(--text) 0.75%, transparent) 50% 61.1%,
+      transparent 61.1%
+    ) 0 0 / calc(12px / var(--zoom)) calc(12px / var(--zoom));
+  --bar-bg: var(--bar-stripes), color-mix(in srgb, var(--bg) 80%, transparent);
+  --feature-tabs-bg: var(--bar-stripes), color-mix(in srgb, var(--surface) 62%, transparent);
+  /* Job button text: a near-black shade of each match color, at least 4.5:1 on its button */
+  --job-button-ink: #111113;
+  --offer-deep: #0b3b1d;
+  --interview-deep: #5a2a02;
+  --withdrawn-deep: #2e2e33;
+  /* Opaque, so the hero's hatched shadow doesn't show through it */
+  --marker: color-mix(in srgb, var(--accent) 85%, #fff);
+  --hero-o-start: var(--text);
+  --hero-o-end: var(--text);
+  --glass-mid-mix: 94%;
+  --glass-end-mix: 84%;
+  --glass-edge:
+    inset 0 -1.5px 0 color-mix(in srgb, var(--gradient-start) 55%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--gradient-start) 22%, transparent),
+    0 6px 16px -8px color-mix(in srgb, var(--gradient-start) 70%, transparent);
+  --focus-border: #cf9600;
+  --disabled-opacity: 0.4;
   --radius: 14px;
   --radius-sm: 10px;
 
@@ -37,6 +91,12 @@
   --rejected-soft: #fde8e8;
   --withdrawn: #71717a;
   --withdrawn-soft: #f0f0f2;
+  /* Fill shades: the text shades above turn muddy when mixed into white */
+  --applied-fill: #3b82f6;
+  --interview-fill: #f59e0b;
+  --offer-fill: #22c55e;
+  --rejected-fill: #ef4444;
+  --withdrawn-fill: #a1a1aa;
   --crease-shade: rgb(16 24 40 / 0.11);
   --flap-shadow: rgb(16 24 40 / 0.14);
 
@@ -63,8 +123,40 @@
     --accent: #7c73ff;
     --accent: #ffd23f;
     --accent-ink: #ffd23f;
+    --accent-icon: var(--accent-ink);
+    --showcase-link-color: var(--accent-ink);
+    --tag-bg: var(--accent-soft);
+    --tag-ink: var(--accent-ink);
     --gradient-start: #ffd23f;
     --gradient-end: #ffb020;
+    --hero-glow:
+      radial-gradient(circle 280px at 35% 45%, color-mix(in srgb, var(--accent) 9%, transparent), transparent),
+      radial-gradient(circle 280px at 68% 45%, color-mix(in srgb, var(--accent) 6%, transparent), transparent);
+    --auth-glow:
+      radial-gradient(600px circle at 15% 10%, color-mix(in srgb, var(--accent) 11%, transparent), transparent 60%),
+      radial-gradient(500px circle at 85% 90%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 60%);
+    --margin-dots: var(--accent);
+    --margin-dots-opacity: 0.17;
+    --cta-fill: color-mix(in srgb, var(--accent) 13%, var(--surface));
+    --cta-text: var(--text);
+    --focus-border: color-mix(in srgb, var(--accent) 60%, var(--border-strong));
+    --disabled-opacity: 0.5;
+    --coat-line: color-mix(in srgb, #fff 15%, transparent);
+    --job-tint: 6%;
+    --job-tint-high: 3.5%;
+    --stat-card-bg: var(--surface);
+    --option-highlight: var(--accent-soft);
+    --bar-bg: color-mix(in srgb, var(--bg) 80%, transparent);
+    --feature-tabs-bg: color-mix(in srgb, var(--surface) 62%, transparent);
+    --job-button-ink: var(--surface);
+    --offer-deep: var(--surface);
+    --interview-deep: var(--surface);
+    --withdrawn-deep: var(--surface);
+    --hero-o-start: var(--gradient-start);
+    --hero-o-end: var(--gradient-end);
+    --glass-mid-mix: 80%;
+    --glass-end-mix: 55%;
+    --glass-edge: 0 0 #0000;
     --danger: #f87171;
     --danger-soft: #3a1618;
     --warning-soft: #33270d;
@@ -84,6 +176,11 @@
     --rejected-soft: #3a1618;
     --withdrawn: #a1a1aa;
     --withdrawn-soft: #26262b;
+    --applied-fill: var(--applied);
+    --interview-fill: var(--interview);
+    --offer-fill: var(--offer);
+    --rejected-fill: var(--rejected);
+    --withdrawn-fill: var(--withdrawn);
     --crease-shade: rgb(0 0 0 / 0.3);
     --flap-shadow: rgb(0 0 0 / 0.4);
 
@@ -157,8 +254,8 @@ body::after {
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background: var(--accent);
-  opacity: 0.17;
+  background: var(--margin-dots);
+  opacity: var(--margin-dots-opacity);
   --glow-band: linear-gradient(
     90deg,
     transparent calc(50% - 1240px),
@@ -261,7 +358,7 @@ textarea {
 }
 
 .btn:disabled {
-  opacity: 0.5;
+  opacity: var(--disabled-opacity);
   cursor: not-allowed;
 }
 
@@ -295,6 +392,17 @@ textarea {
 .btn-danger-outline:hover:not(:disabled) {
   background: var(--btn-fill);
   border-color: color-mix(in srgb, var(--text) 55%, transparent);
+}
+
+/* Solid, so the bar's stripes don't show through it */
+@media (prefers-color-scheme: light) {
+  .navbar .btn-ghost {
+    background: var(--bg);
+  }
+
+  .navbar .btn-ghost:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--text) 7%, var(--bg));
+  }
 }
 
 .btn-danger-outline {
@@ -479,8 +587,8 @@ a {
 }
 
 .btn-glass {
-  --glass-mid: color-mix(in srgb, var(--accent) 80%, transparent);
-  --glass-end: color-mix(in srgb, var(--accent) 55%, transparent);
+  --glass-mid: color-mix(in srgb, var(--accent) var(--glass-mid-mix), transparent);
+  --glass-end: color-mix(in srgb, var(--accent) var(--glass-end-mix), transparent);
   position: relative;
   isolation: isolate;
   border: 0;
@@ -491,7 +599,8 @@ a {
   box-shadow:
     inset 0 1px 12px -5px color-mix(in srgb, var(--accent) 45%, #fff),
     inset -5px -7px 3px -6px color-mix(in srgb, var(--accent) 60%, #fff),
-    inset 5px 7px 3px -6px #fff;
+    inset 5px 7px 3px -6px #fff,
+    var(--glass-edge);
   backdrop-filter: saturate(1.5) blur(2px);
   transition: --glass-mid 0.25s, --glass-end 0.25s, box-shadow 0.25s, filter 0.25s;
 }
@@ -504,6 +613,7 @@ a {
     inset 0 1px 12px -5px color-mix(in srgb, var(--accent) 45%, #fff),
     inset -5px -7px 3px -6px color-mix(in srgb, var(--accent) 60%, #fff),
     inset 5px 7px 3px -6px #fff,
+    var(--glass-edge),
     0 2px 14px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
@@ -651,7 +761,7 @@ a {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  background: var(--bar-bg);
   backdrop-filter: saturate(180%) blur(12px);
   border-bottom: 1px solid var(--border);
 }
@@ -902,9 +1012,7 @@ a {
   width: 980px;
   height: 640px;
   transform: translate(-50%, -50%);
-  background:
-    radial-gradient(circle 280px at 35% 45%, color-mix(in srgb, var(--accent) 9%, transparent), transparent),
-    radial-gradient(circle 280px at 68% 45%, color-mix(in srgb, var(--accent) 6%, transparent), transparent);
+  background: var(--hero-glow);
   z-index: -1;
   pointer-events: none;
 }
@@ -996,7 +1104,7 @@ a {
   padding: 5px;
   border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--surface) 62%, transparent);
+  background: var(--feature-tabs-bg);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.06),
     0 12px 32px -16px rgb(15 23 42 / 0.35);
@@ -1193,7 +1301,7 @@ a {
   gap: 6px;
   margin-top: 24px;
   padding: 2px 0 1px;
-  color: var(--accent-ink);
+  color: var(--showcase-link-color);
   font-weight: 700;
 }
 
@@ -1212,7 +1320,7 @@ a {
   width: 16px;
   height: 18px;
   margin-top: 2px;
-  color: var(--accent-ink);
+  color: var(--accent-icon);
 }
 
 .showcase-preview {
@@ -1275,8 +1383,8 @@ a {
 }
 
 .preview-bar > span.is-on {
-  background: var(--offer);
-  box-shadow: 0 0 6px color-mix(in srgb, var(--offer) 55%, transparent);
+  background: var(--offer-fill);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--offer-fill) 55%, transparent);
 }
 
 .preview-stats {
@@ -1659,8 +1767,9 @@ a {
   position: relative;
   overflow: hidden;
   isolation: isolate;
+  color: var(--cta-text);
   background:
-    linear-gradient(color-mix(in srgb, var(--accent) 13%, var(--surface)), color-mix(in srgb, var(--accent) 13%, var(--surface))) padding-box,
+    linear-gradient(var(--cta-fill), var(--cta-fill)) padding-box,
     linear-gradient(180deg, color-mix(in srgb, var(--accent) 75%, transparent), color-mix(in srgb, var(--accent) 6%, transparent)) border-box;
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.12),
@@ -1724,7 +1833,7 @@ a {
   height: var(--footer-height);
   color: var(--text-muted);
   font-size: 0.82rem;
-  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  background: var(--bar-bg);
   backdrop-filter: saturate(180%) blur(12px);
   border-top: 1px solid var(--border);
 }
@@ -1792,9 +1901,7 @@ a {
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background:
-    radial-gradient(600px circle at 15% 10%, color-mix(in srgb, var(--accent) 11%, transparent), transparent 60%),
-    radial-gradient(500px circle at 85% 90%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 60%);
+  background: var(--auth-glow);
 }
 
 .auth-card {
@@ -2011,7 +2118,7 @@ a {
 }
 
 .dropdown-option.is-active {
-  background: var(--accent-soft);
+  background: var(--option-highlight);
   color: var(--text);
 }
 
@@ -2234,6 +2341,25 @@ a {
   opacity: 0.6;
 }
 
+/* A repeated tile keeps the stripes an even width; dividing by --zoom cancels the page's scaling */
+@media (prefers-color-scheme: light) {
+  .dashboard-header h1::after {
+    height: 7px;
+    border-radius: 2px;
+    background:
+      linear-gradient(
+        -45deg,
+        var(--marker) 0 21.43%,
+        transparent 21.43% 50%,
+        var(--marker) 50% 71.43%,
+        transparent 71.43%
+      ) 0 0 / calc(6px / var(--zoom)) calc(6px / var(--zoom));
+    opacity: 1;
+    -webkit-mask: linear-gradient(90deg, #000 40%, transparent);
+    mask: linear-gradient(90deg, #000 40%, transparent);
+  }
+}
+
 /* Stat cards and pipeline */
 .stats {
   display: grid;
@@ -2254,7 +2380,7 @@ a {
 
 .stat-card {
   position: relative;
-  background: var(--surface);
+  background: var(--stat-card-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 32px 18px 16px;
@@ -2353,7 +2479,7 @@ a {
   display: inline-flex;
   padding: 3px;
   padding-top: 1px;
-  border-radius: 0 10px 0 10px;
+  border-radius: 0 13px 0 13px;
   background: var(--surface-2);
 }
 
@@ -2554,11 +2680,11 @@ a {
   min-width: 6px;
 }
 
-.seg-applied { background: var(--applied); }
-.seg-interview { background: var(--interview); }
-.seg-offer { background: var(--offer); }
-.seg-rejected { background: var(--rejected); }
-.seg-withdrawn { background: var(--withdrawn); }
+.seg-applied { background: var(--applied-fill); }
+.seg-interview { background: var(--interview-fill); }
+.seg-offer { background: var(--offer-fill); }
+.seg-rejected { background: var(--rejected-fill); }
+.seg-withdrawn { background: var(--withdrawn-fill); }
 
 .day-line.section-line {
   display: flex;
@@ -2574,9 +2700,9 @@ a {
   height: 1px;
 }
 
-.match-seg-high { background: var(--offer); }
-.match-seg-mid { background: var(--interview); }
-.match-seg-low { background: var(--withdrawn); }
+.match-seg-high { background: var(--offer-fill); }
+.match-seg-mid { background: var(--interview-fill); }
+.match-seg-low { background: var(--withdrawn-fill); }
 .match-seg-none { background: var(--border); }
 
 .day-toggle:hover .section-line {
@@ -2839,11 +2965,11 @@ a {
 }
 
 /* Status colours */
-.status-applied { --status: var(--applied); --status-soft: var(--applied-soft); }
-.status-interview { --status: var(--interview); --status-soft: var(--interview-soft); }
-.status-offer { --status: var(--offer); --status-soft: var(--offer-soft); }
-.status-rejected { --status: var(--rejected); --status-soft: var(--rejected-soft); }
-.status-withdrawn { --status: var(--withdrawn); --status-soft: var(--withdrawn-soft); }
+.status-applied { --status: var(--applied); --status-soft: var(--applied-soft); --status-fill: var(--applied-fill); }
+.status-interview { --status: var(--interview); --status-soft: var(--interview-soft); --status-fill: var(--interview-fill); }
+.status-offer { --status: var(--offer); --status-soft: var(--offer-soft); --status-fill: var(--offer-fill); }
+.status-rejected { --status: var(--rejected); --status-soft: var(--rejected-soft); --status-fill: var(--rejected-fill); }
+.status-withdrawn { --status: var(--withdrawn); --status-soft: var(--withdrawn-soft); --status-fill: var(--withdrawn-fill); }
 
 /* Company avatars */
 .avatar {
@@ -2862,6 +2988,14 @@ a {
   color: hsl(var(--hue) 32% 38%);
   font-weight: 700;
   font-size: 1.05rem;
+}
+
+/* Mostly opaque, so the tinted card doesn't color the initial */
+@media (prefers-color-scheme: light) {
+  .avatar-initial {
+    background: hsl(var(--hue) 45% 96% / 0.6);
+    box-shadow: inset 0 0 0 1px hsl(var(--hue) 30% 50% / 0.12);
+  }
 }
 
 .avatar-logo {
@@ -2985,7 +3119,7 @@ a {
   position: absolute;
   inset: 0;
   z-index: -1;
-  background-color: color-mix(in srgb, var(--status) 16%, var(--surface));
+  background-color: color-mix(in srgb, var(--status-fill, var(--status)) 16%, var(--surface));
   box-shadow: inset 0 2px 0 color-mix(in srgb, var(--status) 30%, transparent);
   box-sizing: border-box;
   border: 0;
@@ -3486,7 +3620,7 @@ a {
 }
 
 .zpage.earlier {
-  --panel: color-mix(in srgb, var(--status) 16%, var(--surface));
+  --panel: color-mix(in srgb, var(--status-fill, var(--status)) 16%, var(--surface));
 }
 
 /* A page's color and top line ease between their strip, panel and current shades over the time the page takes to fold
@@ -3503,12 +3637,12 @@ a {
 }
 
 .zpage.earlier.turned .zfront {
-  background-color: color-mix(in srgb, var(--status) 28%, var(--surface));
+  background-color: color-mix(in srgb, var(--status-fill, var(--status)) 28%, var(--surface));
   cursor: pointer;
 }
 
 .zpage.earlier.turned .zfront:hover {
-  background-color: color-mix(in srgb, var(--status) 34%, var(--surface));
+  background-color: color-mix(in srgb, var(--status-fill, var(--status)) 34%, var(--surface));
   transition-duration: 0.15s;
 }
 
@@ -3518,7 +3652,7 @@ a {
 
 .zpage.earlier.turned .zfront:focus-visible {
   outline: none;
-  background-color: color-mix(in srgb, var(--status) 40%, var(--surface));
+  background-color: color-mix(in srgb, var(--status-fill, var(--status)) 40%, var(--surface));
 }
 
 .zpage.current.turned .zfront:focus-visible {
@@ -3529,35 +3663,35 @@ a {
 /* Interview rounds: in a run of steps with the same status, the one repeating the status above it takes a deeper tint
    and the one under it a lighter one, alternating, so a folded corner and the strips stand out from their neighbors */
 .zpage.earlier.deeper {
-  --panel: color-mix(in srgb, var(--status) 35%, var(--surface));
+  --panel: color-mix(in srgb, var(--status-fill, var(--status)) 35%, var(--surface));
 }
 
 .zpage.earlier.lighter {
-  --panel: color-mix(in srgb, var(--status) 20%, var(--surface));
+  --panel: color-mix(in srgb, var(--status-fill, var(--status)) 20%, var(--surface));
 }
 
 .zpage.earlier.deeper.turned .zfront {
-  background-color: color-mix(in srgb, var(--status) 47%, var(--surface));
+  background-color: color-mix(in srgb, var(--status-fill, var(--status)) 47%, var(--surface));
 }
 
 .zpage.earlier.lighter.turned .zfront {
-  background-color: color-mix(in srgb, var(--status) 32%, var(--surface));
+  background-color: color-mix(in srgb, var(--status-fill, var(--status)) 32%, var(--surface));
 }
 
 .zpage.earlier.deeper.turned .zfront:hover {
-  background-color: color-mix(in srgb, var(--status) 53%, var(--surface));
+  background-color: color-mix(in srgb, var(--status-fill, var(--status)) 53%, var(--surface));
 }
 
 .zpage.earlier.lighter.turned .zfront:hover {
-  background-color: color-mix(in srgb, var(--status) 38%, var(--surface));
+  background-color: color-mix(in srgb, var(--status-fill, var(--status)) 38%, var(--surface));
 }
 
 .zpage.earlier.deeper.turned .zfront:focus-visible {
-  background-color: color-mix(in srgb, var(--status) 59%, var(--surface));
+  background-color: color-mix(in srgb, var(--status-fill, var(--status)) 59%, var(--surface));
 }
 
 .zpage.earlier.lighter.turned .zfront:focus-visible {
-  background-color: color-mix(in srgb, var(--status) 44%, var(--surface));
+  background-color: color-mix(in srgb, var(--status-fill, var(--status)) 44%, var(--surface));
 }
 
 /* The current status's page, in the card's tint. The page that was current keeps this look while a new status unfolds
@@ -3565,6 +3699,24 @@ a {
 .zpage.current,
 .zpage.earlier.holding {
   --panel: color-mix(in srgb, var(--status-soft) 55%, var(--surface));
+}
+
+/* Light mode's richer card tints, worked out from the shade the card holds, which the status steps swap while they
+   animate. A media query rather than a variable percentage, which mixes at a different precision and shifts dark
+   mode's folds */
+@media (prefers-color-scheme: light) {
+  .app-card {
+    background-color: oklch(from var(--status-soft) calc(l - 0.025) calc(c * 1.7) h);
+  }
+
+  .app-card:has(> .zone)::before {
+    background-color: oklch(from var(--was-soft, var(--surface)) calc(l - 0.025) calc(c * 1.7) h);
+  }
+
+  .zpage.current,
+  .zpage.earlier.holding {
+    --panel: oklch(from var(--status-soft) calc(l - 0.025) calc(c * 1.7) h);
+  }
 }
 
 .zpage.current .zfront,
@@ -3590,6 +3742,12 @@ a {
 
 .zone-controls {
   display: contents;
+}
+
+/* Rounded like the page, so neither pokes out past the card's corner */
+.zshade,
+.zflap {
+  border-radius: 0 var(--radius) var(--radius) 0;
 }
 
 .zshade {
@@ -3673,11 +3831,11 @@ a {
 .step-dates::before {
   content: "";
   position: absolute;
-  inset: 0 0 45% 0;
+  inset: 0;
   z-index: -1;
-  border-radius: 999px 999px 0 0;
+  border-radius: 999px;
   background: var(--panel);
-  box-shadow: inset 0 2px 0 color-mix(in srgb, #fff 15%, transparent);
+  box-shadow: inset 0 2px 0 var(--coat-line);
   transition: background-color 0.35s ease-in-out;
 }
 
@@ -3843,13 +4001,12 @@ a {
   color: var(--text);
   font-size: 0.86rem;
   font-variant-numeric: tabular-nums;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.15s;
 }
 
 .date-box input:focus {
   outline: none;
   border-color: var(--focus-border);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .date-box input[aria-invalid="true"] {
@@ -3927,7 +4084,7 @@ a {
   height: 56px;
   border-radius: 16px;
   background: var(--accent-soft);
-  color: var(--accent-ink);
+  color: var(--accent-icon);
   margin-bottom: 4px;
 }
 
@@ -4537,7 +4694,7 @@ a {
   }
 
   .nav-tabs .nav-link.active {
-    color: var(--accent-ink);
+    color: var(--accent-icon);
   }
 
   .nav-end {
@@ -4917,12 +5074,12 @@ a {
 .job-card.match-high,
 .job-card.match-mid,
 .job-card.match-low {
-  --card-bg: color-mix(in srgb, var(--ring) 6%, var(--surface));
+  --card-bg: color-mix(in srgb, var(--ring-fill, var(--ring)) var(--job-tint), var(--surface));
   background: var(--card-bg);
 }
 
 .job-card.match-high {
-  --card-bg: color-mix(in srgb, var(--ring) 3.5%, var(--surface));
+  --card-bg: color-mix(in srgb, var(--ring-fill, var(--ring)) var(--job-tint-high), var(--surface));
   background: var(--card-bg);
 }
 
@@ -5020,7 +5177,10 @@ a {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: conic-gradient(var(--ring) calc(var(--score) * 1%), color-mix(in srgb, var(--ring) 14%, var(--surface-2)) 0);
+  background: conic-gradient(
+    var(--ring-fill, var(--ring)) calc(var(--score) * 1%),
+    color-mix(in srgb, var(--ring-fill, var(--ring)) 14%, var(--surface-2)) 0
+  );
 }
 
 .score-ring span {
@@ -5063,9 +5223,9 @@ a {
   font-weight: 600;
 }
 
-.match-high { --ring: var(--offer); }
-.match-mid { --ring: var(--interview); }
-.match-low { --ring: var(--withdrawn); }
+.match-high { --ring: var(--offer); --ring-fill: var(--offer-fill); --ring-deep: var(--offer-deep); }
+.match-mid { --ring: var(--interview); --ring-fill: var(--interview-fill); --ring-deep: var(--interview-deep); }
+.match-low { --ring: var(--withdrawn); --ring-fill: var(--withdrawn-fill); --ring-deep: var(--withdrawn-deep); }
 
 .job-source {
   flex-shrink: 0;
@@ -5169,6 +5329,17 @@ a {
 .skill-missing {
   color: var(--rejected);
   background: var(--rejected-soft);
+}
+
+/* Stronger than the soft shades, which match the tinted cards */
+@media (prefers-color-scheme: light) {
+  .job-card .skill-have {
+    background: color-mix(in srgb, var(--offer-fill) 24%, var(--surface));
+  }
+
+  .job-card .skill-missing {
+    background: color-mix(in srgb, var(--rejected-fill) 16%, var(--surface));
+  }
 }
 
 .job-reason {
@@ -5279,8 +5450,10 @@ a {
   pointer-events: none;
 }
 
+/* The fill takes the bright shade; text keeps the darker one, which reads on it */
 .job-card .job-actions {
   --tone: var(--ring, var(--text));
+  --tone-fill: var(--ring-fill, var(--tone));
 }
 
 .job-card .job-actions .btn {
@@ -5290,21 +5463,21 @@ a {
 }
 
 .job-card .job-actions .btn-ghost {
-  border-color: color-mix(in srgb, var(--tone) 28%, transparent);
-  background: color-mix(in srgb, var(--tone) 10%, var(--surface));
+  border-color: color-mix(in srgb, var(--tone-fill) 28%, transparent);
+  background: color-mix(in srgb, var(--tone-fill) 10%, var(--surface));
   color: color-mix(in srgb, var(--tone) 80%, var(--text));
 }
 
 .job-card .job-actions .btn-ghost:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--tone) 65%, transparent);
-  background: color-mix(in srgb, var(--tone) 20%, var(--surface));
+  border-color: color-mix(in srgb, var(--tone-fill) 65%, transparent);
+  background: color-mix(in srgb, var(--tone-fill) 20%, var(--surface));
 }
 
 .job-card .job-actions .btn-primary,
 .job-card .job-actions .btn-primary:hover:not(:disabled) {
-  background: var(--tone);
-  color: var(--surface);
-  box-shadow: 0 1px 3px color-mix(in srgb, var(--tone) 22%, transparent);
+  background: var(--tone-fill);
+  color: var(--ring-deep, var(--job-button-ink));
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--tone-fill) 22%, transparent);
 }
 
 .job-card .job-actions .btn-primary:hover:not(:disabled) {
@@ -5364,7 +5537,7 @@ a {
   padding: 3px 0 1px 0.15em;
   border-radius: 999px;
   background: color-mix(in srgb, var(--card-bg) 82%, transparent);
-  box-shadow: inset 0 2px 0 color-mix(in srgb, #fff 15%, transparent);
+  box-shadow: inset 0 2px 0 var(--coat-line);
   -webkit-backdrop-filter: blur(8px) saturate(150%);
   backdrop-filter: blur(8px) saturate(150%);
   color: color-mix(in srgb, var(--tone, var(--text)) 80%, var(--text));
@@ -5779,8 +5952,8 @@ a {
   min-width: 0;
   padding: 2px 3px 2px 9px;
   border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent-ink);
+  background: var(--tag-bg);
+  color: var(--tag-ink);
   font-size: 0.84rem;
   font-weight: 500;
 }
@@ -7034,6 +7207,173 @@ body.is-sorting * {
   font: inherit;
   color: var(--gradient-start);
   cursor: pointer;
+}
+
+/* Fits the shown label rather than the longest one, so a marker covers only the label */
+.modal-title-row .select-label {
+  justify-self: start;
+}
+
+/* Marker (light mode) */
+
+/* The band covers the letters' ink exactly: --mark-top and --mark-bottom are measured per font (x-height to
+   baseline), --mark-l and --mark-r per word (first and last ink pixel). A clip path cuts it, as box edges snap to
+   whole pixels, and marked words are inline blocks, so text and band move together */
+@media (prefers-color-scheme: light) {
+  .gradient-text,
+  .brand-zero,
+  .title-mark,
+  .modal-title-row .select-label {
+    --mark-l: 0em;
+    --mark-r: 0em;
+    --mark-round-l: 0em;
+    --mark-round-r: 0em;
+    position: relative;
+    isolation: isolate;
+    color: var(--text);
+    background: none;
+    text-decoration: none;
+  }
+
+  .brand-zero,
+  .title-mark {
+    display: inline-block;
+  }
+
+  /* Starts a line of its own: a block where it fits, after a forced break where it wraps (phones) */
+  .gradient-text {
+    display: block;
+    width: fit-content;
+    margin-inline: auto;
+  }
+
+  .hero h1 .nowrap:has(+ .gradient-text)::after {
+    content: "\A";
+    white-space: pre;
+  }
+
+  /* Wraps after "until you", never leaving "offer." alone */
+  .hero-keep {
+    white-space: nowrap;
+  }
+
+  .gradient-text::before,
+  .gradient-text::after,
+  .brand-zero::before,
+  .title-mark::before,
+  .modal-title-row .select-label::before {
+    --mark-down: 0em;
+    --mark-left: 0em;
+    content: "";
+    position: absolute;
+    inset: 0 -0.25em;
+    z-index: -1;
+    background: var(--marker);
+    clip-path: inset(
+      calc(var(--mark-top) + var(--mark-down))
+      calc(0.25em + var(--mark-r) + var(--mark-left))
+      calc(100% - var(--mark-bottom) - var(--mark-down))
+      calc(0.25em + var(--mark-l) - var(--mark-left))
+      round 0 0 var(--mark-round-r) var(--mark-round-l)
+    );
+    pointer-events: none;
+  }
+
+  .gradient-text::after {
+    --mark-down: var(--mark-shadow-depth);
+    --mark-left: var(--mark-shadow-depth);
+    z-index: -2;
+    background: var(--mark-hatch);
+  }
+
+  .gradient-text {
+    --mark-top: 34.99%;
+    --mark-bottom: 80.48%;
+    --mark-l: 0.0532em;
+    --mark-r: 0.0571em;
+    --mark-round-l: 0.22em;
+    --mark-round-r: 0.124em;
+    --mark-shadow-depth: 0.09em;
+    /* A repeated tile keeps the stripes an even width; dividing by --zoom cancels the page's scaling */
+    --mark-hatch-tile: calc(6px / var(--zoom));
+    --mark-hatch: linear-gradient(
+      -45deg,
+      var(--marker) 0 21.43%,
+      transparent 21.43% 50%,
+      var(--marker) 50% 71.43%,
+      transparent 71.43%
+    ) 0 0 / var(--mark-hatch-tile) var(--mark-hatch-tile);
+  }
+
+  .brand-zero {
+    --mark-top: 37.72%;
+    --mark-bottom: 72.13%;
+    --mark-l: 0.0309em;
+    --mark-r: 0.0062em;
+  }
+
+  .title-mark {
+    --mark-top: 32.43%;
+    --mark-bottom: 78.03%;
+  }
+
+  .title-mark[data-mark="every"] { --mark-l: 0.0868em; --mark-r: -0.0127em; }
+  .title-mark[data-mark="one"] { --mark-l: 0.0382em; --mark-r: 0.0108em; }
+  .title-mark[data-mark="for-you"] { --mark-l: 0.0244em; --mark-r: 0.0512em; }
+  .title-mark[data-mark="for-each"] { --mark-l: 0.0278em; --mark-r: 0.0477em; }
+
+  .modal-title-row .select-trigger {
+    color: var(--text);
+  }
+
+  .modal-title-row .select-label {
+    --mark-top: 35.78%;
+    --mark-bottom: 78.98%;
+  }
+
+  .modal-title-row .select-label[data-value="application"] { --mark-l: 0.0334em; --mark-r: 0.0791em; }
+  .modal-title-row .select-label[data-value="job"] { --mark-l: 0.04em; --mark-r: 0.0457em; }
+
+  /* Phones: the phrase wraps, which one layer can't follow, so the band is an inline background with square,
+     whole-pixel edges. 63.45% puts the shadow tile at the band's top (35.14% / (100% - 44.62%)) */
+  @media (max-width: 470px) {
+    .gradient-text {
+      --mark-top: 35.14%;
+      --mark-bottom: 79.76%;
+      --mark-l: 0.0509em;
+      --mark-r: 0.0617em;
+      display: inline;
+      width: auto;
+      margin-inline: calc(-1 * var(--mark-shadow-depth)) 0;
+      padding-left: var(--mark-shadow-depth);
+      background:
+        linear-gradient(
+          transparent var(--mark-top),
+          var(--marker) var(--mark-top),
+          var(--marker) var(--mark-bottom),
+          transparent var(--mark-bottom)
+        ),
+        repeating-linear-gradient(
+          -45deg,
+          var(--marker) 0 calc(1.818px / var(--zoom)),
+          transparent calc(1.818px / var(--zoom)) calc(4.2426px / var(--zoom))
+        );
+      background-size:
+        calc(100% - var(--mark-shadow-depth) - var(--mark-l) - var(--mark-r)) 100%,
+        calc(100% - var(--mark-shadow-depth) - var(--mark-l) - var(--mark-r)) 44.62%;
+      background-position:
+        calc(var(--mark-shadow-depth) + var(--mark-l)) 0,
+        var(--mark-l) calc(63.45% + var(--mark-shadow-depth));
+      background-repeat: no-repeat;
+      -webkit-box-decoration-break: clone;
+      box-decoration-break: clone;
+    }
+
+    .gradient-text::before,
+    .gradient-text::after {
+      content: none;
+    }
+  }
 }
 
 .modal-title-row .select-trigger::after {
