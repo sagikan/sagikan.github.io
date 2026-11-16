@@ -58,4 +58,12 @@ describe("StepDateBox", () => {
 
     expect(onClose).toHaveBeenCalledTimes(2);
   });
+
+  it.each(["scroll", "resize"])("closes when the window fires %s", (type) => {
+    const { onClose } = renderBox(0);
+
+    fireEvent(window, new Event(type));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });
