@@ -4,8 +4,14 @@ import FitMeta from "../FitMeta";
 
 describe("FitMeta", () => {
   // jsdom doesn't lay text out: text ranges measure nothing, and every measurement is counted
+  let observed;
+
   beforeEach(() => {
     vi.stubGlobal("ResizeObserver", class {
+      constructor(callback) {
+        observed = callback;
+      }
+
       observe() {}
 
       disconnect() {}
@@ -34,5 +40,13 @@ describe("FitMeta", () => {
 
     expect(afterSame).toBe(afterFirst);
     expect(Range.prototype.getBoundingClientRect.mock.calls.length).toBeGreaterThan(afterSame);
+  });
+
+  it("ignores a resize that arrives after the row is gone", () => {
+    const { unmount } = render(<FitMeta><span className="app-company">Acme</span></FitMeta>);
+
+    unmount();
+
+    expect(() => observed()).not.toThrow();
   });
 });

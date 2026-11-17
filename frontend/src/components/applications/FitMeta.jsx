@@ -25,9 +25,14 @@ function FitMeta({ as: Tag = "div", className = "app-meta", children }) {
   const rowRef = useRef(null);
   const fittedText = useRef(null);
 
-  // Picks the first step at which nothing is cut off, where the last step leaves the text to be trimmed
+  /* Picks the first step at which nothing is cut off, where the last step leaves the text to be trimmed. The observer
+     and the fonts can still call it once the card is gone */
   const fit = useCallback(() => {
     const row = rowRef.current;
+
+    if (!row) {
+      return;
+    }
 
     for (let step = 0; step <= LAST_STEP; step += 1) {
       row.dataset.fit = step;
