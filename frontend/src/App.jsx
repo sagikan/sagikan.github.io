@@ -112,6 +112,15 @@ function App() {
   useEffect(() => onReachability((reached) => sendHealth(reached ? "online" : "offline")), [sendHealth]);
 
   useEffect(() => {
+    let current = true;
+
+    // Moves the session, unless this run was replaced (React runs effects twice in development)
+    function settle(move) {
+      if (current) {
+        sendSession(move);
+      }
+    }
+
     // Checks the API and restores the session on first load
     async function initialize() {
       try {
@@ -119,7 +128,7 @@ function App() {
         sendHealth(result.status === "ok" ? "online" : "offline");
       } catch {
         sendHealth("offline");
-        sendSession("signOut");
+        settle("signOut");
 
         return;
       }
@@ -127,16 +136,20 @@ function App() {
       try {
         if (await refreshCsrfToken()) {
           await Promise.all([loadUser(), loadApps()]);
-          sendSession("restore");
+          settle("restore");
         } else {
-          sendSession("signOut");
+          settle("signOut");
         }
       } catch {
-        sendSession("signOut");
+        settle("signOut");
       }
     }
 
     initialize();
+
+    return () => {
+      current = false;
+    };
   }, [refreshCsrfToken, loadUser, loadApps, sendHealth, sendSession]);
 
   useEffect(() => {
@@ -229,7 +242,8 @@ function App() {
     navigate("/");
   }
 
-  // Creates or updates an application and returns an error message, if any
+  /* Creates or updates an application and returns an error message, if any. An edit can add a status, which changes
+     which email updates still apply, so they're reloaded */
   async function saveApp(id, fields) {
     try {
       const { response, data } = await apiRequest(
@@ -249,13 +263,18 @@ function App() {
         id ? current.map((job) => (job.id === data.id ? data : job)) : [data, ...current]
       );
 
+      if (id) {
+        loadEmailUpdates();
+      }
+
       return "";
     } catch {
       return "Could not reach the server. Please try again.";
     }
   }
 
-  // Deletes an application; the same function on every render, so cards that get it can skip re-rendering
+  /* Deletes an application, which dismisses its waiting email updates; the same function on every render, so cards that
+     get it can skip re-rendering */
   const handleDeleteApp = useCallback(async (id) => {
     setError("");
 
@@ -274,10 +293,11 @@ function App() {
       }
 
       setApplications((current) => current.filter((job) => job.id !== id));
+      loadEmailUpdates();
     } catch (err) {
       setError(err.message);
     }
-  }, [csrfToken, clearSession]);
+  }, [csrfToken, clearSession, loadEmailUpdates]);
 
   // Accepts, dismisses or undoes an email update
   async function resolveEmailUpdate(id, action, body = {}) {
