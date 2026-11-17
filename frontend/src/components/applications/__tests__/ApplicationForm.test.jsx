@@ -303,6 +303,22 @@ describe("ApplicationForm status", () => {
     expect(await statusOptions(user)).toEqual(["Offer", "Rejected", "Withdrawn"]);
   });
 
+  it("offers only the current status while the interview is still ahead", async () => {
+    const user = userEvent.setup();
+    const upcoming = {
+      ...OTHER,
+      status: "Interview",
+      steps: [
+        { id: "1", status: "Applied", date: `${THIS_YEAR - 1}-01-02` },
+        { id: "2", status: "Interview", date: `${THIS_YEAR + 1}-01-02` }
+      ]
+    };
+
+    renderForm({ job: upcoming });
+
+    expect(await statusOptions(user)).toEqual(["Interview"]);
+  });
+
   it("keeps the date applied before the next step's date", () => {
     const { container } = renderForm({ job: journey });
 

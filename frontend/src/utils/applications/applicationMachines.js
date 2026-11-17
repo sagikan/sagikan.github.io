@@ -26,12 +26,13 @@ export const NOTE = createMachine("note", {
 
 /* An application's status journey, the same table as the server's (backend statusStates.js): each step is a status
    with a date, the last one current. The first step is always the initial status; "follow" lists what may come after
-   a step. Interview may follow itself (another round), and nothing follows Rejected or Withdrawn */
+   a step. Interview may follow itself (another round), and nothing follows Rejected or Withdrawn. "schedule" marks a
+   status whose current step may be dated ahead of today, up to SCHEDULE_MONTHS (an interview that's been set up) */
 export const APPLICATION_STATUS = createMachine("application status", {
   initial: "Applied",
   states: {
     Applied: { follow: ["Interview", "Offer", "Rejected", "Withdrawn"] },
-    Interview: { follow: ["Interview", "Offer", "Rejected", "Withdrawn"] },
+    Interview: { follow: ["Interview", "Offer", "Rejected", "Withdrawn"], schedule: "Interview" },
     Offer: { follow: ["Rejected", "Withdrawn"] },
     Rejected: {},
     Withdrawn: {}
@@ -40,6 +41,7 @@ export const APPLICATION_STATUS = createMachine("application status", {
 export const STATUSES = APPLICATION_STATUS.states;
 export const FIRST_STATUS = APPLICATION_STATUS.initial;
 export const MAX_STEPS = 10;
+export const SCHEDULE_MONTHS = 3;
 
 /* A card's status area: flat (the current status on top) or folded back to an earlier step. One card is folded at a
    time: folding another unfolds this one */
@@ -90,10 +92,38 @@ export function allowedAt(steps, index) {
   );
 }
 
+// Tells whether a status's step may be dated ahead of today while it's the current step
+export function canSchedule(status) {
+  return APPLICATION_STATUS.can(status, "schedule");
+}
+
+// Returns the YYYY-MM-DD date some months after another, on the last day of the month when it's shorter
+export function monthsAfter(iso, months) {
+  const [year, month, day] = iso.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(year, month + months, 0)).getUTCDate();
+
+  return new Date(Date.UTC(year, month - 1 + months, Math.min(day, lastDay))).toISOString().slice(0, 10);
+}
+
+// Tells whether the current step is dated after today, which only a scheduled status may be
+export function isAhead(steps, today) {
+  const current = steps?.[steps.length - 1];
+
+  return Boolean(current) && current.date > today;
+}
+
+// Tells whether an application's current step is a scheduled one dated today or later (an upcoming interview)
+export function isUpcoming(steps, today) {
+  const current = steps?.[steps.length - 1];
+
+  return Boolean(current) && canSchedule(current.status) && current.date >= today;
+}
+
 /* Lists a step's menu options, greying out what the rules don't allow there. The current status's menu adds a step
    after it, so it offers what may follow; a status that may follow itself (Interview) is offered again as "Another
-   interview". With a step before it, Undo takes the current status back off; at MAX_STEPS only Undo is left */
-export function menuOptions(steps, index) {
+   interview". With a step before it, Undo takes the current status back off; at MAX_STEPS, or while the current step is
+   still ahead of today, only Undo is left */
+export function menuOptions(steps, index, today) {
   const own = steps[index].status;
 
   if (index < steps.length - 1) {
@@ -102,7 +132,7 @@ export function menuOptions(steps, index) {
     return STATUSES.map((status) => ({ value: status, status, label: status, disabled: status !== own && !allowed.includes(status) }));
   }
 
-  const full = steps.length >= MAX_STEPS;
+  const full = steps.length >= MAX_STEPS || isAhead(steps, today);
   const options = STATUSES.flatMap((status) => {
     const option = { value: status, status, label: status, disabled: status !== own && (full || !canFollow(own, status)) };
     const again = { value: `again:${status}`, status, label: `Another ${status.toLowerCase()}`, repeat: true, disabled: false };
@@ -113,9 +143,17 @@ export function menuOptions(steps, index) {
   return steps.length < 2 ? options : [...options, { value: "undo", status: own, label: `Undo ${own}`, action: "undo", disabled: false }];
 }
 
-// Returns the earliest and latest dates a step may have: between the steps on either side, and never after today
+/* Returns the earliest and latest dates a step may have: between the steps on either side and never after today, except
+   a current step with a status that can be scheduled, which may be up to SCHEDULE_MONTHS ahead */
 export function dateBounds(steps, index, today) {
-  return { min: steps[index - 1]?.date || "", max: steps[index + 1]?.date || today };
+  const next = steps[index + 1];
+  const min = steps[index - 1]?.date || "";
+
+  if (!next && canSchedule(steps[index].status)) {
+    return { min, max: monthsAfter(today, SCHEDULE_MONTHS) };
+  }
+
+  return { min, max: next && next.date < today ? next.date : today };
 }
 
 // Tells whether a picked date fits a step, and whether it can be saved (it fits and differs from the step's date)
@@ -137,13 +175,16 @@ export function removeBlocked(steps, index) {
   return "";
 }
 
-// Lists the statuses the application form may save: the current one, or one that may follow it while there's room
-export function formStatuses(steps) {
+/* Lists the statuses the application form may save: the current one, or one that may follow it while there's room and
+   the current step isn't still ahead of today */
+export function formStatuses(steps, today) {
   const current = steps?.[steps.length - 1];
 
   if (!current) {
     return STATUSES;
   }
 
-  return STATUSES.filter((status) => status === current.status || (steps.length < MAX_STEPS && canFollow(current.status, status)));
+  const open = steps.length < MAX_STEPS && !isAhead(steps, today);
+
+  return STATUSES.filter((status) => status === current.status || (open && canFollow(current.status, status)));
 }

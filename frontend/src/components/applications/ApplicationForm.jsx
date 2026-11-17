@@ -46,7 +46,7 @@ function ApplicationForm({ job, applications, onSubmit, active = true }) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [autoLocation, setAutoLocation] = useState("");
-  const statusOptions = useMemo(() => formStatuses(job?.steps).map((status) => ({ value: status, label: status })), [job]);
+  const statusOptions = useMemo(() => formStatuses(job?.steps, localISO(new Date())).map((status) => ({ value: status, label: status })), [job]);
   const appliedMax = job?.steps?.length ? dateBounds(job.steps, 0, localISO(new Date())).max : localISO(new Date());
   const suggestions = useMemo(() => ({
     position: suggestionsFor(applications, "position"),

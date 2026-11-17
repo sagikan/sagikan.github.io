@@ -276,13 +276,17 @@ stateDiagram-v2
   Offer --> Withdrawn: follow
 ```
 
+> Not drawn, since it keeps the state: `schedule` on Interview, which marks a status whose current step may be dated
+> ahead of today, up to `SCHEDULE_MONTHS` (3)
+
 | Helper | Used for |
 |---|---|
-| `menuOptions(steps, index)` | A page's status menu. The current page's menu adds a step: it offers what may follow, "Another interview" for Interview → Interview, and "Undo …" when a step comes before it. At `MAX_STEPS` (10) only Undo is enabled. An earlier page's menu changes that step: it offers what `allowedAt` allows between its neighbors. The rest is greyed out |
+| `menuOptions(steps, index, today)` | A page's status menu. The current page's menu adds a step: it offers what may follow, "Another interview" for Interview → Interview, and "Undo …" when a step comes before it. At `MAX_STEPS` (10), or while the current step is ahead of today (`isAhead`), only Undo is enabled. An earlier page's menu changes that step: it offers what `allowedAt` allows between its neighbors. The rest is greyed out |
 | `allowedAt(steps, index)` | The statuses a step may have: Applied for the first, otherwise what may follow the step before it and be followed by the step after it |
 | `removeBlocked(steps, index)` | Why a step's × is off: the first step is never removed, and a middle one only when its neighbors may follow each other |
-| `dateBounds`, `checkDate` | The date box: between the neighbors' dates, never after today; Save only for a new valid date |
-| `formStatuses(steps)` | The form's Status field: the current status, or one that may follow it (saving a new one adds a step) |
+| `dateBounds`, `checkDate` | The date box: between the neighbors' dates, never after today, except a current step that can be scheduled (`canSchedule`), up to `SCHEDULE_MONTHS` ahead (`monthsAfter`); Save only for a new valid date |
+| `formStatuses(steps, today)` | The form's Status field: the current status, or one that may follow it (saving a new one adds a step); only the current one while it's ahead of today |
+| `isUpcoming(steps, today)` | A current step that can be scheduled, dated today or later. `ApplicationCard.jsx` gives such a card the `upcoming` glow (and a hidden ", upcoming interview" in its title), except under the Applications page's Upcoming chip, which lists only these cards, soonest first, and on a card's copy in the review section, where the email update replaces the status area |
 | `STATUSES`, `FIRST_STATUS`, `MAX_STEPS` | The table's states, its first state and the cap; `lib/api.js` re-exports `STATUSES` |
 
 - **Mirrors the backend.** Change both tables together (see "Backend tables" below).
@@ -312,7 +316,7 @@ stateDiagram-v2
 | Move | Made by |
 |---|---|
 | `fold` | The folded corner (`foldNext`): the top page folds back one step and stays folded |
-| `unfold` | A strip (desktop), Escape, a click on the card, or another card folding (`unfoldTo`, `returnTo`) |
+| `unfold` | A strip (desktop), Escape, a click on the card, or another card folding (`unfoldTo`, `returnTo`); a new status arriving while folded (an email update accepted from the review section), which unfolds every page |
 
 - **Data.** Which pages are folded is kept by step ID (`turnedIds`), so removing a step, or a server ID replacing a
   temporary one, keeps the right pages folded.

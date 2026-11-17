@@ -1,5 +1,6 @@
 import { memo } from "react";
-import { formatDate, jobDay } from "../../lib/api";
+import { formatDate, jobDay, localISO } from "../../lib/api";
+import { isUpcoming } from "../../utils/applications/applicationMachines";
 import AppNote from "./AppNote";
 import FitMeta from "./FitMeta";
 import StatusStack from "./StatusStack";
@@ -9,17 +10,19 @@ import CompanyAvatar from "../ui/CompanyAvatar";
 /* An application's card: company, position, details and note, with its status area on the right. A card waiting on
    an email update shows the update's panel (review) in its place, with its mail line (footer) under it. Every callback
    gets the application (or its ID) first, so the page passes the same functions to every card, and a card whose props
-   didn't change skips re-rendering (memo) */
+   didn't change skips re-rendering (memo). A card with an upcoming interview glows, unless markUpcoming is off (the
+   Upcoming filter, where every card has one) */
 function ApplicationCard({
-  job, hidden = false, hideCardDate = false, folded = false, busy = false, cvBusy = false, review = null, footer = null,
+  job, hidden = false, hideCardDate = false, markUpcoming = true, folded = false, busy = false, cvBusy = false, review = null, footer = null,
   onEdit, onCardClick, onDownloadCv, onFoldChange, onAddStep, onChangeStep, onRemoveStep, onDelete
 }) {
   // A server from before status steps sends none (the two deploy separately): the status shows as the only step
   const journeyJob = job.steps?.length ? job : { ...job, steps: [{ id: "none", status: job.status, date: jobDay(job) }] };
+  const upcoming = markUpcoming && !review && isUpcoming(journeyJob.steps, localISO(new Date()));
 
   return (
     <li
-      className={`app-card status-${job.status.toLowerCase()}${review ? " needs-review" : ""}${folded ? " folded" : ""}`}
+      className={`app-card status-${job.status.toLowerCase()}${review ? " needs-review" : ""}${folded ? " folded" : ""}${upcoming ? " upcoming" : ""}`}
       hidden={hidden}
       onClick={review ? undefined : (event) => onCardClick(event, job, folded)}
     >
@@ -27,7 +30,10 @@ function ApplicationCard({
 
       <div className="app-main">
         <div className="app-title">
-          <h3>{job.position}</h3>
+          <h3>
+            {job.position}
+            {upcoming && <span className="visually-hidden">, upcoming interview</span>}
+          </h3>
           {!review && (
             <button
               type="button"

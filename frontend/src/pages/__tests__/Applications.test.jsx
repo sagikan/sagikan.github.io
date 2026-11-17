@@ -29,15 +29,27 @@ const PENDING = {
   candidate_ids: []
 };
 
+// Builds an Acme application applied on October 1st, whose current step has the given status and date
+function application(id, position, status, date) {
+  return {
+    id,
+    company: "Acme",
+    position,
+    status,
+    applied_at: "2026-10-01",
+    steps: [{ id: `${id}-1`, status: "Applied", date: "2026-10-01" }, { id: `${id}-2`, status, date }]
+  };
+}
+
 // Renders the page with applications, email updates and an answer for every update action
-function renderPage(answer, applications = []) {
+function renderPage(answer, applications = [], emailUpdates = { pending: [PENDING], recent: [RECENT] }) {
   const onResolveEmailUpdate = vi.fn(async () => answer);
 
   render(
     <Applications
       csrfToken="token-1"
       applications={applications}
-      emailUpdates={{ pending: [PENDING], recent: [RECENT] }}
+      emailUpdates={emailUpdates}
       onResolveEmailUpdate={onResolveEmailUpdate}
       error=""
       onDismissError={() => {}}
@@ -91,6 +103,62 @@ describe("Applications", () => {
     const titles = screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent);
 
     expect(titles).toEqual(["Offer", "Rejected without a date", "Rejected with a date"]);
+  });
+
+  it("lists only upcoming interviews under Upcoming, soonest first and without the glow", () => {
+    renderPage("", [
+      application("1", "Later", "Interview", "2099-02-01"),
+      application("2", "Past", "Interview", "2026-10-08"),
+      application("3", "Sooner", "Interview", "2099-01-01"),
+      application("4", "Offer", "Offer", "2026-10-08")
+    ]);
+    fireEvent.click(screen.getByRole("tab", { name: "Upcoming" }));
+    const titles = screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent);
+
+    expect(titles).toEqual(["Sooner", "Later"]);
+    expect(document.querySelector(".app-card.upcoming")).toBeNull();
+  });
+
+  it("names a suggestion that repeats the status as another interview, in review and in recent updates", () => {
+    const job = application("9", "Backend Engineer", "Interview", "2026-10-08");
+    const pending = { ...PENDING, application_id: "9" };
+    const recent = { ...RECENT, previous_status: "Interview" };
+
+    renderPage("", [job], { pending: [pending], recent: [recent] });
+    fireEvent.click(screen.getByRole("button", { name: /Needs your review/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Approved in past day/ }));
+
+    expect(screen.getByRole("group", { name: "Another interview" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Another interview. Accepted by you" })).toBeInTheDocument();
+  });
+
+  it("lists a card waiting on an email update in the main list too, with its status area instead of the update", () => {
+    const job = application("9", "Backend Engineer", "Interview", "2099-01-01");
+    const pending = { ...PENDING, application_id: "9", suggested_status: "Rejected" };
+
+    renderPage("", [job], { pending: [pending], recent: [] });
+    fireEvent.click(screen.getByRole("button", { name: /Needs your review/ }));
+    const review = screen.getByRole("region", { name: "Emails to review" });
+    const listed = screen.getByRole("heading", { name: "Backend Engineer, upcoming interview" }).closest(".app-card");
+
+    expect(within(review).getByRole("group", { name: "Interview to Rejected" })).toBeInTheDocument();
+    expect(review).not.toContainElement(listed);
+    expect(listed.querySelector(".app-suggestion")).toBeNull();
+    expect(screen.getAllByRole("group", { name: "Interview to Rejected" })).toHaveLength(1);
+  });
+
+  it("folds only the main list's card, not its copy in the review section", async () => {
+    const job = application("9", "Backend Engineer", "Interview", "2026-10-08");
+    const pending = { ...PENDING, application_id: "9", suggested_status: "Rejected" };
+
+    renderPage("", [job], { pending: [pending], recent: [] });
+    fireEvent.click(screen.getByRole("button", { name: /Needs your review/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Fold back to Applied" }));
+    const review = screen.getByRole("region", { name: "Emails to review" });
+    const listed = await screen.findByRole("group", { name: "Status history: Applied, step 1 of 2" });
+
+    expect(listed.closest(".app-card")).toHaveClass("folded");
+    expect(within(review).getByRole("group", { name: "Interview to Rejected" }).closest(".app-card")).not.toHaveClass("folded");
   });
 
   it("shows a failed undo's message in the recent updates, not in the review section", async () => {

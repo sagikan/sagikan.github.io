@@ -17,6 +17,7 @@ const JOB = {
     { id: "2", status: "Interview", date: "2026-10-08" }
   ]
 };
+const UPCOMING_JOB = { ...JOB, steps: [JOB.steps[0], { id: "2", status: "Interview", date: "2099-01-01" }] };
 
 // Renders a card inside a list, with spies for its callbacks
 function renderCard(props = {}) {
@@ -96,6 +97,23 @@ describe("ApplicationCard", () => {
     expect(screen.queryByRole("button", { name: "Edit Acme application" })).toBeNull();
     expect(container.querySelector(".app-card")).toHaveClass("needs-review");
     expect(onCardClick).not.toHaveBeenCalled();
+  });
+
+  it("glows and names the upcoming interview for screen readers when the interview is ahead", () => {
+    const { container } = renderCard({ job: UPCOMING_JOB });
+
+    expect(container.querySelector(".app-card")).toHaveClass("upcoming");
+    expect(screen.getByRole("heading", { name: "Backend Engineer, upcoming interview" })).toBeInTheDocument();
+  });
+
+  it.each([
+    ["an interview that already happened", { job: JOB }],
+    ["the Upcoming filter", { job: UPCOMING_JOB, markUpcoming: false }],
+    ["an email update's panel", { job: UPCOMING_JOB, review: <div>Suggests Offer</div> }]
+  ])("doesn't glow for %s", (_title, props) => {
+    const { container } = renderCard(props);
+
+    expect(container.querySelector(".app-card")).not.toHaveClass("upcoming");
   });
 
   it("shows the status as the only step when the server sends no steps", () => {

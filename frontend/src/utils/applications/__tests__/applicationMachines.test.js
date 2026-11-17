@@ -5,15 +5,20 @@ import {
   FIRST_STATUS,
   MAX_STEPS,
   NOTE,
+  SCHEDULE_MONTHS,
   STATUSES,
   STATUS_STACK,
   STEP_ACTION,
   allowedAt,
   canFollow,
+  canSchedule,
   checkDate,
   dateBounds,
   formStatuses,
+  isAhead,
+  isUpcoming,
   menuOptions,
+  monthsAfter,
   noteStateOf,
   removeBlocked
 } from "../applicationMachines";
@@ -24,6 +29,11 @@ const JOURNEY = [
   { status: "Interview", date: "2026-10-08" },
   { status: "Offer", date: "2026-10-20" }
 ];
+const UPCOMING = [
+  { status: "Applied", date: "2026-10-01" },
+  { status: "Interview", date: "2026-11-20" }
+];
+const LIMIT = "2027-02-11";
 
 // Builds a journey of the given statuses, one day apart from October 1st
 function journey(...statuses) {
@@ -164,6 +174,51 @@ describe("allowedAt", () => {
   });
 });
 
+describe("canSchedule", () => {
+  it.each([
+    ["Applied", false],
+    ["Interview", true],
+    ["Offer", false],
+    ["Rejected", false],
+    ["Withdrawn", false]
+  ])("tells whether %s may be scheduled ahead", (status, expected) => {
+    expect(canSchedule(status)).toBe(expected);
+  });
+});
+
+describe("monthsAfter", () => {
+  it.each([
+    ["2026-11-11", SCHEDULE_MONTHS, LIMIT],
+    ["2026-11-30", 3, "2027-02-28"],
+    ["2027-11-30", 3, "2028-02-29"],
+    ["2026-01-31", 1, "2026-02-28"]
+  ])("returns %s plus %i months as %s", (iso, months, expected) => {
+    expect(monthsAfter(iso, months)).toBe(expected);
+  });
+});
+
+describe("isAhead", () => {
+  it("returns true only when the current step is dated after today", () => {
+    expect(isAhead(UPCOMING, TODAY)).toBe(true);
+    expect(isAhead(UPCOMING, "2026-11-20")).toBe(false);
+    expect(isAhead(JOURNEY, TODAY)).toBe(false);
+    expect(isAhead(undefined, TODAY)).toBe(false);
+  });
+});
+
+describe("isUpcoming", () => {
+  it("returns true for a current interview dated today or later", () => {
+    expect(isUpcoming(UPCOMING, TODAY)).toBe(true);
+    expect(isUpcoming(UPCOMING, "2026-11-20")).toBe(true);
+  });
+
+  it("returns false for a past interview, another current status, or no steps", () => {
+    expect(isUpcoming(UPCOMING, "2026-11-21")).toBe(false);
+    expect(isUpcoming([...JOURNEY.slice(0, 2), { status: "Offer", date: "2026-11-20" }], TODAY)).toBe(false);
+    expect(isUpcoming(undefined, TODAY)).toBe(false);
+  });
+});
+
 describe("menuOptions", () => {
   it("offers what may follow the current status, another interview, and Undo", () => {
     expect(labels(menuOptions(journey("Applied", "Interview"), 1))).toEqual(
@@ -180,6 +235,18 @@ describe("menuOptions", () => {
 
     expect(labels(menuOptions(full, MAX_STEPS - 1))).toEqual(
       ["(Applied)", "Interview", "(Offer)", "(Rejected)", "(Withdrawn)", "Undo Interview"]
+    );
+  });
+
+  it("offers only Undo while the current interview is still ahead", () => {
+    expect(labels(menuOptions(UPCOMING, 1, TODAY))).toEqual(
+      ["(Applied)", "Interview", "(Offer)", "(Rejected)", "(Withdrawn)", "Undo Interview"]
+    );
+  });
+
+  it("offers the usual choices on the interview's day", () => {
+    expect(labels(menuOptions(UPCOMING, 1, "2026-11-20"))).toEqual(
+      ["(Applied)", "Interview", "Another interview", "Offer", "Rejected", "Withdrawn", "Undo Interview"]
     );
   });
 
@@ -200,6 +267,11 @@ describe("dateBounds", () => {
     expect(dateBounds(JOURNEY, 1, TODAY)).toEqual({ min: "2026-10-01", max: "2026-10-20" });
     expect(dateBounds(JOURNEY, 2, TODAY)).toEqual({ min: "2026-10-08", max: TODAY });
   });
+
+  it("lets a current interview reach SCHEDULE_MONTHS ahead, and keeps the step before it up to today", () => {
+    expect(dateBounds(UPCOMING, 1, TODAY)).toEqual({ min: "2026-10-01", max: LIMIT });
+    expect(dateBounds(UPCOMING, 0, TODAY)).toEqual({ min: "", max: TODAY });
+  });
 });
 
 describe("checkDate", () => {
@@ -215,6 +287,11 @@ describe("checkDate", () => {
 
   it("refuses a current date after today", () => {
     expect(checkDate(JOURNEY, 2, "2026-11-12", TODAY).valid).toBe(false);
+  });
+
+  it("accepts a current interview up to the limit, and refuses one past it", () => {
+    expect(checkDate(UPCOMING, 1, LIMIT, TODAY)).toEqual({ valid: true, savable: true });
+    expect(checkDate(UPCOMING, 1, "2027-02-12", TODAY).valid).toBe(false);
   });
 });
 
@@ -242,5 +319,9 @@ describe("formStatuses", () => {
 
   it("offers only the current status once the journey is full", () => {
     expect(formStatuses(journey("Applied", ...Array(MAX_STEPS - 1).fill("Interview")))).toEqual(["Interview"]);
+  });
+
+  it("offers only the current status while the interview is still ahead", () => {
+    expect(formStatuses(UPCOMING, TODAY)).toEqual(["Interview"]);
   });
 });

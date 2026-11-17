@@ -7,8 +7,9 @@ import { popupPlace } from "../../utils/layout/pageZoom";
 const GAP = 6;
 
 /* A one-row popup under a step's date (above it when the window has no room below) for picking when the step
-   happened, kept between the steps on either side and never after today. Save stays off until a new valid date is
-   picked; Escape, a click outside, scrolling or resizing the window closes it, as with the dropdowns */
+   happened, kept between the steps on either side and never after today, except a current interview, which may be
+   set up to three months ahead. Save stays off until a new valid date is picked; Escape, a click outside, scrolling or
+   resizing the window closes it, as with the dropdowns */
 function StepDateBox({ anchor, steps, index, today, onSave, onClose }) {
   const [value, setValue] = useState(steps[index].date);
   const [place, setPlace] = useState(null);

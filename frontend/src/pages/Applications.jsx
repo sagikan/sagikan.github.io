@@ -13,7 +13,7 @@ import ApplicationCard from "../components/applications/ApplicationCard";
 import { downloadSavedCv } from "../utils/resume/cvPdf";
 import Alert from "../components/ui/Alert";
 import { useMachine } from "../hooks/useMachine";
-import { APPLICATION_EDITOR } from "../utils/applications/applicationMachines";
+import { APPLICATION_EDITOR, isUpcoming } from "../utils/applications/applicationMachines";
 
 const KIND_OPTIONS = [{ value: "application", label: "Application" }, { value: "job", label: "Job Post" }];
 const STATUS_ORDER = ["Offer", "Interview", "Applied", "Rejected", "Withdrawn"];
@@ -31,6 +31,7 @@ const DEFAULT_SORT = Object.keys(SORTS)[0];
 const GROUPED_SORTS = ["newestStatus", "newest", "oldest"];
 const DATE_RANGES = [
   { key: "all", label: "All Time" },
+  { key: "upcoming", label: "Upcoming" },
   { key: "today", label: "Today", days: 1 },
   { key: "week", label: "Last Week", days: 7 },
   { key: "month", label: "Last Month", days: 30 }
@@ -40,6 +41,11 @@ const DATE_RANGES = [
    day tie and the next order decides) */
 function byNewest(a, b) {
   return jobDay(b).localeCompare(jobDay(a));
+}
+
+// Sorts applications by their current step's date, soonest first
+function bySoonest(a, b) {
+  return a.steps[a.steps.length - 1].date.localeCompare(b.steps[b.steps.length - 1].date);
 }
 
 // Sorts applications by status
@@ -99,6 +105,15 @@ function MailHint({ update }) {
       </span>
     </span>
   );
+}
+
+// Names a suggested status change for screen readers: "Another interview" when it repeats the status, else "A to B"
+function moveLabel(from, to) {
+  if (from === to) {
+    return `Another ${to.toLowerCase()}`;
+  }
+
+  return from ? `${from} to ${to}` : to;
 }
 
 // Email details as an expandable line under a card, shown on small screens
@@ -200,30 +215,30 @@ function Applications({
 
     return [...pendingByApp.keys()].map((id) => byId.get(id)).filter(Boolean);
   }, [applications, pendingByApp]);
-  const listed = useMemo(
-    () => applications.filter((job) => !pendingByApp.has(job.id)),
-    [applications, pendingByApp]
-  );
   const dateScoped = useMemo(() => {
     if (dateRange === "date") {
-      return listed.filter((job) => jobDay(job) === pickedDate);
+      return applications.filter((job) => jobDay(job) === pickedDate);
+    }
+
+    if (dateRange === "upcoming") {
+      return applications.filter((job) => isUpcoming(job.steps, daysAgoISO(0)));
     }
 
     const range = DATE_RANGES.find((option) => option.key === dateRange);
 
     if (!range.days) {
-      return listed;
+      return applications;
     }
 
     const from = daysAgoISO(range.days - 1);
     const to = daysAgoISO(0);
 
-    return listed.filter((job) => {
+    return applications.filter((job) => {
       const day = jobDay(job);
 
       return day >= from && day <= to;
     });
-  }, [listed, dateRange, pickedDate]);
+  }, [applications, dateRange, pickedDate]);
   const searched = useMemo(() => {
     const search = query.trim().toLowerCase();
 
@@ -243,11 +258,12 @@ function Applications({
 
     return result;
   }, [searched]);
+  // Upcoming interviews come soonest first, then in the chosen order
   const visible = useMemo(
     () => searched
       .filter((job) => statusFilter === "All" || job.status === statusFilter)
-      .sort(SORTS[sort].compare),
-    [searched, statusFilter, sort]
+      .sort(dateRange === "upcoming" ? (a, b) => bySoonest(a, b) || SORTS[sort].compare(a, b) : SORTS[sort].compare),
+    [searched, statusFilter, sort, dateRange]
   );
   const showDayHeaders = GROUPED_SORTS.includes(sort) && (dateRange === "week" || dateRange === "month" || dateRange === "all");
   const hideCardDate = GROUPED_SORTS.includes(sort) || dateRange === "today";
@@ -459,9 +475,10 @@ function Applications({
     );
   }
 
-  // Renders an application card; one waiting on an email update shows the update's panel in place of its status area
-  function renderCard(job, hidden = false) {
-    const update = pendingByApp.get(job.id);
+  /* Renders an application card. In the review section, a card waiting on an email update shows the update's panel in
+     place of its status area; the main list shows every card with its status area, so its steps can still be changed */
+  function renderCard(job, hidden = false, inReview = false) {
+    const update = inReview ? pendingByApp.get(job.id) : null;
 
     return (
       <ApplicationCard
@@ -469,14 +486,15 @@ function Applications({
         job={job}
         hidden={hidden}
         hideCardDate={hideCardDate}
-        folded={foldedId === job.id}
+        markUpcoming={dateRange !== "upcoming"}
+        folded={!inReview && foldedId === job.id}
         busy={savingIds.has(job.id)}
         cvBusy={cvBusyId === job.id}
         review={update && (
           <div
             className={`app-suggestion status-${update.suggested_status.toLowerCase()}`}
             role="group"
-            aria-label={`${job.status} to ${update.suggested_status}`}
+            aria-label={moveLabel(job.status, update.suggested_status)}
           >
             <MailHint update={update} />
             {renderDecision(update)}
@@ -550,7 +568,7 @@ function Applications({
 
               {flagged.length > 0 && (
                 <ul className="app-list">
-                  {flagged.map((job) => renderCard(job))}
+                  {flagged.map((job) => renderCard(job, false, true))}
                 </ul>
               )}
 
@@ -637,7 +655,7 @@ function Applications({
                       </div>
                     </div>
 
-                    <div className={`app-suggestion status-${update.suggested_status.toLowerCase()}`} role="group" aria-label={`${update.previous_status ? `${update.previous_status} to ` : ""}${update.suggested_status}. ${how}`}>
+                    <div className={`app-suggestion status-${update.suggested_status.toLowerCase()}`} role="group" aria-label={`${moveLabel(update.previous_status, update.suggested_status)}. ${how}`}>
                       <MailHint update={update} />
                       {update.undoable ? (
                         <button

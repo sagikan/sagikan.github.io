@@ -2945,6 +2945,31 @@ a {
   gap: 10px;
 }
 
+/* How much of the top coating a card or a status page shows (1 to 0), and how much of the upcoming glow (0 to 1).
+   Registered so they animate: the shadows keep the same layers in both looks and only these change, so the coating
+   fades out as the glow fades in. Not inherited: the card and each page fade their own, on the same timing, since a
+   page easing its line toward a value its card is still animating would trail behind it. Without support, the
+   fallbacks keep the coating and the change is instant */
+@property --coating {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 1;
+}
+
+@property --glow-on {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
+/* How much of the hover shadow a card shows (0 to 1). Hover eases this rather than the card's shadow, so the shadow has
+   no transition of its own for the coating's fade to keep restarting */
+@property --lift {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
 .app-card {
   position: relative;
   --status: var(--border-strong);
@@ -2953,15 +2978,43 @@ a {
   align-items: center;
   gap: 16px;
   padding: 10px 12px;
-  --top-line: inset 0 2px 0 color-mix(in srgb, var(--text) 14%, transparent);
+  --top-line: inset 0 2px 0 color-mix(in srgb, var(--text) calc(14% * var(--coating, 1)), transparent);
+  --glow:
+    0 0 0 1px color-mix(in srgb, var(--interview-fill) calc(70% * var(--glow-on, 0)), transparent),
+    0 5px 18px -5px color-mix(in srgb, var(--interview-fill) calc(60% * var(--glow-on, 0)), transparent);
+  /* --shadow-card-hover's layers, faded by --lift */
+  --lift-shadow:
+    0 4px 14px -6px rgb(16 24 40 / calc(0.1 * var(--lift, 0))),
+    0 1px 3px rgb(16 24 40 / calc(0.04 * var(--lift, 0)));
   background-color: color-mix(in srgb, var(--status-soft) 55%, var(--surface));
-  box-shadow: var(--top-line);
+  box-shadow: var(--top-line), var(--glow), var(--lift-shadow);
   border-radius: var(--radius);
-  transition: box-shadow 0.15s;
+  transition: --lift 0.15s, --coating 0.35s ease-in-out, --glow-on 0.35s ease-in-out;
 }
 
 .app-card:hover {
-  box-shadow: var(--top-line), var(--shadow-card-hover);
+  --lift: 1;
+}
+
+/* A card with an upcoming interview glows in the interview's amber, so it stands out while scrolling, and drops its top
+   coating (the card's and every status page's), which the glow's ring replaces. Light mode needs a firmer ring and a
+   deeper, lower glow to show on a pale page; dark mode's halo spreads evenly and stays soft */
+.app-card.upcoming,
+.app-card.upcoming .zfront {
+  --coating: 0;
+}
+
+.app-card.upcoming {
+  --glow-on: 1;
+}
+
+@media (prefers-color-scheme: dark) {
+  .app-card {
+    --lift-shadow: 0 4px 16px -6px rgb(0 0 0 / calc(0.45 * var(--lift, 0)));
+    --glow:
+      0 0 0 1px color-mix(in srgb, var(--interview) calc(30% * var(--glow-on, 0)), transparent),
+      0 0 16px -4px color-mix(in srgb, var(--interview) calc(30% * var(--glow-on, 0)), transparent);
+  }
 }
 
 /* Status colours */
@@ -3133,9 +3186,10 @@ a {
   border-left: 0;
 }
 
+/* Above the cards around it, for the mail popover, but below the sticky navbar (10) */
 .app-suggestion:hover,
 .app-suggestion:focus-within {
-  z-index: 10;
+  z-index: 9;
 }
 
 /* Email review: mail badge and hover details */
@@ -3623,17 +3677,26 @@ a {
   --panel: color-mix(in srgb, var(--status-fill, var(--status)) 16%, var(--surface));
 }
 
+/* The color of a status page's top line. Registered so the line eases on its own, while the page's shadow just follows
+   it and the page's coating (see --coating), without a transition of its own */
+@property --page-line {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: transparent;
+}
+
 /* A page's color and top line ease between their strip, panel and current shades over the time the page takes to fold
-   or unfold */
+   or unfold, and the line fades with the card's coating */
 .zfront {
   pointer-events: auto;
   border-radius: 0 var(--radius) var(--radius) 0;
-  transition: background-color 0.35s ease-in-out, box-shadow 0.35s ease-in-out;
+  box-shadow: inset 0 2px 0 color-mix(in srgb, var(--page-line) calc(100% * var(--coating, 1)), transparent);
+  transition: background-color 0.35s ease-in-out, --page-line 0.35s ease-in-out, --coating 0.35s ease-in-out;
 }
 
 .zpage.earlier .zfront {
+  --page-line: color-mix(in srgb, var(--status) 30%, transparent);
   background-color: var(--panel);
-  box-shadow: inset 0 2px 0 color-mix(in srgb, var(--status) 30%, transparent);
 }
 
 .zpage.earlier.turned .zfront {
@@ -3641,9 +3704,10 @@ a {
   cursor: pointer;
 }
 
+/* Quicker color and line on hover; the coating (the third transition) keeps the card's timing */
 .zpage.earlier.turned .zfront:hover {
   background-color: color-mix(in srgb, var(--status-fill, var(--status)) 34%, var(--surface));
-  transition-duration: 0.15s;
+  transition-duration: 0.15s, 0.15s, 0.35s;
 }
 
 .zpage.current.turned .zfront {
@@ -3721,19 +3785,24 @@ a {
 
 .zpage.current .zfront,
 .zpage.earlier.holding .zfront {
+  --page-line: color-mix(in srgb, var(--text) 14%, transparent);
   background-color: var(--panel);
-  box-shadow: inset 0 2px 0 color-mix(in srgb, var(--text) 14%, transparent);
 }
 
 /* Pages that change look under a folding page change at once, so the folding page fades over their final color as the
    card's tint does, and no line shows at the status area's edge: an undo's page beneath takes the current look, and
    the page that was current keeps it while a new status arrives (holding, added after React has set its classes, so
    the browser may already have worked out its earlier look, which mustn't fade into the held one) */
-.zone.undoing .zfront,
 .zone.undoing .step-dates::before,
-.zpage.holding .zfront,
 .zpage.holding .step-dates::before {
   transition: none;
+}
+
+/* Only the coating keeps fading there, so a page's line stays in step with the card's when an undo or a new status
+   also starts or ends an upcoming interview */
+.zone.undoing .zfront,
+.zpage.holding .zfront {
+  transition: --coating 0.35s ease-in-out;
 }
 
 .app-card.folded .zpage:not(.turned) .zfront {

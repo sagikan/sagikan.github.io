@@ -527,10 +527,19 @@ function StatusStack({ job, folded, busy = false, cvBusy = false, onDownloadCv, 
     }
 
     const pushed = ids.length === before.length + 1 && before.every((id, index) => ids[index] === id);
-    const kept = new Set([...turnedRef.current].filter((id) => ids.includes(id)));
+    const turnedBefore = [...turnedRef.current];
+    // A new status arrives over every page, so a folded card unfolds (an accepted email update can add one while folded)
+    const kept = new Set(pushed ? [] : turnedBefore.filter((id) => ids.includes(id)));
 
-    if (kept.size !== turnedRef.current.size) {
+    if (kept.size !== turnedBefore.length) {
       setTurned(kept);
+    }
+
+    // Pages folded back under the old current one return to rest; the old one flattens under the new page below
+    if (pushed) {
+      turnedBefore
+        .filter((id) => id !== before[before.length - 1])
+        .forEach((id) => animate(id, restOf(ids.indexOf(id)), FOLD_MS * 0.8));
     }
 
     /* A saved step comes back from the server under its real ID, as a new element: it's drawn at once as folded as
@@ -709,7 +718,7 @@ function StatusStack({ job, folded, busy = false, cvBusy = false, onDownloadCv, 
                       floatGap={MENU_GAP}
                       fitWidest
                       value={step.status}
-                      options={menuOptions(steps, index)}
+                      options={menuOptions(steps, index, today)}
                       onChange={(_value, option) => choose(index, option)}
                       disabled={firstLocked || busy}
                       title={firstLocked ? `The first status is always ${FIRST_STATUS}.` : undefined}

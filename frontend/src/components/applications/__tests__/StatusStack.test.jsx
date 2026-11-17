@@ -142,6 +142,20 @@ describe("StatusStack", () => {
     expect(page(container, "3")).not.toHaveClass("turned");
   });
 
+  it("unfolds when a new status arrives while folded, such as an accepted email update", () => {
+    const { container, rerender, onFoldChange, ...handlers } = renderStack();
+    const added = { ...JOB, status: "Rejected", steps: [...JOB.steps, { id: "4", status: "Rejected", date: "2026-10-25" }] };
+
+    fireEvent.click(screen.getByRole("button", { name: "Fold back to Interview" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fold back to Applied" }));
+    rerender(<StatusStack job={added} folded {...handlers} onFoldChange={onFoldChange} />);
+    finish();
+
+    expect([...container.querySelectorAll(".zpage.turned")]).toEqual([]);
+    expect(screen.getByRole("group", { name: "Status history: Rejected, step 4 of 4" })).toBeInTheDocument();
+    expect(onFoldChange).toHaveBeenLastCalledWith("5", false);
+  });
+
   it("adds a step from the current status's menu, including another interview", () => {
     const job = { ...JOB, status: "Interview", steps: JOB.steps.slice(0, 2) };
     const { onAddStep } = renderStack({ job });
