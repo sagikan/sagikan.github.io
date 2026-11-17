@@ -60,11 +60,14 @@ describe("classifyEmail", () => {
   });
 
   it("returns what Claude recorded", async () => {
-    mockFetch(recorded({ job_related: true, event: "rejection", company: " Acme ", position: " Backend Engineer ", confidence: 0.8 }));
+    mockFetch(recorded({
+      job_related: true, event: "interview", interview_kind: "new_round", company: " Acme ", position: " Backend Engineer ", confidence: 0.8
+    }));
 
     expect(await classifyEmail(EMAIL)).toEqual({
       jobRelated: true,
-      event: "rejection",
+      event: "interview",
+      interviewKind: "new_round",
       company: "Acme",
       position: "Backend Engineer",
       confidence: 0.8
@@ -72,9 +75,25 @@ describe("classifyEmail", () => {
   });
 
   it("cleans up malformed values", async () => {
-    mockFetch(recorded({ job_related: "yes", event: "celebration", company: 5, position: null, confidence: 7 }));
+    mockFetch(recorded({ job_related: "yes", event: "celebration", interview_kind: "party", company: 5, position: null, confidence: 7 }));
 
-    expect(await classifyEmail(EMAIL)).toEqual({ jobRelated: false, event: "other", company: "", position: "", confidence: 1 });
+    expect(await classifyEmail(EMAIL)).toEqual({ jobRelated: false, event: "other", interviewKind: "unclear", company: "", position: "", confidence: 1 });
+  });
+
+  it("returns an unclear interview kind when Claude leaves it out", async () => {
+    mockFetch(recorded({ job_related: true, event: "interview", company: "Acme", position: "", confidence: 0.9 }));
+
+    expect((await classifyEmail(EMAIL)).interviewKind).toBe("unclear");
+  });
+
+  it("asks Claude for the interview kind", async () => {
+    const fetchMock = mockFetch(recorded({ job_related: true, event: "offer", company: "", position: "", confidence: 1 }));
+
+    await classifyEmail(EMAIL);
+    const schema = JSON.parse(fetchMock.mock.calls[0][1].body).tools[0].input_schema;
+
+    expect(schema.properties.interview_kind.enum).toEqual(["new_round", "logistics", "unclear"]);
+    expect(schema.required).toContain("interview_kind");
   });
 
   it("limits the company to 200 characters and the position to 300", async () => {

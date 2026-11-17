@@ -183,14 +183,18 @@ allow the move from its current state.
 
 | Move | Route | Also |
 |---|---|---|
-| `accept` | `POST /email/events/:id/accept` | Adds the status as a step dated today and records it in `step_id`; asks the user to choose an application when the event has several candidates; 409 when `EMAIL_MOVES` would now ignore the change (the status moved on since) or the application already has `MAX_STEPS` steps |
-| `dismiss` | `POST /email/events/:id/dismiss` | — |
+| `accept` | `POST /email/events/:id/accept` | Adds the status as a step dated today and records it in `step_id`; asks the user to choose an application when the event has several candidates; 409 when `EMAIL_MOVES` would now ignore the change (the status moved on since), when it's another round that's already recorded (`roundRecorded`: the current step is dated on or after the email's day), or when the application already has `MAX_STEPS` steps |
+| `dismiss` | `POST /email/events/:id/dismiss`; `DELETE /applications/:id` for the application's pending events | Deleting an application also takes it out of pending events' `candidate_ids` |
 | `undo` | `POST /email/events/:id/undo` | Removes the step the update added, only while it's still the current step (409 otherwise). Events from before steps existed have no `step_id`: for them the current step must have the suggested status, with a step before it |
 | `expire` | `cleanUpEvents` in the daily cleanup | Pending events recorded more than `PENDING_DAYS` (30) ago; sets `resolved_at` |
 | `remove` | `cleanUpEvents` in the daily cleanup | Deletes ignored, dismissed, undone and expired events resolved (or, for ignored ones, recorded) more than `KEEP_DAYS` (90) ago |
 
-> • A pending event is either a dashed card (no single matching application) or a suggestion on an application's
->  card, both under Needs your review. Expiring takes it off the page<br>
+> • A pending event is either a dashed card (no single matching application) or a copy of an application's card with
+>  the suggestion in place of its status area, both under Needs your review; the application also stays in the main
+>  list. Expiring takes it off the page<br>
+> • `GET /email/events` lists a pending event only while its move can still apply (`movesStatusSql`), and another
+>  round only while it isn't recorded yet (`roundRecorded`: the current step is dated before the day the email came). A hand edit can hide one (recording the
+>  status, or the round, yourself), and undoing that edit shows it again<br>
 > • `accepted` and `auto_applied` events are never removed: they're the record of which email changed a status, and
 >  from what. They're a small share of the rows<br>
 > • Events are the record of which emails were already processed, so Gmail sync skips them. Removing them after 90
@@ -224,7 +228,8 @@ stateDiagram-v2
   Offer --> Withdrawn: follow
 ```
 
-> `follow` is a list move: the caller picks the next status. Interview → Interview is another interview round
+> • `follow` is a list move: the caller picks the next status. Interview → Interview is another interview round<br>
+> • Not drawn, since it keeps the state: `schedule` on Interview, which marks a status whose current step may be dated ahead of today (`canSchedule`)
 
 **Rules.** `statusStates.js` checks each one, and returns the reason as the error message when it fails:
 
@@ -235,7 +240,8 @@ stateDiagram-v2
 | An earlier step's status may change only to one that may follow the step before it and be followed by the step after it | `checkChangeStep` (`allowedAt`) |
 | A middle step may be removed only when the step after it may follow the step before it (always true with this table; checked anyway) | `checkRemoveStep` |
 | Removing the current step (undo) makes the step before it current; allowed whenever a step comes before it | `checkRemoveStep` |
-| Each step's date is between its neighbors' dates, and the current step's is not after today | `dateBounds`, used by `checkAddStep` and `checkChangeStep` |
+| Each step's date is between its neighbors' dates and not after today. A current step whose status can be scheduled (Interview) may be up to `SCHEDULE_MONTHS` (3) ahead, calendar months, on the month's last day when it's shorter (`monthsAfter`) | `dateBounds`, used by `checkAddStep` and `checkChangeStep` |
+| While the current step is ahead of today (`isAhead`), no step can be added after it and its status can't change: it can only be moved or undone | `checkAddStep`, `checkChangeStep` |
 
 **Stored in** `application_steps` (`position` orders the steps; gaps are fine). `applications.status` is a copy of
 the current step's status, written by `syncStatus` in the same transaction as every step change, so filters, counts and
@@ -252,13 +258,10 @@ writes the step and copies the status:
 | `changeStep` | `PATCH /applications/:id/steps/:stepId`; `PATCH /applications/:id` with a new `applied_at` (the first step's date) |
 | `removeStep` | `DELETE /applications/:id/steps/:stepId` (an earlier step, or undo of the current one); undoing an email update |
 
-> • "Today" on the server is its UTC date plus one day (`latestDate`), so a user ahead of UTC can date a step on their
->  own today<br>
-> • A step added without a date (the form, an accepted email update) is dated today, never before the current step
->  (`nextStepDate`); an automatic email update is dated the day the email arrived, or today if it claims a later day<br>
-> • `schema.sql` backfills applications that have no steps: Applied on `applied_at` (or the day it was created), then
->  its status, dated the day it was created, when that isn't Applied; it then copies every first step's date into
->  `applied_at` where they differ<br>
+> • "Today" on the server is its UTC date plus one day (`latestDate`), so a user ahead of UTC can date a step on their own today; the scheduling limit counts from it too<br>
+> • An email update for an application whose current step is ahead is never applied automatically: it waits for review (`emailService.js`), and accepting it fails until the interview is undone or moved to today or earlier<br>
+> • A step added without a date (the form, an accepted email update) is dated today, never before the current step (`nextStepDate`); an automatic email update is dated the day the email arrived, or today if it claims a later day<br>
+> • `schema.sql` backfills applications that have no steps: Applied on `applied_at` (or the day it was created), then its status, dated the day it was created, when that isn't Applied; it then copies every first step's date into `applied_at` where they differ<br>
 > • The `application_steps` status `CHECK` in `schema.sql` lists the statuses by hand
 
 ## Application status from email (`EMAIL_MOVES`)
@@ -269,7 +272,7 @@ rather than a next state.
 | From \ To | Interview | Offer | Rejected |
 |---|---|---|---|
 | Applied | auto | auto | auto |
-| Interview | — | auto | auto |
+| Interview | review* | auto | auto |
 | Offer | — | — | review |
 | Rejected | — | — | — |
 | Withdrawn | — | — | — |
@@ -278,6 +281,17 @@ rather than a next state.
 - **review:** always waits for the user (`pending`), so an offer is never rejected automatically.
 - **—:** ignored. This covers moving backwards, staying in place, anything from Rejected or Withdrawn, and email
   never suggesting Applied or Withdrawn.
+- **review\*:** another interview round. Most interview emails for an application already at Interview are about the
+  round already recorded, so `decide` (`emailService.js`) suggests one only when all of these hold, and ignores the
+  email otherwise:
+  - **A new stage.** The classifier's `interview_kind` is `new_round` (an invitation to an interview stage), not
+    `logistics` (confirming, scheduling, rescheduling, reminders, links, directions) or `unclear`.
+  - **After the current round.** The email arrived after the current Interview step's date. Earlier emails, and ones
+    from that day, are about that round; this also leaves out anything while an interview is still upcoming.
+  - **Not already waiting.** The application has no pending suggestion of Interview. `ingest` loads the waiting ones
+    once and adds each one it records, so several invitations in one sync make one suggestion.
+
+  The same check decides whether an application at Interview is offered as a candidate for an unclear email.
 
 > • `transition(current, target)` reads the table, and `movesStatusSql(current, target)` builds the same rule as an SQL condition<br>
 > • Every move here must also be one [`APPLICATION_STATUS`](#application-status-journey-application_status) allows, since applying it adds a step; `emailMatcher.test.js` checks this<br>

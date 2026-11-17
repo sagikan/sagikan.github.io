@@ -153,6 +153,24 @@ describe("receiving emails", () => {
     expect((await stepsOf(application.id)).map(([status]) => status)).toEqual(["Applied", "Interview"]);
   });
 
+  it("suggests another interview round for review only, once, and ignores emails about arranging it", async () => {
+    const application = await createApplication(user.id, { journey: [["Applied", "2026-03-01"], ["Interview", "2026-04-01"]] });
+
+    mockClaude({
+      "Next round": { event: "interview", interview_kind: "new_round", position: "Backend Engineer" },
+      "Onsite": { event: "interview", interview_kind: "new_round", position: "Backend Engineer" },
+      "Confirmed": { event: "interview", interview_kind: "logistics", position: "Backend Engineer" }
+    });
+
+    const res = await ingest({
+      messages: [message("a", { subject: "Next round" }), message("b", { subject: "Onsite" }), message("c", { subject: "Confirmed" })]
+    });
+
+    expect(res.body).toMatchObject({ pending: 1, ignored: 2, autoApplied: 0 });
+    expect((await storedEvents()).map((event) => [event.message_id, event.state])).toEqual([["a", "pending"], ["b", "ignored"], ["c", "ignored"]]);
+    expect((await stepsOf(application.id)).map(([status]) => status)).toEqual(["Applied", "Interview"]);
+  });
+
   it("leaves the update for the user when automatic updates are off", async () => {
     const application = await createApplication(user.id, { company: "Acme", applied_at: "2026-03-01" });
 

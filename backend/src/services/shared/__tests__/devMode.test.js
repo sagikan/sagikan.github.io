@@ -150,6 +150,17 @@ describe("classify", () => {
     expect(dev.classify({ from: "Acme <jobs@acme.com>", subject: "", body }).event).toBe(event);
   });
 
+  it.each([
+    ["a next round", "We'd like to invite you to the next round interview", "new_round"],
+    ["an onsite", "Please join us for an onsite interview", "new_round"],
+    ["a confirmation", "Your interview is confirmed for Tuesday", "logistics"],
+    ["a reminder", "Reminder: your interview is tomorrow", "logistics"],
+    ["a plain invitation", "We'd like to schedule a call to talk", "unclear"],
+    ["an email that isn't an interview", "We are pleased to offer you the position", "unclear"]
+  ])("tells the interview kind of %s", (_title, body, kind) => {
+    expect(dev.classify({ from: "", subject: "", body }).interviewKind).toBe(kind);
+  });
+
   it("treats a decision as winning over a confirmation in the same email", () => {
     expect(dev.classify({ from: "", subject: "Thank you for applying", body: "Unfortunately, other candidates were chosen" }).event).toBe("rejection");
   });

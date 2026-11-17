@@ -1,18 +1,28 @@
 import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
-import { api, createApplication, createUser, signIn, signedInClient, stepsOf } from "../../../tests/db/helpers";
+import { api, createApplication, createEvent, createUser, signIn, signedInClient, stepsOf } from "../../../tests/db/helpers";
 
 const require = createRequire(import.meta.url);
 const jwt = require("jsonwebtoken");
 const db = require("../../config/db");
 
 const NEW_APPLICATION = { company: "Acme", position: "Backend Engineer", location: "Haifa" };
+const AHEAD = new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10);
+const LATER = new Date(Date.now() + 20 * 86400000).toISOString().slice(0, 10);
+const TOO_FAR = new Date(Date.now() + 200 * 86400000).toISOString().slice(0, 10);
 
 // Counts the rows of a table
 async function countRows(table, where = "TRUE") {
   const { rows } = await db.query(`SELECT COUNT(*)::int AS count FROM ${table} WHERE ${where}`);
 
   return rows[0].count;
+}
+
+// Returns an application's step IDs, oldest first
+async function stepIdsOf(applicationId) {
+  const { rows } = await db.query("SELECT id::text AS id FROM application_steps WHERE application_id = $1 ORDER BY position", [applicationId]);
+
+  return rows.map(({ id }) => id);
 }
 
 describe("authentication", () => {
@@ -451,6 +461,43 @@ describe("DELETE /api/applications/:id", () => {
     expect((await db.query("SELECT company FROM applications")).rows).toEqual([{ company: "Keep" }]);
   });
 
+  it("dismisses the application's waiting email updates and keeps its resolved ones", async () => {
+    const { client, user } = await signedInClient();
+    const application = await createApplication(user.id, { status: "Interview" });
+    const waiting = await createEvent(user.id, { application_id: application.id, suggested_status: "Offer" });
+    const accepted = await createEvent(user.id, { application_id: application.id, state: "accepted", resolved_at: new Date() });
+
+    await client.delete(`/api/applications/${application.id}`);
+    const { rows } = await db.query("SELECT id, state, application_id, resolved_at FROM email_events ORDER BY id");
+
+    expect(rows.map(({ id, state, application_id }) => [id, state, application_id])).toEqual([[waiting, "dismissed", null], [accepted, "accepted", null]]);
+    expect(rows[0].resolved_at).not.toBeNull();
+  });
+
+  it("drops the application from unclear email updates' candidates", async () => {
+    const { client, user } = await signedInClient();
+    const application = await createApplication(user.id);
+    const other = await createApplication(user.id, { company: "Globex" });
+    const unclear = await createEvent(user.id, { candidate_ids: [application.id, other.id] });
+
+    await client.delete(`/api/applications/${application.id}`);
+    const { rows } = await db.query("SELECT candidate_ids, state FROM email_events WHERE id = $1", [unclear]);
+
+    expect(rows[0]).toEqual({ candidate_ids: [other.id], state: "pending" });
+  });
+
+  it("leaves another user's email updates alone when the application isn't theirs", async () => {
+    const { client } = await signedInClient({ email: "dana@example.com" });
+    const other = await createUser({ email: "noa@example.com" });
+    const application = await createApplication(other.id);
+    const event = await createEvent(other.id, { application_id: application.id, candidate_ids: [application.id] });
+
+    await client.delete(`/api/applications/${application.id}`);
+    const { rows } = await db.query("SELECT state, application_id, candidate_ids FROM email_events WHERE id = $1", [event]);
+
+    expect(rows[0]).toEqual({ state: "pending", application_id: application.id, candidate_ids: [application.id] });
+  });
+
   it("can't delete another user's application", async () => {
     const { client } = await signedInClient({ email: "dana@example.com" });
     const other = await createUser({ email: "noa@example.com" });
@@ -498,10 +545,21 @@ describe("POST /api/applications/:id/steps", () => {
     expect(await stepsOf(application.id)).toEqual([["Applied", "2026-03-01"], ["Rejected", "2026-03-04"]]);
   });
 
+  it("takes an interview dated ahead of today", async () => {
+    const { client, user } = await signedInClient();
+    const application = await createApplication(user.id, { journey: [["Applied", "2026-03-01"]] });
+    const res = await client.post(`/api/applications/${application.id}/steps`).send({ status: "Interview", date: AHEAD });
+
+    expect(res.status).toBe(201);
+    expect(await stepsOf(application.id)).toEqual([["Applied", "2026-03-01"], ["Interview", AHEAD]]);
+  });
+
   it.each([
     ["a status that can't follow", [["Applied", "2026-03-01"], ["Offer", "2026-03-05"]], { status: "Interview" }, "Interview can't follow Offer."],
     ["a date before the current step", [["Applied", "2026-03-01"]], { status: "Offer", date: "2026-02-28" }, "The date must be between the previous step's date and today."],
     ["a date in the future", [["Applied", "2026-03-01"]], { status: "Offer", date: "2099-01-01" }, "The date must be between the previous step's date and today."],
+    ["an interview more than 3 months ahead", [["Applied", "2026-03-01"]], { status: "Interview", date: TOO_FAR }, "The date must be between the previous step's date and 3 months from today."],
+    ["a step after an upcoming interview", [["Applied", "2026-03-01"], ["Interview", AHEAD]], { status: "Offer" }, `The interview on ${AHEAD} is still ahead: undo it first, or move it to today or earlier.`],
     ["no status", [["Applied", "2026-03-01"]], {}, "Choose a status."],
     ["an unknown status", [["Applied", "2026-03-01"]], { status: "Ghosted" }, "Invalid status."],
     ["a date that doesn't exist", [["Applied", "2026-03-01"]], { status: "Offer", date: "2026-02-30" }, "date must be a real date in YYYY-MM-DD format."]
@@ -573,6 +631,28 @@ describe("PATCH /api/applications/:id/steps/:stepId", () => {
     expect(res.body.applied_at).toBe("2026-02-20");
   });
 
+  it("moves an upcoming interview to another day ahead", async () => {
+    const { client, user } = await signedInClient();
+    const application = await createApplication(user.id, { journey: [["Applied", "2026-03-01"], ["Interview", AHEAD]] });
+    const res = await client.patch(`/api/applications/${application.id}/steps/${(await stepIdsOf(application.id))[1]}`).send({ date: LATER });
+
+    expect(res.status).toBe(200);
+    expect(await stepsOf(application.id)).toEqual([["Applied", "2026-03-01"], ["Interview", LATER]]);
+  });
+
+  it.each([
+    ["a new status for an upcoming interview", { status: "Offer" }, "An upcoming interview can only be moved or undone."],
+    ["an upcoming interview more than 3 months ahead", { date: TOO_FAR }, "The date must be between the dates of the steps on either side, and not after 3 months from today."]
+  ])("refuses %s", async (_title, body, message) => {
+    const { client, user } = await signedInClient();
+    const application = await createApplication(user.id, { journey: [["Applied", "2026-03-01"], ["Interview", AHEAD]] });
+    const res = await client.patch(`/api/applications/${application.id}/steps/${(await stepIdsOf(application.id))[1]}`).send(body);
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: message });
+    expect(await stepsOf(application.id)).toEqual([["Applied", "2026-03-01"], ["Interview", AHEAD]]);
+  });
+
   it.each([
     ["a new status for the first step", 0, { status: "Interview" }, "The first status is always Applied."],
     ["a status the next step can't follow", 1, { status: "Withdrawn" }, "Withdrawn doesn't fit between the steps on either side."],
@@ -621,13 +701,6 @@ describe("PATCH /api/applications/:id/steps/:stepId", () => {
 });
 
 describe("DELETE /api/applications/:id/steps/:stepId", () => {
-  // Returns an application's step IDs, oldest first
-  async function stepIdsOf(applicationId) {
-    const { rows } = await db.query("SELECT id::text AS id FROM application_steps WHERE application_id = $1 ORDER BY position", [applicationId]);
-
-    return rows.map(({ id }) => id);
-  }
-
   it("removes an earlier step", async () => {
     const { client, user } = await signedInClient();
     const application = await createApplication(user.id, { journey: [["Applied", "2026-03-01"], ["Interview", "2026-03-10"], ["Offer", "2026-03-20"]] });
@@ -645,6 +718,15 @@ describe("DELETE /api/applications/:id/steps/:stepId", () => {
 
     expect(res.body.status).toBe("Applied");
     expect((await db.query("SELECT status FROM applications WHERE id = $1", [application.id])).rows[0].status).toBe("Applied");
+    expect(await stepsOf(application.id)).toEqual([["Applied", "2026-03-01"]]);
+  });
+
+  it("undoes an upcoming interview", async () => {
+    const { client, user } = await signedInClient();
+    const application = await createApplication(user.id, { journey: [["Applied", "2026-03-01"], ["Interview", AHEAD]] });
+    const res = await client.delete(`/api/applications/${application.id}/steps/${(await stepIdsOf(application.id))[1]}`);
+
+    expect(res.body.status).toBe("Applied");
     expect(await stepsOf(application.id)).toEqual([["Applied", "2026-03-01"]]);
   });
 

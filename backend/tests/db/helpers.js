@@ -94,6 +94,40 @@ export async function stepsOf(applicationId) {
   return rows.map(({ status, date }) => [status, date]);
 }
 
+// Adds an email event for a user and returns its ID
+export async function createEvent(userId, values = {}) {
+  const row = {
+    message_id: `m${Math.random().toString(36).slice(2)}`,
+    received_at: new Date(),
+    sender: "Careers <jobs@acme.com>",
+    subject: "Interview",
+    snippet: "We'd like to talk",
+    event_type: "interview",
+    company: "Acme",
+    position: "Backend Engineer",
+    confidence: 0.9,
+    suggested_status: "Interview",
+    application_id: null,
+    candidate_ids: [],
+    previous_status: null,
+    state: "pending",
+    resolved_at: null,
+    step_id: null,
+    ...values
+  };
+  const { rows } = await db.query(
+    `INSERT INTO email_events
+       (user_id, message_id, received_at, sender, subject, snippet, event_type, company, position, confidence,
+        suggested_status, application_id, candidate_ids, previous_status, state, resolved_at, step_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+     RETURNING id`,
+    [userId, row.message_id, row.received_at, row.sender, row.subject, row.snippet, row.event_type, row.company, row.position, row.confidence,
+      row.suggested_status, row.application_id, row.candidate_ids, row.previous_status, row.state, row.resolved_at, row.step_id]
+  );
+
+  return rows[0].id;
+}
+
 // Computes the authenticator app's 6-digit code for a secret at a time, written separately from the server's own code
 export function totp(secret, at = Date.now()) {
   const bytes = [];

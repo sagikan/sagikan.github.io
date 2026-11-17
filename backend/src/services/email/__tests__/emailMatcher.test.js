@@ -120,7 +120,7 @@ describe("transition", () => {
     ["Offer", "Rejected", "review"],
     ["Interview", "Applied", "ignore"],
     ["Offer", "Interview", "ignore"],
-    ["Interview", "Interview", "ignore"],
+    ["Interview", "Interview", "review"],
     ["Rejected", "Interview", "ignore"],
     ["Withdrawn", "Offer", "ignore"]
   ])("moves %s to %s as: %s", (current, target, expected) => {
@@ -152,7 +152,7 @@ describe("movesStatusSql", () => {
     const pairs = [...sql.matchAll(/\('(\w+)', '(\w+)'\)/g)].map(([, from, to]) => [from, to]);
 
     expect(sql.startsWith("(a.status, e.suggested_status) IN (")).toBe(true);
-    expect(pairs).toHaveLength(6);
+    expect(pairs).toHaveLength(7);
     expect(pairs.every(([from, to]) => transition(from, to) !== "ignore")).toBe(true);
   });
 });

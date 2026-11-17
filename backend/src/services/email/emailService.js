@@ -5,7 +5,7 @@ const { classifyEmail } = require("./emailClassifier");
 const { matchApplication, transition } = require("./emailMatcher");
 const { APPLICATION_FIELDS } = require("../applications/applicationFields");
 const { createMachine } = require("../shared/stateMachine");
-const { MAX_STEPS } = require("../applications/statusStates");
+const { MAX_STEPS, isAhead } = require("../applications/statusStates");
 const steps = require("../applications/applicationSteps");
 
 /* An email event is recorded as ignored, pending (waiting for the user's review) or auto-applied. The user accepts
@@ -104,13 +104,39 @@ async function insertEvent(client, userId, message, classified, outcome) {
   );
 }
 
-// Decides what an email update does to an application: what EMAIL_MOVES says, or ignored once its journey is full
-function decide(application, status) {
-  return application.steps.length >= MAX_STEPS ? "ignore" : transition(application.status, status);
+// Names an application's pending suggestion of a status, to tell whether one is already waiting
+function pendingKey(applicationId, status) {
+  return `${applicationId}:${status}`;
 }
 
-// Matches a classified email to an application and records the outcome
-async function recordOutcome(userId, autoUpdate, applications, message, classified) {
+/* Tells whether an update repeating the current status (another interview round) is already recorded: the current
+   step is dated on or after the day the email came, so the email is about that step */
+function roundRecorded(current, status, day) {
+  return status === current.status && day <= current.date;
+}
+
+/* Decides what an email update does to an application: what EMAIL_MOVES says, or ignored once its journey is full.
+   An update repeating the current status (another interview round) is suggested only for an invitation to a new
+   stage, received after the current step's date (emails before it are about that step), and while no suggestion of
+   it is already waiting for the application */
+function decide(application, status, { classified, day, pending }) {
+  const move = application.steps.length >= MAX_STEPS ? "ignore" : transition(application.status, status);
+  const current = application.steps[application.steps.length - 1];
+
+  if (move === "ignore" || status !== application.status) {
+    return move;
+  }
+
+  if (classified.interviewKind !== "new_round" || roundRecorded(current, status, day) || pending.has(pendingKey(application.id, status))) {
+    return "ignore";
+  }
+
+  return move;
+}
+
+/* Matches a classified email to an application and records the outcome. "pending" holds the suggestions already
+   waiting (pendingKey), and gains the ones recorded here */
+async function recordOutcome(userId, autoUpdate, applications, pending, message, classified) {
   const status = STATUS_FOR_EVENT[classified.event];
 
   if (!classified.jobRelated || !status || classified.confidence < MIN_CONFIDENCE) {
@@ -119,7 +145,9 @@ async function recordOutcome(userId, autoUpdate, applications, message, classifi
     return "ignored";
   }
 
-  const match = matchApplication(classified, applications, message.date.toISOString().slice(0, 10));
+  const day = message.date.toISOString().slice(0, 10);
+  const match = matchApplication(classified, applications, day);
+  const context = { classified, day, pending };
 
   if (match.kind === "predates") {
     await insertEvent(db, userId, message, classified, { state: "ignored" });
@@ -134,7 +162,7 @@ async function recordOutcome(userId, autoUpdate, applications, message, classifi
   }
 
   if (match.kind === "ambiguous") {
-    const candidates = match.candidates.filter((candidate) => decide(candidate, status) !== "ignore");
+    const candidates = match.candidates.filter((candidate) => decide(candidate, status, context) !== "ignore");
 
     if (candidates.length === 0) {
       await insertEvent(db, userId, message, classified, { state: "ignored" });
@@ -152,7 +180,7 @@ async function recordOutcome(userId, autoUpdate, applications, message, classifi
   }
 
   const { application } = match;
-  const action = decide(application, status);
+  const action = decide(application, status, context);
 
   if (action === "ignore") {
     await insertEvent(db, userId, message, classified, { state: "ignored" });
@@ -160,9 +188,11 @@ async function recordOutcome(userId, autoUpdate, applications, message, classifi
     return "ignored";
   }
 
+  // An update after an upcoming interview waits for review: the step rules refuse it until the interview is undone or moved
   const confident =
     autoUpdate &&
     action === "auto" &&
+    !isAhead(application.steps, steps.latestDate()) &&
     match.sure &&
     match.company >= AUTO_COMPANY_SCORE &&
     classified.confidence >= AUTO_CONFIDENCE;
@@ -173,13 +203,13 @@ async function recordOutcome(userId, autoUpdate, applications, message, classifi
       status,
       applicationId: application.id
     });
+    pending.add(pendingKey(application.id, status));
 
     return "pending";
   }
 
   const previousStatus = application.status;
   // The step is dated the day the email came, but never after today, which the step rules would refuse on every sync
-  const day = message.date.toISOString().slice(0, 10);
   const stepDay = day < steps.serverToday() ? day : steps.serverToday();
 
   application.steps = await auth.withTransaction(async (client) => {
@@ -244,6 +274,12 @@ async function ingest(userId, autoUpdate, messages) {
   const applications = (
     await db.query(`SELECT ${APPLICATION_FIELDS} FROM applications WHERE user_id = $1`, [userId])
   ).rows;
+  const waiting = await db.query(
+    `SELECT application_id, suggested_status FROM email_events
+     WHERE user_id = $1 AND application_id IS NOT NULL AND state IN (${EMAIL_EVENT.sqlList(EMAIL_EVENT.sources("accept"))})`,
+    [userId]
+  );
+  const pending = new Set(waiting.rows.map((row) => pendingKey(row.application_id, row.suggested_status)));
   const done = classified
     .filter(({ result }) => result)
     .sort((a, b) => a.message.date - b.message.date);
@@ -251,7 +287,7 @@ async function ingest(userId, autoUpdate, messages) {
   counts.failed = classified.length - done.length;
 
   for (const { message, result } of done) {
-    const outcome = await recordOutcome(userId, autoUpdate, applications, message, result);
+    const outcome = await recordOutcome(userId, autoUpdate, applications, pending, message, result);
     counts[outcome] += 1;
   }
 
@@ -276,4 +312,4 @@ async function cleanUpEvents() {
   return { expired: expired.rowCount, removed: removed.rowCount };
 }
 
-module.exports = { APPLICATION_FIELDS, EMAIL_EVENT, PENDING_DAYS, KEEP_DAYS, generateToken, hashToken, ingest, cleanUpEvents };
+module.exports = { APPLICATION_FIELDS, EMAIL_EVENT, PENDING_DAYS, KEEP_DAYS, generateToken, hashToken, roundRecorded, ingest, cleanUpEvents };

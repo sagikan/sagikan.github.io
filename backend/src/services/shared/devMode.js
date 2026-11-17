@@ -184,6 +184,9 @@ function classify({ from, subject, body }) {
   return {
     jobRelated: event !== "other" || has(/\bapplication\b|\bposition\b|\brole\b/i),
     event,
+    interviewKind: event !== "interview" ? "unclear"
+      : has(/next (?:round|stage|step)|final (?:round|interview)|on-?site|technical interview/i) ? "new_round"
+        : has(/confirm|reminder|reschedul|zoom|meeting link|calendar/i) ? "logistics" : "unclear",
     company: sender.slice(0, 200),
     position: "",
     confidence: 0.6

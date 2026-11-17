@@ -1,6 +1,7 @@
 const dev = require("../shared/devMode");
 
 const EVENTS = ["received", "viewed", "assessment", "interview", "offer", "rejection", "other"];
+const INTERVIEW_KINDS = ["new_round", "logistics", "unclear"];
 const TOOL = {
   name: "record_email",
   description: "Record what a single email is about.",
@@ -21,11 +22,21 @@ const TOOL = {
           "interview = invitation to schedule or attend any interview or screening call; offer = a job offer; " +
           "rejection = the employer is not moving forward or the position was filled or closed; other = anything else."
       },
+      interview_kind: {
+        type: "string",
+        enum: INTERVIEW_KINDS,
+        description:
+          "For an interview email: new_round = an invitation to an interview stage (a first screen, or a next round such as a technical, " +
+          "onsite, final or team interview), even if it also asks to pick a time for it; logistics = about an interview that is already " +
+          "arranged: confirming, scheduling or rescheduling it, a scheduling tool asking to pick its time, a reminder, a video link, " +
+          "directions, what to expect, a change of interviewer, or a thank-you after it with no decision. " +
+          "unclear = can't tell, or the email isn't about an interview."
+      },
       company: { type: "string", description: "The hiring company's name, not the job platform. Empty if unknown." },
       position: { type: "string", description: "The job title being discussed. Empty if unknown." },
       confidence: { type: "number", description: "0 to 1: how sure you are about job_related, event and company." }
     },
-    required: ["job_related", "event", "company", "position", "confidence"]
+    required: ["job_related", "event", "interview_kind", "company", "position", "confidence"]
   }
 };
 const SYSTEM =
@@ -90,6 +101,7 @@ async function classifyEmail({ from, subject, body }) {
   return {
     jobRelated: input.job_related === true,
     event: EVENTS.includes(input.event) ? input.event : "other",
+    interviewKind: INTERVIEW_KINDS.includes(input.interview_kind) ? input.interview_kind : "unclear",
     company: typeof input.company === "string" ? input.company.trim().slice(0, 200) : "",
     position: typeof input.position === "string" ? input.position.trim().slice(0, 300) : "",
     confidence: clamp01(input.confidence)

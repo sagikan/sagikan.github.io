@@ -9,6 +9,8 @@ const emailService = require("../emailService");
 
 const APPLIED_STEP = { id: "10", status: "Applied", date: "2026-03-01" };
 const ACME = { id: 1, company: "Acme", position: "Backend Engineer", status: "Applied", applied_at: "2026-03-01", steps: [APPLIED_STEP] };
+// An application whose interview was on April 1st, before the test emails (April 10th)
+const INTERVIEWED = { ...ACME, status: "Interview", steps: [APPLIED_STEP, { id: "12", status: "Interview", date: "2026-04-01" }] };
 const GLOBEX = { id: 2, company: "Globex", position: "Data Analyst", status: "Applied", applied_at: "2026-03-01", steps: [APPLIED_STEP] };
 
 // Builds an email as the sync script sends it
@@ -84,14 +86,27 @@ describe("EMAIL_EVENT", () => {
   });
 });
 
+describe("roundRecorded", () => {
+  it.each([
+    ["the same status dated before the email's day", "Interview", "2026-04-09", false],
+    ["the same status dated on the email's day", "Interview", "2026-04-10", true],
+    ["the same status dated after the email's day", "Interview", "2026-04-20", true],
+    ["another status dated after the email's day", "Applied", "2026-04-20", false]
+  ])("tells whether another round is recorded, with %s", (_title, currentStatus, date, expected) => {
+    expect(emailService.roundRecorded({ status: currentStatus, date }, "Interview", "2026-04-10")).toBe(expected);
+  });
+});
+
 describe("ingest", () => {
   let client;
 
-  // Mocks the database: which emails are known, how many were used today and the user's applications
-  function mockDatabase({ known = [], used = 0, applications = [ACME, GLOBEX].map((application) => ({ ...application })) } = {}) {
+  /* Mocks the database: which emails are known, how many were used today, the user's applications and the suggestions
+     already waiting for review */
+  function mockDatabase({ known = [], used = 0, applications = [ACME, GLOBEX].map((application) => ({ ...application })), waiting = [] } = {}) {
     vi.spyOn(db, "query").mockImplementation(async (sql) => {
       if (sql.includes("SELECT message_id")) return rows(...known.map((id) => ({ message_id: id })));
       if (sql.includes("COUNT(*)")) return rows({ used });
+      if (sql.includes("SELECT application_id, suggested_status")) return rows(...waiting);
       if (sql.includes("FROM applications WHERE user_id")) return rows(...applications);
 
       return rows();
@@ -267,6 +282,16 @@ describe("ingest", () => {
     expect(await emailService.ingest(7, true, [email("a", "Mail")])).toMatchObject({ pending: 1, autoApplied: 0 });
   });
 
+  it("asks the user first when the application has an upcoming interview", async () => {
+    const steps = [APPLIED_STEP, { id: "11", status: "Interview", date: "2099-01-01" }];
+
+    mockDatabase({ applications: [{ ...ACME, status: "Interview", steps }] });
+    mockClaude({ Mail: verdict("rejection") });
+
+    expect(await emailService.ingest(7, true, [email("a", "Mail")])).toMatchObject({ pending: 1, autoApplied: 0 });
+    expect(client.query).not.toHaveBeenCalled();
+  });
+
   it("asks the user first before marking an offer as rejected", async () => {
     mockDatabase({ applications: [{ ...ACME, status: "Offer" }] });
     mockClaude({ Mail: verdict("rejection") });
@@ -306,6 +331,55 @@ describe("ingest", () => {
     mockClaude({ Mail: verdict("interview") });
 
     expect(await emailService.ingest(7, true, [email("a", "Mail")])).toMatchObject({ ignored: 1 });
+  });
+
+  it("suggests another interview for an invitation to a new round after the current interview, for review only", async () => {
+    mockDatabase({ applications: [{ ...INTERVIEWED }] });
+    mockClaude({ Mail: verdict("interview", { interview_kind: "new_round" }) });
+
+    expect(await emailService.ingest(7, true, [email("a", "Mail")])).toMatchObject({ pending: 1, autoApplied: 0 });
+    expect(storedEvents()).toEqual([expect.objectContaining({ state: "pending", status: "Interview", applicationId: 1 })]);
+    expect(client.query).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["is about arranging the current interview", "logistics", "2026-04-01"],
+    ["isn't clearly a new round", "unclear", "2026-04-01"],
+    ["arrived on the current interview's day", "new_round", "2026-04-10"],
+    ["arrived before the current interview", "new_round", "2026-04-20"]
+  ])("ignores an interview email for an application at Interview that %s", async (_title, kind, interviewDate) => {
+    const steps = [APPLIED_STEP, { id: "12", status: "Interview", date: interviewDate }];
+
+    mockDatabase({ applications: [{ ...ACME, status: "Interview", steps }] });
+    mockClaude({ Mail: verdict("interview", { interview_kind: kind }) });
+
+    expect(await emailService.ingest(7, true, [email("a", "Mail")])).toMatchObject({ ignored: 1, pending: 0 });
+  });
+
+  it("ignores another round while a suggestion of it already waits for review", async () => {
+    mockDatabase({ applications: [{ ...INTERVIEWED }], waiting: [{ application_id: 1, suggested_status: "Interview" }] });
+    mockClaude({ Mail: verdict("interview", { interview_kind: "new_round" }) });
+
+    expect(await emailService.ingest(7, true, [email("a", "Mail")])).toMatchObject({ ignored: 1, pending: 0 });
+  });
+
+  it("suggests another round only once for several invitations in the same sync", async () => {
+    mockDatabase({ applications: [{ ...INTERVIEWED }] });
+    mockClaude({ One: verdict("interview", { interview_kind: "new_round" }), Two: verdict("interview", { interview_kind: "new_round" }) });
+    const counts = await emailService.ingest(7, true, [email("a", "One"), email("b", "Two")]);
+
+    expect(counts).toMatchObject({ pending: 1, ignored: 1 });
+    expect(storedEvents().map(({ id, state }) => [id, state])).toEqual([["a", "pending"], ["b", "ignored"]]);
+  });
+
+  it("offers an application at Interview as a candidate only for a new round", async () => {
+    const second = { ...ACME, id: 3, position: "Frontend Developer" };
+
+    mockDatabase({ applications: [{ ...INTERVIEWED }, second] });
+    mockClaude({ New: verdict("interview", { interview_kind: "new_round" }), Logistics: verdict("interview", { interview_kind: "logistics" }) });
+    await emailService.ingest(7, true, [email("a", "New"), email("b", "Logistics")]);
+
+    expect(storedEvents().map(({ candidateIds }) => [...candidateIds].sort())).toEqual([[1, 3], [3]]);
   });
 
   it("processes the oldest emails first, so later ones see the updated status", async () => {

@@ -7,6 +7,7 @@ const { APPLICATION_FIELDS, MAX_APPLICATIONS, checkApplicationField, isCalendarD
 const { savedNoteState } = require("../services/applications/noteStates");
 const { FIRST_STATUS } = require("../services/applications/statusStates");
 const steps = require("../services/applications/applicationSteps");
+const { EMAIL_EVENT } = require("../services/email/emailService");
 
 const router = express.Router();
 const ID_PATTERN = /^[1-9]\d{0,17}$/;
@@ -178,14 +179,24 @@ router.delete("/:id", async (req, res) => {
   }
 
   try {
-    const result = await db.query(
-      `DELETE FROM applications
-       WHERE id = $1 AND user_id = $2
-       RETURNING id`,
-      [req.params.id, req.user.id]
-    );
+    const waiting = EMAIL_EVENT.sqlList(EMAIL_EVENT.sources("dismiss"));
+    const deleted = await auth.withTransaction(async (client) => {
+      // Its waiting email updates go with it, and unclear ones stop offering it
+      await client.query(
+        `UPDATE email_events SET state = $3, resolved_at = NOW()
+         WHERE application_id = $1 AND user_id = $2 AND state IN (${waiting})`,
+        [req.params.id, req.user.id, EMAIL_EVENT.targets("dismiss")[0]]
+      );
+      await client.query(
+        `UPDATE email_events SET candidate_ids = array_remove(candidate_ids, $1::bigint)
+         WHERE user_id = $2 AND $1::bigint = ANY(candidate_ids) AND state IN (${waiting})`,
+        [req.params.id, req.user.id]
+      );
 
-    if (result.rowCount === 0) {
+      return client.query(`DELETE FROM applications WHERE id = $1 AND user_id = $2 RETURNING id`, [req.params.id, req.user.id]);
+    });
+
+    if (deleted.rowCount === 0) {
       return res.status(404).json({ error: "Application not found." });
     }
 

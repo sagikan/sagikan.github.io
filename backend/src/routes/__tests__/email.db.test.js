@@ -1,44 +1,10 @@
 import { createRequire } from "node:module";
 import { describe, expect, it, vi } from "vitest";
-import { api, createApplication, createUser, signedInClient, stepsOf } from "../../../tests/db/helpers";
+import { api, createApplication, createEvent, createUser, signedInClient, stepsOf } from "../../../tests/db/helpers";
 
 const require = createRequire(import.meta.url);
 const db = require("../../config/db");
 const { hashToken } = require("../../services/email/emailService");
-
-// Adds an email event for a user and returns its ID
-async function createEvent(userId, values = {}) {
-  const row = {
-    message_id: `m${Math.random().toString(36).slice(2)}`,
-    received_at: new Date(),
-    sender: "Careers <jobs@acme.com>",
-    subject: "Interview",
-    snippet: "We'd like to talk",
-    event_type: "interview",
-    company: "Acme",
-    position: "Backend Engineer",
-    confidence: 0.9,
-    suggested_status: "Interview",
-    application_id: null,
-    candidate_ids: [],
-    previous_status: null,
-    state: "pending",
-    resolved_at: null,
-    step_id: null,
-    ...values
-  };
-  const { rows } = await db.query(
-    `INSERT INTO email_events
-       (user_id, message_id, received_at, sender, subject, snippet, event_type, company, position, confidence,
-        suggested_status, application_id, candidate_ids, previous_status, state, resolved_at, step_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-     RETURNING id`,
-    [userId, row.message_id, row.received_at, row.sender, row.subject, row.snippet, row.event_type, row.company, row.position, row.confidence,
-      row.suggested_status, row.application_id, row.candidate_ids, row.previous_status, row.state, row.resolved_at, row.step_id]
-  );
-
-  return rows[0].id;
-}
 
 // Returns the ID of an application's current step
 async function currentStepId(applicationId) {
@@ -231,10 +197,10 @@ describe("GET /api/email/events", () => {
 
   it("leaves out a pending event whose application already has the suggested status", async () => {
     const { client, user } = await signedInClient();
-    const application = await createApplication(user.id, { status: "Interview" });
+    const application = await createApplication(user.id, { status: "Offer" });
     const behind = await createApplication(user.id, { company: "Globex", status: "Applied" });
 
-    await createEvent(user.id, { application_id: application.id });
+    await createEvent(user.id, { application_id: application.id, suggested_status: "Offer" });
 
     const open = await createEvent(user.id, { application_id: behind.id });
 
@@ -250,6 +216,19 @@ describe("GET /api/email/events", () => {
     const { client, user } = await signedInClient();
     const application = await createApplication(user.id, { status });
     const event = await createEvent(user.id, { application_id: application.id, suggested_status: suggested });
+    const ids = (await client.get("/api/email/events")).body.pending.map((row) => row.id);
+
+    expect(ids).toEqual(listed ? [String(event)] : []);
+  });
+
+  it.each([
+    ["before the email's day", "2026-03-10", true],
+    ["on the email's day", "2026-03-20", false],
+    ["after the email's day", "2026-03-25", false]
+  ])("lists another round only while the current interview is dated before the email (dated %s, listed: %s)", async (_title, interviewDate, listed) => {
+    const { client, user } = await signedInClient();
+    const application = await createApplication(user.id, { journey: [["Applied", "2026-03-01"], ["Interview", interviewDate]] });
+    const event = await createEvent(user.id, { application_id: application.id, received_at: new Date("2026-03-20T10:00:00Z") });
     const ids = (await client.get("/api/email/events")).body.pending.map((row) => row.id);
 
     expect(ids).toEqual(listed ? [String(event)] : []);
@@ -311,6 +290,43 @@ describe("POST /api/email/events/:id/accept", () => {
     expect(res.body.application.steps.map(({ status }) => status)).toEqual(["Applied", "Interview"]);
     expect(await stepsOf(application.id)).toEqual([["Applied", "2026-03-01"], ["Interview", today]]);
     expect(String((await eventRow(event)).step_id)).toBe(await currentStepId(application.id));
+  });
+
+  it("adds another interview round when the user accepts it", async () => {
+    const { client, user } = await signedInClient();
+    const application = await createApplication(user.id, { journey: [["Applied", "2026-03-01"], ["Interview", "2026-03-10"]] });
+    const event = await createEvent(user.id, { application_id: application.id });
+    const res = await client.post(`/api/email/events/${event}/accept`);
+    const today = new Date().toISOString().slice(0, 10);
+
+    expect(res.status).toBe(200);
+    expect(await stepsOf(application.id)).toEqual([["Applied", "2026-03-01"], ["Interview", "2026-03-10"], ["Interview", today]]);
+    expect((await eventRow(event)).state).toBe("accepted");
+  });
+
+  it("refuses another round that's already recorded, and keeps it pending", async () => {
+    const { client, user } = await signedInClient();
+    const application = await createApplication(user.id, { journey: [["Applied", "2026-03-01"], ["Interview", "2026-03-20"]] });
+    const event = await createEvent(user.id, { application_id: application.id, received_at: new Date("2026-03-20T10:00:00Z") });
+    const res = await client.post(`/api/email/events/${event}/accept`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("The application's status changed, so this update no longer applies.");
+    expect(await stepsOf(application.id)).toEqual([["Applied", "2026-03-01"], ["Interview", "2026-03-20"]]);
+    expect((await eventRow(event)).state).toBe("pending");
+  });
+
+  it("refuses an update while the application's interview is still ahead, and keeps it pending", async () => {
+    const { client, user } = await signedInClient();
+    const ahead = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const application = await createApplication(user.id, { journey: [["Applied", "2026-03-01"], ["Interview", ahead]] });
+    const event = await createEvent(user.id, { application_id: application.id, suggested_status: "Rejected" });
+    const res = await client.post(`/api/email/events/${event}/accept`);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe(`The interview on ${ahead} is still ahead: undo it first, or move it to today or earlier.`);
+    expect(await stepsOf(application.id)).toEqual([["Applied", "2026-03-01"], ["Interview", ahead]]);
+    expect((await eventRow(event)).state).toBe("pending");
   });
 
   it("refuses an update for an application with ten steps", async () => {

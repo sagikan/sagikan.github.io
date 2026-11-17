@@ -4,7 +4,7 @@ const requireAuth = require("../middleware/auth");
 const { requireCsrf } = require("../middleware/csrf");
 const auth = require("../services/auth/authService");
 const classifier = require("../services/email/emailClassifier");
-const { EMAIL_EVENT, generateToken, hashToken } = require("../services/email/emailService");
+const { EMAIL_EVENT, generateToken, hashToken, roundRecorded } = require("../services/email/emailService");
 const { movesStatusSql, transition } = require("../services/email/emailMatcher");
 const { MAX_STEPS } = require("../services/applications/statusStates");
 const steps = require("../services/applications/applicationSteps");
@@ -118,12 +118,17 @@ router.post("/disconnect", async (req, res) => {
 // Lists pending and recent email events
 router.get("/events", async (req, res) => {
   try {
+    /* A pending event is listed while its move can still apply. Another round is listed only while it isn't recorded yet
+       (roundRecorded in emailService.js): the current step is dated before the email's day */
     const pending = await db.query(
       `SELECT ${eventFields}
        FROM email_events e
        LEFT JOIN applications a ON a.id = e.application_id
        WHERE e.user_id = $1 AND e.state IN (${EMAIL_EVENT.sqlList(EMAIL_EVENT.sources("accept"))})
          AND (a.id IS NULL OR ${movesStatusSql("a.status", "e.suggested_status")})
+         AND NOT COALESCE(a.status = e.suggested_status AND (
+           SELECT s.step_date FROM application_steps s WHERE s.application_id = a.id ORDER BY s.position DESC LIMIT 1
+         ) >= (e.received_at AT TIME ZONE 'UTC')::date, FALSE)
        ORDER BY e.received_at DESC NULLS LAST, e.id DESC`,
       [req.user.id]
     );
@@ -219,7 +224,9 @@ router.post("/events/:id/accept", async (req, res) => {
       const journey = await steps.lockSteps(client, applicationId, req.user.id);
       const current = journey[journey.length - 1];
 
-      if (transition(current.status, event.suggested_status) === "ignore") {
+      const received = event.received_at ? event.received_at.toISOString().slice(0, 10) : "";
+
+      if (transition(current.status, event.suggested_status) === "ignore" || (received && roundRecorded(current, event.suggested_status, received))) {
         throw new HttpError(409, "The application's status changed, so this update no longer applies.");
       }
 

@@ -9,10 +9,11 @@ const POSITION_GAP_MIN = 0.15;
 const MAX_CANDIDATES = 8;
 /* The status moves an email update can make: "auto" is applied when the match is confident, "review" always waits
    for the user, and a move that isn't listed is ignored. Every move here must also be allowed by APPLICATION_STATUS
-   (statusStates), since applying one adds a step to the application's journey */
+   (statusStates), since applying one adds a step to the application's journey. Interview to Interview is another
+   round: always reviewed, and only for an invitation to a new stage (see decide in emailService.js) */
 const EMAIL_MOVES = {
   Applied: { Interview: "auto", Offer: "auto", Rejected: "auto" },
-  Interview: { Offer: "auto", Rejected: "auto" },
+  Interview: { Interview: "review", Offer: "auto", Rejected: "auto" },
   Offer: { Rejected: "review" },
   Rejected: {},
   Withdrawn: {}
