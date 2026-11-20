@@ -10,11 +10,12 @@ function pdfOf({ pages = 2, width = 600, height = 800, renderFails = false } = {
     getViewport: ({ scale }) => ({ width: width * scale, height: height * scale }),
     render: vi.fn(() => ({ promise: renderFails ? Promise.reject(new Error("render failed")) : Promise.resolve() }))
   };
-  const pdf = { numPages: pages, getPage: vi.fn(async () => page), destroy: vi.fn() };
+  const pdf = { numPages: pages, getPage: vi.fn(async () => page) };
+  const task = { promise: Promise.resolve(pdf), destroy: vi.fn(async () => {}) };
 
-  pdfjs.getDocument.mockReturnValue({ promise: Promise.resolve(pdf) });
+  pdfjs.getDocument.mockReturnValue(task);
 
-  return { page, pdf };
+  return { page, pdf, task };
 }
 
 // Loads the module fresh, since it remembers that pdf.js was loaded
@@ -89,20 +90,20 @@ describe("renderFirstPage", () => {
   });
 
   it("frees the PDF afterwards, even when rendering fails", async () => {
-    const { pdf } = pdfOf({ renderFails: true });
+    const { task } = pdfOf({ renderFails: true });
     const { renderFirstPage } = await freshModule();
 
     await expect(renderFirstPage(new Blob(["%PDF-"]), 300)).rejects.toThrow("render failed");
-    expect(pdf.destroy).toHaveBeenCalledOnce();
+    expect(task.destroy).toHaveBeenCalledOnce();
   });
 
-  it("frees the PDF after a successful render too", async () => {
-    const { pdf } = pdfOf();
+  it("frees the PDF after a successful render too, and still returns the image", async () => {
+    const { task } = pdfOf();
     const { renderFirstPage } = await freshModule();
+    const result = await renderFirstPage(new Blob(["%PDF-"]), 300);
 
-    await renderFirstPage(new Blob(["%PDF-"]), 300);
-
-    expect(pdf.destroy).toHaveBeenCalledOnce();
+    expect(result.image).toBe("data:image/png;base64,AAAA");
+    expect(task.destroy).toHaveBeenCalledOnce();
   });
 
   it("sets up pdf.js once, however many pages are rendered", async () => {

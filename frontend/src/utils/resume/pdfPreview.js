@@ -19,9 +19,10 @@ function loadPdfjs() {
 // Renders a PDF's first page as an image
 export async function renderFirstPage(blob, width) {
   const pdfjs = await loadPdfjs();
-  const pdf = await pdfjs.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
+  const task = pdfjs.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) });
 
   try {
+    const pdf = await task.promise;
     const page = await pdf.getPage(1);
     const scale = (width * (window.devicePixelRatio || 1)) / page.getViewport({ scale: 1 }).width;
     const viewport = page.getViewport({ scale });
@@ -33,6 +34,6 @@ export async function renderFirstPage(blob, width) {
 
     return { image: canvas.toDataURL("image/png"), pages: pdf.numPages };
   } finally {
-    pdf.destroy();
+    task.destroy();
   }
 }
