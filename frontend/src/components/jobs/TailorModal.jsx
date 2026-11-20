@@ -1,108 +1,57 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Modal from "../ui/Modal";
 import CvEditor from "./CvEditor";
 import JobDetails from "./JobDetails";
+import PdfPreviewDialog from "./PdfPreviewDialog";
 import { apiRequest, apiUpload } from "../../lib/api";
 import { downloadBlob, makeTailoredPdf } from "../../utils/resume/cvPdf";
-import { renderFirstPage } from "../../utils/resume/pdfPreview";
 import Alert from "../ui/Alert";
 import ButtonIcon from "../ui/ButtonIcon";
 import { MAX_GRADES_MB, checkPdf } from "../../utils/resume/pdfFiles";
+import { useCompactRow } from "../../hooks/useCompactRow";
 import { useDismiss } from "../../hooks/useDismiss";
 import { useMachine } from "../../hooks/useMachine";
 import { TAILOR } from "../../utils/resume/resumeMachines";
 
-const PREVIEW_WIDTH = 220;
-const PREVIEW_DELAY_MS = 300;
-const previews = new WeakMap();
 const CHECK = (
   <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
     <path d="M5 10.5l3.2 3.2L15 7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
-// Returns the cached first-page preview of a PDF
-function previewOf(pdf) {
-  if (!previews.has(pdf)) {
-    previews.set(pdf, renderFirstPage(pdf.blob, PREVIEW_WIDTH));
-  }
-
-  return previews.get(pdf);
-}
-
-// Download button that previews the PDF on hover
-function DownloadButton({ primary, busy, disabled, pdfKey, getPdf, onClick }) {
-  const [preview, setPreview] = useState(null);
-  const [shown, setShown] = useState(false);
-  const timer = useRef(null);
-  const ticket = useRef(0);
-
-  useEffect(() => () => clearTimeout(timer.current), []);
-
-  // Shows the preview after a short hover
-  function show(event) {
-    if (event.pointerType !== "mouse") return;
-
-    clearTimeout(timer.current);
-    timer.current = setTimeout(async () => {
-      const current = ++ticket.current;
-      setShown(true);
-      setPreview((old) => (old?.key === pdfKey ? old : { key: pdfKey, status: "loading" }));
-
-      try {
-        const pdf = await getPdf();
-        const page = await previewOf(pdf);
-
-        if (current === ticket.current) {
-          setPreview({ key: pdfKey, status: "ready", ...page, fileName: pdf.fileName });
-        }
-      } catch {
-        if (current === ticket.current) setPreview({ key: pdfKey, status: "failed" });
-      }
-    }, PREVIEW_DELAY_MS);
-  }
-
-  // Hides the preview
-  function hide() {
-    clearTimeout(timer.current);
-    ticket.current++;
-    setShown(false);
-  }
+/* Download button with a preview button on its right, split by a divider. The preview part shows only where there's a
+   mouse and room for it (see .download-split in index.css), so on phones the button only downloads */
+export function DownloadButton({ primary, busy, disabled, onPreview, onClick }) {
+  const variant = primary ? "btn-primary" : "btn-ghost";
 
   return (
-    <div className="pdf-hover" onPointerEnter={show} onPointerLeave={hide}>
+    <div className="download-split">
       <button
         type="button"
-        className={`btn ${primary ? "btn-primary" : "btn-ghost"}`}
+        className={`btn ${variant} download-split-main`}
         disabled={disabled}
         aria-label="Download PDF"
         title="Download PDF"
-        onClick={() => {
-          hide();
-          onClick();
-        }}
+        onClick={onClick}
       >
         <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true">
           <path d="M10 3.5v9M6 8.75l4 4 4-4M4 15.5h12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        <span className="btn-label">{busy ? "Preparing…" : "Download PDF"}</span>
+        <span className="btn-label" data-drop-label>{busy ? "Preparing…" : "Download PDF"}</span>
       </button>
-
-      {shown && preview && (
-        <div className="pdf-preview" aria-hidden="true">
-          <div className="pdf-preview-page">
-            {preview.status === "ready" && <img src={preview.image} alt="" />}
-            {preview.status === "loading" && <span className="spinner" />}
-            {preview.status === "failed" && <span className="pdf-preview-note">No preview</span>}
-          </div>
-          {preview.status === "ready" && (
-            <div className="pdf-preview-meta">
-              <span>{preview.fileName}</span>
-              <span>{preview.pages === 1 ? "1 page" : `${preview.pages} pages`}</span>
-            </div>
-          )}
-        </div>
-      )}
+      <button
+        type="button"
+        className={`btn ${variant} download-split-preview`}
+        disabled={disabled}
+        aria-label="Preview PDF"
+        aria-haspopup="dialog"
+        title="Preview PDF"
+        onClick={onPreview}
+      >
+        <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true">
+          <path d="M2.5 10s2.75-5 7.5-5 7.5 5 7.5 5-2.75 5-7.5 5-7.5-5-7.5-5zM10 12.25a2.25 2.25 0 1 0 0-4.5 2.25 2.25 0 0 0 0 4.5z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
     </div>
   );
 }
@@ -272,6 +221,7 @@ function TailorModal({ job, csrfToken, baseCv, gradeSheet, onGradeSheetChange, o
   const [error, setError] = useState("");
   const [showChanges, setShowChanges] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState("");
   const started = useRef(false);
@@ -376,8 +326,6 @@ function TailorModal({ job, csrfToken, baseCv, gradeSheet, onGradeSheetChange, o
     source, includeGrades, gradeSheet?.filename, gradeSheet?.uploaded_at
   ]), [includeGrades, gradeSheet]);
 
-  const pdfKey = useMemo(() => pdfKeyOf(cv), [pdfKeyOf, cv]);
-
   // Builds the resume PDF, reusing the last one if nothing changed
   const getPdf = useCallback((source = cv) => {
     const key = pdfKeyOf(source);
@@ -401,6 +349,8 @@ function TailorModal({ job, csrfToken, baseCv, gradeSheet, onGradeSheetChange, o
   });
 
   const applied = job.state === "applied";
+  const footerRef = useRef(null);
+  const compactFooter = useCompactRow(footerRef, `${status} ${applied}`);
   const gaps = tailoring?.gaps || [];
   const flags = tailoring?.flags || [];
 
@@ -466,7 +416,7 @@ function TailorModal({ job, csrfToken, baseCv, gradeSheet, onGradeSheetChange, o
               }}
             />
 
-            <div className="form-actions sticky-actions tailor-actions">
+            <div ref={footerRef} className={`form-actions sticky-actions tailor-actions${compactFooter ? " is-compact" : ""}`}>
               <div className="tailor-tools" role="toolbar" aria-label="Resume view">
                 <button
                   type="button"
@@ -511,8 +461,7 @@ function TailorModal({ job, csrfToken, baseCv, gradeSheet, onGradeSheetChange, o
                 primary={applied}
                 busy={busy === "download"}
                 disabled={Boolean(busy)}
-                pdfKey={pdfKey}
-                getPdf={getPdf}
+                onPreview={() => setShowPreview(true)}
                 onClick={download}
               />
               <button type="button" className="btn btn-ghost" disabled={Boolean(busy) || !dirty} onClick={() => run("save", save)} aria-label="Save changes" title="Save changes">
@@ -541,6 +490,7 @@ function TailorModal({ job, csrfToken, baseCv, gradeSheet, onGradeSheetChange, o
       </div>
 
       {showDetails && <JobDetails job={job} onClose={() => setShowDetails(false)} />}
+      {showPreview && <PdfPreviewDialog getPdf={getPdf} onClose={() => setShowPreview(false)} />}
     </Modal>
   );
 }

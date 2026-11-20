@@ -55,6 +55,7 @@ sendLight("switchOff");
 | [`STEP_ACTION`](#status-area-page-actions-step_action) | [`utils/applications/applicationMachines.js`](src/utils/applications/applicationMachines.js) | `components/applications/StatusStack.jsx` |
 | [`JOB_MODAL`](#jobs-page-dialogs-job_modal) | [`utils/jobs/jobMachines.js`](src/utils/jobs/jobMachines.js) | `pages/Jobs.jsx` |
 | [`TAILOR`](#tailored-resume-tailor) | [`utils/resume/resumeMachines.js`](src/utils/resume/resumeMachines.js) | `components/jobs/TailorModal.jsx` |
+| [`PDF_PREVIEW`](#pdf-preview-dialog-pdf_preview) | [`utils/resume/resumeMachines.js`](src/utils/resume/resumeMachines.js) | `components/jobs/PdfPreviewDialog.jsx` |
 | [`RESUME_FILE`](#profile-resume-and-grade-sheet-resume_file-grade_sheet) | [`utils/resume/resumeMachines.js`](src/utils/resume/resumeMachines.js) | `components/jobs/ProfileModal.jsx` |
 | [`GRADE_SHEET`](#profile-resume-and-grade-sheet-resume_file-grade_sheet) | [`utils/resume/resumeMachines.js`](src/utils/resume/resumeMachines.js) | `components/jobs/ProfileModal.jsx` |
 
@@ -412,6 +413,32 @@ stateDiagram-v2
   the last one. The error shows above it.
 - **What `ready` doesn't track.** Unsaved edits (`dirty`) and the button in progress (`busy`: download, save, apply)
   are plain state within `ready`, not part of the table.
+
+## PDF preview dialog (`PDF_PREVIEW`)
+
+`PdfPreviewDialog` shows every page of the PDF that Download PDF would save, unsaved edits included. It opens from the
+eye on the right of the tailor window's Download PDF button, past a divider. The eye shows only with a mouse and a
+window wider than 640px; on phones the button only downloads. The dialog is smaller than the tailor window, which shows
+blurred behind it.
+
+```mermaid
+stateDiagram-v2
+  [*] --> loading
+  loading --> ready: loaded
+  loading --> failed: fail
+  failed --> loading: retry
+```
+
+| State | Shows |
+|---|---|
+| `loading` | A blank page with a spinner while the PDF is built (or reused from the download cache) and opened |
+| `ready` | Every page, fitted to the width. A control floating over them shows the page in view ("2 / 3") and the zoom, while the mouse is there or the pages scroll |
+| `failed` | "Couldn't show the preview." with Try again (`retry`) |
+
+- **What `ready` doesn't track.** The zoom (fit width, or a step from 50% to 300%), the page in view and whether the
+  floating control shows are plain state within `ready`. Pages are redrawn at each zoom rather than stretched, and keep
+  their last drawing until the new one is done.
+- **Closing.** Escape, the close button or a click outside the dialog; the tailor window stays open behind it.
 
 ## Profile resume and grade sheet (`RESUME_FILE`, `GRADE_SHEET`)
 

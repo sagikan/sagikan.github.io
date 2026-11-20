@@ -4194,45 +4194,52 @@ a {
 }
 
 .modal,
-.drawer-body {
+.drawer-body,
+.pdf-peek-scroll {
   --scroll-thumb: color-mix(in srgb, var(--text-muted) 32%, transparent);
   --scroll-thumb-hover: color-mix(in srgb, var(--text-muted) 55%, transparent);
 }
 
 @supports not selector(::-webkit-scrollbar) {
   .modal,
-  .drawer-body {
+  .drawer-body,
+  .pdf-peek-scroll {
     scrollbar-width: thin;
     scrollbar-color: var(--scroll-thumb) transparent;
   }
 }
 
 .modal::-webkit-scrollbar,
-.drawer-body::-webkit-scrollbar {
+.drawer-body::-webkit-scrollbar,
+.pdf-peek-scroll::-webkit-scrollbar {
   width: 12px;
 }
 
 .modal::-webkit-scrollbar-track,
-.drawer-body::-webkit-scrollbar-track {
+.drawer-body::-webkit-scrollbar-track,
+.pdf-peek-scroll::-webkit-scrollbar-track {
   margin-block: 14px;
   background: transparent;
 }
 
 .modal::-webkit-scrollbar-thumb,
-.drawer-body::-webkit-scrollbar-thumb {
+.drawer-body::-webkit-scrollbar-thumb,
+.pdf-peek-scroll::-webkit-scrollbar-thumb {
   border: 4px solid transparent;
   border-radius: 999px;
   background: var(--scroll-thumb) padding-box;
 }
 
 .modal::-webkit-scrollbar-thumb:hover,
-.drawer-body::-webkit-scrollbar-thumb:hover {
+.drawer-body::-webkit-scrollbar-thumb:hover,
+.pdf-peek-scroll::-webkit-scrollbar-thumb:hover {
   border-width: 3px;
   background-color: var(--scroll-thumb-hover);
 }
 
 .modal::-webkit-scrollbar-corner,
-.drawer-body::-webkit-scrollbar-corner {
+.drawer-body::-webkit-scrollbar-corner,
+.pdf-peek-scroll::-webkit-scrollbar-corner {
   background: transparent;
 }
 
@@ -6822,72 +6829,278 @@ body.is-sorting * {
   transform: none;
 }
 
-/* PDF preview */
-.pdf-hover {
-  position: relative;
+/* Download PDF with a preview part on its right, split by a divider. The preview part shows only with a mouse
+   and room for it; on phones and narrow windows the button only downloads */
+.download-split {
   display: inline-flex;
 }
 
-.pdf-preview {
-  position: absolute;
-  bottom: calc(100% + 10px);
-  left: 50%;
-  z-index: 6;
-  width: 238px;
-  padding: 8px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface);
-  box-shadow: 0 16px 40px -10px rgb(15 23 42 / 0.3), 0 2px 6px rgb(15 23 42 / 0.08);
-  transform: translateX(-50%);
-  pointer-events: none;
-  animation: pdf-preview-in 0.16s ease-out;
+.download-split-preview {
+  display: none;
 }
 
-@keyframes pdf-preview-in {
-  from { opacity: 0; transform: translate(-50%, 6px); }
+@media (min-width: 641px) and (hover: hover) and (pointer: fine) {
+  .download-split .download-split-main {
+    padding-right: 14px;
+    border-right: 0;
+    border-radius: 999px 0 0 999px;
+  }
+
+  .download-split .download-split-preview {
+    display: inline-flex;
+    padding: 0 14px 0 12px;
+    border-left: 0;
+    border-radius: 0 999px 999px 0;
+  }
+
+  /* Full height, meeting the outline's top and bottom edges */
+  .download-split-preview::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 1px;
+    background: color-mix(in srgb, currentColor 30%, transparent);
+  }
+
+  .download-split .btn-ghost.download-split-preview::before {
+    background: var(--border-strong);
+  }
 }
 
-.pdf-preview-page {
-  display: grid;
-  place-items: center;
-  aspect-ratio: 8.5 / 11;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: #fff;
-}
-
-.pdf-preview-page img {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-.pdf-preview-note {
-  font-size: 0.8rem;
-  color: #6b7280;
-}
-
-.pdf-preview-meta {
+/* PDF preview: a page-shaped dialog over the tailor window, which shows blurred behind it. 646px fits a letter page
+   (816px at 100%) at 75%: 612px of page plus 34px for the 16px insets either side and the border. The scrollbar sits
+   inside the right inset, so its width doesn't change this */
+.pdf-peek {
   display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 7px 2px 0;
-  font-size: 0.76rem;
-  color: var(--text-muted);
+  flex-direction: column;
+  width: min(646px, calc(100vw / var(--zoom) - 32px));
+  height: min(980px, calc(100dvh / var(--zoom) - 40px));
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
 }
 
-.pdf-preview-meta span:first-child {
+.pdf-peek:not([open]) {
+  display: none;
+}
+
+.pdf-peek[open] {
+  animation: pdf-peek-in 0.16s ease-out;
+}
+
+.pdf-peek::backdrop {
+  background: rgb(10 10 12 / 0.45);
+  backdrop-filter: blur(6px);
+  animation: fade-in 0.16s ease-out;
+}
+
+@keyframes pdf-peek-in {
+  from { opacity: 0; transform: scale(0.98); }
+}
+
+.pdf-peek-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  /* 16px to the name on the left. On the right, 6px plus the close button's own space around the X it draws puts the
+     visible X's edge 16px in too, so both line up with the page below */
+  padding: 14px 6px 8px 16px;
+}
+
+.pdf-peek-title {
+  min-width: 0;
+  margin: 0 auto 0 0;
   overflow: hidden;
+  font-size: 0.9rem;
   font-weight: 600;
-  color: var(--text);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.pdf-preview-meta span:last-child {
+.pdf-peek-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.pdf-peek-scroll {
+  height: 100%;
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+
+/* Zoomed pages also scroll sideways, so the themed bar gets a height to match its width */
+.pdf-peek-scroll::-webkit-scrollbar {
+  height: 12px;
+}
+
+/* The pages take focus when the dialog opens so the keyboard scrolls them; they fill the dialog, so a ring adds nothing */
+.pdf-peek-scroll:focus-visible {
+  outline: none;
+}
+
+/* As wide as the widest page so a zoomed page scrolls instead of being cut off on the left */
+.pdf-peek-pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: max-content;
+  min-width: 100%;
+}
+
+/* The border keeps a white page's edge visible on the light theme's white surface */
+.pdf-peek-page {
+  display: block;
   flex-shrink: 0;
+  outline: 1px solid var(--border);
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 0.18), 0 6px 18px -6px rgb(15 23 42 / 0.2);
+}
+
+/* A blank letter page holds the dialog's shape while the PDF loads, so nothing jumps when it arrives */
+.pdf-peek-placeholder {
+  height: 100%;
+  padding: 8px 16px 16px;
+  overflow: hidden;
+}
+
+.pdf-peek-blank {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 8.5 / 11;
+  outline: 1px solid var(--border);
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 0.18);
+}
+
+.pdf-peek-failed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: #4b5563;
+}
+
+.pdf-peek-failed p {
+  margin: 0;
+}
+
+/* Page number and zoom floating over the pages, shown while the mouse is over them, while they scroll, or with focus */
+.pdf-peek-controls {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgb(24 24 27 / 0.86);
+  color: #fff;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.25);
+  opacity: 0;
+  transform: translate(-50%, 4px);
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.pdf-peek-stage:hover .pdf-peek-controls,
+.pdf-peek-controls[data-active="true"],
+.pdf-peek-controls:focus-within {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.pdf-peek-page-number {
+  padding: 0 8px 0 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pdf-peek-separator {
+  align-self: stretch;
+  width: 1px;
+  margin: 6px 2px;
+  background: rgb(255 255 255 / 0.25);
+}
+
+/* The site's pill-group marker: it slides under the hovered button, jumps into place the first time, and fades out */
+.pdf-peek-marker {
+  position: absolute;
+  top: 3px;
+  left: 0;
+  height: 30px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.16);
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, width;
+  transition: opacity 0.25s;
+}
+
+.pdf-peek-marker.is-shown {
+  opacity: 1;
+  transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), width 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.25s;
+}
+
+.pdf-peek-marker.is-shown.jump {
+  transition: opacity 0.25s;
+}
+
+.pdf-peek-controls button {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.pdf-peek-controls button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -2px;
+}
+
+.pdf-peek-controls button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pdf-peek-percent {
+  min-width: 52px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pdf-peek[open],
+  .pdf-peek::backdrop {
+    animation: none;
+  }
+
+  .pdf-peek-controls,
+  .pdf-peek-marker,
+  .pdf-peek-marker.is-shown {
+    transition: none;
+  }
 }
 
 /* Grade sheet attachment */
@@ -7013,18 +7226,23 @@ body.is-sorting * {
   flex-wrap: wrap;
 }
 
+/* When the footer's buttons wouldn't fit on one line, Download PDF drops its text and keeps its icon (useCompactRow) */
+.tailor-actions.is-compact .download-split .btn-label {
+  display: none;
+}
+
 @media (max-width: 640px) {
   .tailor-actions {
     flex-wrap: nowrap;
   }
 
-  .tailor-actions .pdf-hover .btn {
+  .tailor-actions .download-split .btn {
     width: 37px;
     height: 37px;
     padding: 0;
   }
 
-  .tailor-actions .pdf-hover .btn-label {
+  .tailor-actions .download-split .btn-label {
     display: none;
   }
 

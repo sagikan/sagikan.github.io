@@ -1,21 +1,29 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { pdfjs } = vi.hoisted(() => ({ pdfjs: { GlobalWorkerOptions: {}, getDocument: vi.fn() } }));
+const context = { fake: "context", drawImage: vi.fn() };
 
 vi.mock("pdfjs-dist", () => pdfjs);
 
 // Builds a stand-in for a PDF with the given pages and a page whose size is known
-function pdfOf({ pages = 2, width = 600, height = 800, renderFails = false } = {}) {
+function pdfOf({ pages = 2, width = 600, height = 800, renderFails = false, loadFails = false } = {}) {
+  const renders = [];
   const page = {
     getViewport: ({ scale }) => ({ width: width * scale, height: height * scale }),
-    render: vi.fn(() => ({ promise: renderFails ? Promise.reject(new Error("render failed")) : Promise.resolve() }))
+    render: vi.fn(() => {
+      const render = { promise: renderFails ? Promise.reject(new Error("render failed")) : Promise.resolve(), cancel: vi.fn() };
+
+      renders.push(render);
+
+      return render;
+    })
   };
   const pdf = { numPages: pages, getPage: vi.fn(async () => page) };
-  const task = { promise: Promise.resolve(pdf), destroy: vi.fn(async () => {}) };
+  const task = { promise: loadFails ? Promise.reject(new Error("bad PDF")) : Promise.resolve(pdf), destroy: vi.fn(async () => {}) };
 
   pdfjs.getDocument.mockReturnValue(task);
 
-  return { page, pdf, task };
+  return { page, pdf, task, renders };
 }
 
 // Loads the module fresh, since it remembers that pdf.js was loaded
@@ -25,95 +33,181 @@ async function freshModule() {
   return import("../pdfPreview");
 }
 
-describe("renderFirstPage", () => {
-  const context = { fake: "context" };
+// Makes the page look zoomed by the site's CSS zoom
+function zoomPage(zoom) {
+  const real = window.getComputedStyle;
 
-  beforeEach(() => {
-    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(context);
-    vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue("data:image/png;base64,AAAA");
-    vi.stubGlobal("devicePixelRatio", 1);
+  vi.spyOn(window, "getComputedStyle").mockImplementation((element) => (
+    element === document.documentElement ? { zoom: String(zoom) } : real(element)
+  ));
+}
+
+beforeEach(() => {
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(context);
+  vi.stubGlobal("devicePixelRatio", 1);
+  context.drawImage.mockClear();
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe("pixelRatio", () => {
+  it.each([
+    [1, null, 1],
+    [2, null, 2],
+    [1, 1.35, 1.35],
+    [2, 1.5, 3]
+  ])("returns %s screen pixels times a page zoom of %s as %s", async (density, zoom, expected) => {
+    vi.stubGlobal("devicePixelRatio", density);
+
+    if (zoom) zoomPage(zoom);
+    const { pixelRatio } = await freshModule();
+
+    expect(pixelRatio()).toBeCloseTo(expected);
   });
+});
 
-  afterEach(() => {
-    vi.unstubAllGlobals();
+describe("nextZoom", () => {
+  it.each([
+    [1, 1, 1.25],
+    [1, -1, 0.75],
+    [0.9, 1, 1],
+    [0.9, -1, 0.75],
+    [3, 1, null],
+    [0.5, -1, null],
+    [0.3, 1, 0.5],
+    [4, -1, 3]
+  ])("returns the step from %s going %s as %s", async (zoom, direction, expected) => {
+    const { nextZoom } = await freshModule();
+
+    expect(nextZoom(zoom, direction)).toBe(expected);
   });
+});
 
-  it("renders the first page as an image sized to the width, and reports the page count", async () => {
-    const { page, pdf } = pdfOf({ pages: 3 });
-    const { renderFirstPage } = await freshModule();
-    const result = await renderFirstPage(new Blob(["%PDF-"]), 300);
+describe("openPdf", () => {
+  it("reads the PDF's bytes, points pdf.js at its worker and gets every page", async () => {
+    const { pdf } = pdfOf({ pages: 3 });
+    const { openPdf } = await freshModule();
 
-    expect(result).toEqual({ image: "data:image/png;base64,AAAA", pages: 3 });
-    expect(pdf.getPage).toHaveBeenCalledWith(1);
-    expect(page.render).toHaveBeenCalledWith({ canvasContext: context, viewport: expect.objectContaining({ width: 300, height: 400 }) });
-  });
-
-  it("renders sharper on high-density screens", async () => {
-    const { page } = pdfOf();
-
-    vi.stubGlobal("devicePixelRatio", 2);
-    const { renderFirstPage } = await freshModule();
-
-    await renderFirstPage(new Blob(["%PDF-"]), 300);
-
-    expect(page.render.mock.calls[0][0].viewport).toMatchObject({ width: 600, height: 800 });
-  });
-
-  it("reads the PDF's bytes and points pdf.js at its worker", async () => {
-    pdfOf();
-    const { renderFirstPage } = await freshModule();
-
-    await renderFirstPage(new Blob(["%PDF-1"]), 300);
+    await openPdf(new Blob(["%PDF-1"]));
 
     expect(pdfjs.getDocument).toHaveBeenCalledWith({ data: new Uint8Array([37, 80, 68, 70, 45, 49]) });
     expect(pdfjs.GlobalWorkerOptions.workerSrc).toEqual(expect.stringContaining("pdf.worker"));
+    expect(pdf.getPage.mock.calls).toEqual([[1], [2], [3]]);
+  });
+
+  it("sets up pdf.js once, however many PDFs are opened", async () => {
+    pdfOf();
+    const { openPdf } = await freshModule();
+
+    await openPdf(new Blob(["%PDF-"]));
+    pdfjs.GlobalWorkerOptions.workerSrc = "changed since";
+    await openPdf(new Blob(["%PDF-"]));
+
+    expect(pdfjs.GlobalWorkerOptions.workerSrc).toBe("changed since");
+  });
+
+  it("draws at the screen's pixel ratio, counting the page zoom, so the page isn't stretched", async () => {
+    const { page } = pdfOf();
+
+    vi.stubGlobal("devicePixelRatio", 2);
+    zoomPage(1.5);
+    const { openPdf } = await freshModule();
+    const pdf = await openPdf(new Blob(["%PDF-"]));
+
+    await pdf.drawPage(0, document.createElement("canvas"), 300).promise;
+
+    expect(page.render).toHaveBeenCalledWith({ canvasContext: context, viewport: expect.objectContaining({ width: 900, height: 1200 }) });
   });
 
   it("sets the canvas to a whole number of pixels", async () => {
-    const canvases = [];
-    const create = document.createElement.bind(document);
-
-    vi.spyOn(document, "createElement").mockImplementation((tag) => {
-      const element = create(tag);
-
-      if (tag === "canvas") canvases.push(element);
-
-      return element;
-    });
     pdfOf({ width: 612, height: 792 });
-    const { renderFirstPage } = await freshModule();
+    const { openPdf } = await freshModule();
+    const pdf = await openPdf(new Blob(["%PDF-"]));
+    const canvas = document.createElement("canvas");
 
-    await renderFirstPage(new Blob(["%PDF-"]), 250);
+    await pdf.drawPage(0, canvas, 250).promise;
 
-    expect(canvases[0].width).toBe(250);
-    expect(canvases[0].height).toBe(Math.round(792 * (250 / 612)));
+    expect(canvas.width).toBe(250);
+    expect(canvas.height).toBe(Math.round(792 * (250 / 612)));
   });
 
-  it("frees the PDF afterwards, even when rendering fails", async () => {
-    const { task } = pdfOf({ renderFails: true });
-    const { renderFirstPage } = await freshModule();
+  it("lists every page's size in CSS pixels at 100%", async () => {
+    pdfOf({ pages: 2, width: 612, height: 792 });
+    const { openPdf } = await freshModule();
+    const pdf = await openPdf(new Blob(["%PDF-"]));
 
-    await expect(renderFirstPage(new Blob(["%PDF-"]), 300)).rejects.toThrow("render failed");
-    expect(task.destroy).toHaveBeenCalledOnce();
+    expect(pdf.pages).toEqual([{ width: 816, height: 1056 }, { width: 816, height: 1056 }]);
   });
 
-  it("frees the PDF after a successful render too, and still returns the image", async () => {
-    const { task } = pdfOf();
-    const { renderFirstPage } = await freshModule();
-    const result = await renderFirstPage(new Blob(["%PDF-"]), 300);
-
-    expect(result.image).toBe("data:image/png;base64,AAAA");
-    expect(task.destroy).toHaveBeenCalledOnce();
-  });
-
-  it("sets up pdf.js once, however many pages are rendered", async () => {
+  it("draws a page off screen, then copies it into the canvas when it's done", async () => {
     pdfOf();
-    const { renderFirstPage } = await freshModule();
+    const { openPdf } = await freshModule();
+    const pdf = await openPdf(new Blob(["%PDF-"]));
+    const canvas = document.createElement("canvas");
 
-    await renderFirstPage(new Blob(["%PDF-"]), 300);
-    pdfjs.GlobalWorkerOptions.workerSrc = "changed since";
-    await renderFirstPage(new Blob(["%PDF-"]), 300);
+    await pdf.drawPage(1, canvas, 300).promise;
 
-    expect(pdfjs.GlobalWorkerOptions.workerSrc).toBe("changed since");
+    expect(canvas.width).toBe(300);
+    expect(canvas.height).toBe(400);
+    expect(context.drawImage).toHaveBeenCalledWith(expect.any(HTMLCanvasElement), 0, 0);
+    expect(context.drawImage.mock.calls[0][0]).not.toBe(canvas);
+  });
+
+  it("keeps the canvas's last drawing when a drawing fails", async () => {
+    pdfOf({ renderFails: true });
+    const { openPdf } = await freshModule();
+    const pdf = await openPdf(new Blob(["%PDF-"]));
+    const canvas = document.createElement("canvas");
+
+    canvas.width = 120;
+    await expect(pdf.drawPage(0, canvas, 300).promise).rejects.toThrow("render failed");
+
+    expect(canvas.width).toBe(120);
+    expect(context.drawImage).not.toHaveBeenCalled();
+  });
+
+  it("cancels a drawing in progress", async () => {
+    const { renders } = pdfOf();
+    const { openPdf } = await freshModule();
+    const pdf = await openPdf(new Blob(["%PDF-"]));
+
+    pdf.drawPage(0, document.createElement("canvas"), 300).cancel();
+
+    expect(renders[0].cancel).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a large zoom within the browser's canvas size limit", async () => {
+    const { page } = pdfOf({ width: 612, height: 792 });
+
+    vi.stubGlobal("devicePixelRatio", 3);
+    const { openPdf } = await freshModule();
+    const pdf = await openPdf(new Blob(["%PDF-"]));
+
+    await pdf.drawPage(0, document.createElement("canvas"), 2448).promise;
+    const { width, height } = page.render.mock.calls[0][0].viewport;
+
+    expect(width * height).toBeLessThanOrEqual(4096 * 4096 + 1);
+    expect(width / height).toBeCloseTo(612 / 792);
+  });
+
+  it("frees the PDF once, however often it's closed", async () => {
+    const { task } = pdfOf();
+    const { openPdf } = await freshModule();
+    const pdf = await openPdf(new Blob(["%PDF-"]));
+
+    pdf.close();
+    pdf.close();
+
+    expect(task.destroy).toHaveBeenCalledOnce();
+  });
+
+  it("frees the loading task and rejects when the PDF can't be read", async () => {
+    const { task } = pdfOf({ loadFails: true });
+    const { openPdf } = await freshModule();
+
+    await expect(openPdf(new Blob(["nope"]))).rejects.toThrow("bad PDF");
+    expect(task.destroy).toHaveBeenCalledOnce();
   });
 });

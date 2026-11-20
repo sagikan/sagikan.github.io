@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GRADE_SHEET, RESUME_FILE, TAILOR } from "../resumeMachines";
+import { GRADE_SHEET, PDF_PREVIEW, RESUME_FILE, TAILOR } from "../resumeMachines";
 
 describe("TAILOR", () => {
   it.each([
@@ -17,6 +17,21 @@ describe("TAILOR", () => {
 
   it("doesn't tailor again while tailoring", () => {
     expect(TAILOR.can("tailoring", "generate")).toBe(false);
+  });
+});
+
+describe("PDF_PREVIEW", () => {
+  it.each([
+    ["loading", "loaded", "ready"],
+    ["loading", "fail", "failed"],
+    ["failed", "retry", "loading"]
+  ])("moves from %s on %s to %s", (state, event, expected) => {
+    expect(PDF_PREVIEW.next(state, event)).toBe(expected);
+  });
+
+  it("stays on a preview that's showing", () => {
+    expect(PDF_PREVIEW.can("ready", "fail")).toBe(false);
+    expect(PDF_PREVIEW.can("ready", "retry")).toBe(false);
   });
 });
 

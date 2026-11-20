@@ -12,6 +12,16 @@ export const TAILOR = createMachine("tailored resume", {
   }
 });
 
+// The PDF preview dialog: it builds and opens the PDF, and can try again after a failure
+export const PDF_PREVIEW = createMachine("PDF preview", {
+  initial: "loading",
+  states: {
+    loading: { loaded: "ready", fail: "failed" },
+    ready: {},
+    failed: { retry: "loading" }
+  }
+});
+
 // The profile's resume: reading an uploaded PDF and saving the profile never overlap
 export const RESUME_FILE = createMachine("profile resume", {
   initial: "idle",
