@@ -75,7 +75,7 @@
 
 | Command | Folder | Where | What it runs |
 |---|---|---|---|
-| `npm test` | `frontend/` | Anywhere | Utilities, API client and PDF helpers, in jsdom |
+| `npm test` | `frontend/` | Anywhere | Components, hooks, utilities, API client and PDF helpers, in jsdom |
 | `npm test` | `backend/` | Anywhere | Services, helpers and the test guard, with the database and all outside calls mocked |
 | `npm run test:db` | `backend/` | GitHub Actions | Every API route against a real PostgreSQL |
 | `npm run test:watch` | | Locally | Relevant test files on save |
