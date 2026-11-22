@@ -44,6 +44,7 @@ const DOOR = createMachine("door", {
 |---|---|---|
 | [`JOB`](#jobs-job) | [`services/jobs/jobStates.js`](src/services/jobs/jobStates.js) | `jobs.state` + `jobs.hidden` |
 | [`SEARCH`](#job-searches-search) | [`services/jobs/jobStates.js`](src/services/jobs/jobStates.js) | `job_searches.status` |
+| [`BOARD`](#job-boards-board) | [`services/jobs/jobStates.js`](src/services/jobs/jobStates.js) | `job_boards.active` |
 | [`EMAIL_EVENT`](#email-events-email_event) | [`services/email/emailService.js`](src/services/email/emailService.js) | `email_events.state` |
 | [`APPLICATION_STATUS`](#application-status-journey-application_status) | [`services/applications/statusStates.js`](src/services/applications/statusStates.js) | `application_steps` (one row per step); `applications.status` copies the current step |
 | [`EMAIL_MOVES`](#application-status-from-email-email_moves) | [`services/email/emailMatcher.js`](src/services/email/emailMatcher.js) | A new step in `application_steps` (see `APPLICATION_STATUS`) |
@@ -147,6 +148,46 @@ stateDiagram-v2
 > • A search marked failed for taking too long can still finish later and record what it found. This is why `failed` has a `finish` move. A `done` search never changes<br>
 > • The partial unique index `job_searches_one_running_idx` (schema.sql) allows one `running` search per user. Its `WHERE status = 'running'` must match the table's starting state<br>
 > • What the API reports is derived from the latest rows, not stored: `running`, `canRefresh` (not running, and fewer than 10 searches in the last hour, not counting failed ones), `lastError` and `lastFailedAt` (the latest search failed)
+
+## Job boards (`BOARD`)
+
+One source of job postings: a company's job board (Greenhouse, Lever, Comeet and others) or a JSearch search.
+
+```mermaid
+stateDiagram-v2
+  [*] --> on
+  on --> off: fail (the third in a row), vanish, unwant
+  off --> on: succeed, want
+```
+
+> Not drawn, since they keep the state: `succeed` and `fail` (before the third) on an `on` board; `fail`, `vanish` and
+> `unwant` on an `off` one
+
+| State | `active` | Meaning |
+|---|---|---|
+| `on` | true | Fetched every `REFRESH_HOURS` (12; JSearch every 24) |
+| `off` | false | Skipped; a company board is fetched again `RETRY_DAYS` (30) after its last fetch |
+
+| Move | Made by |
+|---|---|
+| start (`initial`) | `addBoards` and `syncSearchBoards` insert the row; the column's default is true |
+| `succeed` | `refreshBoard` after a fetch it could read, which also resets `failures` |
+| `fail` (pick `on` or `off`) | `refreshBoard` when a company board's fetch fails: `off` on the `MAX_FAILURES` (3) failure in a row. A rate-limited fetch (429) and a failed JSearch search aren't moved, only fetched again at a later refresh |
+| `vanish` | `refreshBoard` when a company board answers 404, or, for Comeet and BambooHR, redirects to the system's home page (a renamed company, or one that left) |
+| `want`, `unwant` | `syncSearchBoards`: the JSearch searches the users' roles and places call for are `want`ed, the rest `unwant`ed |
+
+> • Being off is not final: the retry after `RETRY_DAYS` is what lets a company that hires again come back
+> (`refreshStaleBoards` picks `off` company boards whose last fetch is that old)<br>
+> • `fail`'s pick is made in SQL, from the failure count the row holds
+
+**Helpers** (in `jobStates.js`):
+
+| Helper | Builds | Example |
+|---|---|---|
+| `boardIn(states, table?)` | A condition for boards in any of the states | `(active = FALSE)` |
+| `boardMoveSet(move, { stay, table }?)` | A `SET` clause moving each board by the state it's in; `stay`, required for a move with two outcomes, is the SQL condition for keeping the state | `boardMoveSet("fail", { stay: "failures + 1 < $2" })` |
+
+> Pass `table` in `ON CONFLICT … DO UPDATE` (`boardMoveSet("want", { table: "job_boards" })`)
 
 ## Email events (`EMAIL_EVENT`)
 

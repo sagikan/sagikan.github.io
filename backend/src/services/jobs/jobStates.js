@@ -32,6 +32,20 @@ const SEARCH = createMachine("job search", {
   }
 });
 
+/* A job board's state, stored in its active column (new boards start on through the column's default). An off board
+   isn't fetched, except a company board RETRY_DAYS after its last fetch (refreshStaleBoards), whose result moves it
+   again. A company board goes off when it's gone or fails MAX_FAILURES times in a row; a JSearch search goes on and off
+   with what the users want */
+const BOARD = createMachine("job board", {
+  initial: "on",
+  states: {
+    on: { succeed: "on", fail: ["on", "off"], vanish: "off", want: "on", unwant: "off" },
+    off: { succeed: "on", fail: "off", vanish: "off", want: "on", unwant: "off" }
+  }
+});
+// How each board state is stored in the active column
+const BOARD_COLUMN = { on: "TRUE", off: "FALSE" };
+
 // Returns the state of a job row from its state and hidden columns
 function jobState(row) {
   return Object.keys(COLUMNS).find((state) => COLUMNS[state].state === row.state && COLUMNS[state].hidden === row.hidden) ?? null;
@@ -66,4 +80,41 @@ function moveSet(event, table = "") {
   return `${column("state", (to) => JOB.sqlList([to.state]))}, ${column("hidden", (to) => (to.hidden ? "TRUE" : "FALSE"))}`;
 }
 
-module.exports = { JOB, SEARCH, VISIBLE, jobState, inStates, canMove, moveSet };
+// Builds the SQL condition for boards in any of the given states, optionally qualified by a table name
+function boardIn(states, table = "") {
+  const prefix = table ? `${table}.` : "";
+  const conditions = states.map((state) => {
+    if (!Object.hasOwn(BOARD_COLUMN, state)) {
+      throw new Error(`job board: "${state}" isn't a valid state`);
+    }
+
+    return `${prefix}active = ${BOARD_COLUMN[state]}`;
+  });
+
+  return `(${conditions.join(" OR ")})`;
+}
+
+/* Builds the SET clause that moves each board by an event, according to the state it's in. For a move with two
+   outcomes, `stay` is the SQL condition under which the board keeps its state; otherwise it takes the other one */
+function boardMoveSet(event, { stay, table = "" } = {}) {
+  const prefix = table ? `${table}.` : "";
+  const cases = BOARD.sources(event).map((from) => {
+    const to = BOARD.next(from, event);
+
+    if (to) {
+      return `WHEN ${boardIn([from], table)} THEN ${BOARD_COLUMN[to]}`;
+    }
+
+    if (!stay) {
+      throw new Error(`job board: "${event}" from "${from}" has two outcomes, so it needs a stay condition`);
+    }
+
+    const other = BOARD.states.find((state) => state !== from && BOARD.can(from, event, state));
+
+    return `WHEN ${boardIn([from], table)} THEN CASE WHEN ${stay} THEN ${BOARD_COLUMN[from]} ELSE ${BOARD_COLUMN[other]} END`;
+  });
+
+  return `active = CASE ${cases.join(" ")} ELSE ${prefix}active END`;
+}
+
+module.exports = { JOB, SEARCH, BOARD, VISIBLE, jobState, inStates, canMove, moveSet, boardIn, boardMoveSet };

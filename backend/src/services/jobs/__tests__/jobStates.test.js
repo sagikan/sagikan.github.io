@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 
 const require = createRequire(import.meta.url);
-const { JOB, SEARCH, VISIBLE, jobState, inStates, canMove, moveSet } = require("../jobStates");
+const { JOB, SEARCH, BOARD, VISIBLE, jobState, inStates, canMove, moveSet, boardIn, boardMoveSet } = require("../jobStates");
 
 describe("JOB", () => {
   it.each([
@@ -52,6 +52,25 @@ describe("SEARCH", () => {
   it("starts searches as running and never changes a finished one", () => {
     expect(SEARCH.initial).toBe("running");
     expect(SEARCH.can("done", "finish", "failed")).toBe(false);
+  });
+});
+
+describe("BOARD", () => {
+  it.each([
+    ["on", "succeed", undefined, "on"],
+    ["off", "succeed", undefined, "on"],
+    ["on", "fail", "on", "on"],
+    ["on", "fail", "off", "off"],
+    ["off", "fail", undefined, "off"],
+    ["on", "vanish", undefined, "off"],
+    ["off", "want", undefined, "on"],
+    ["on", "unwant", undefined, "off"]
+  ])("moves an %s board on %s (as %s) to %s", (state, event, pick, expected) => {
+    expect(BOARD.move(state, event, pick)).toBe(expected);
+  });
+
+  it("starts boards as on", () => {
+    expect(BOARD.initial).toBe("on");
   });
 });
 
@@ -107,5 +126,41 @@ describe("moveSet", () => {
     expect(set).toContain(`WHEN ${inStates(["applied"], "jobs")} THEN TRUE`);
     expect(set).toContain(`WHEN ${inStates(["archived"], "jobs")} THEN TRUE`);
     expect(set).toContain("ELSE jobs.state END");
+  });
+});
+
+describe("boardIn", () => {
+  it("matches each state by the active column", () => {
+    expect(boardIn(["on", "off"])).toBe("(active = TRUE OR active = FALSE)");
+  });
+
+  it("qualifies the column with a table name", () => {
+    expect(boardIn(["off"], "job_boards")).toBe("(job_boards.active = FALSE)");
+  });
+
+  it("rejects a state the table doesn't have", () => {
+    expect(() => boardIn(["paused"])).toThrow("isn't a valid state");
+  });
+});
+
+describe("boardMoveSet", () => {
+  it("sets the column from the state each board moves to", () => {
+    expect(boardMoveSet("vanish")).toBe("active = CASE WHEN (active = TRUE) THEN FALSE WHEN (active = FALSE) THEN FALSE ELSE active END");
+  });
+
+  it("keeps the state when the stay condition holds for a move with two outcomes, and takes the other one otherwise", () => {
+    expect(boardMoveSet("fail", { stay: "failures + 1 < $2" })).toBe(
+      "active = CASE WHEN (active = TRUE) THEN CASE WHEN failures + 1 < $2 THEN TRUE ELSE FALSE END WHEN (active = FALSE) THEN FALSE ELSE active END"
+    );
+  });
+
+  it("rejects a move with two outcomes that has no stay condition", () => {
+    expect(() => boardMoveSet("fail")).toThrow("needs a stay condition");
+  });
+
+  it("qualifies the column with a table name", () => {
+    expect(boardMoveSet("want", { table: "job_boards" })).toBe(
+      "active = CASE WHEN (job_boards.active = TRUE) THEN TRUE WHEN (job_boards.active = FALSE) THEN TRUE ELSE job_boards.active END"
+    );
   });
 });
