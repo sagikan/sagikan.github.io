@@ -16,7 +16,7 @@
 | Backend | Node.js/Express REST API with cookie-based sessions and two-factor authentication |
 | Database | PostgreSQL |
 | AI | Resume parsing and tailoring, job scoring, and email classification with Claude (Anthropic API)
-| Job data | JSearch and company job boards; company logos from Logo.dev |
+| Job data | JSearch and company job boards (Greenhouse, Lever, Ashby, Comeet, Workable, SmartRecruiters, Recruitee, BambooHR, Workday), found partly through [mluggy/techmap](https://github.com/mluggy/techmap) (ODbL); company logos from Logo.dev |
 | Email | Brevo or SMTP for outgoing mail; Apps Script for incoming job mails |
 | Testing | Vitest, React Testing Library, and supertest against a real PostgreSQL |
 | Hosting | GitHub Pages (frontend), Render (backend), Neon (database) |
