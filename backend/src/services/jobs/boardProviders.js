@@ -91,7 +91,7 @@ const PROVIDERS = {
     refreshHours: 24,
     url: (token) => `https://www.comeet.com/jobs/${token}`,
     // A name that no longer matches the company's code (a renamed company) sends the page to Comeet's home page
-    redirectGone: (url, token) => !url.toLowerCase().includes(token.split("/")[1].toLowerCase()),
+    redirectGone: (url, token) => !pathOf(url).split("/").includes(token.split("/")[1].toLowerCase()),
     parse: (page, board) => [jsonAfter(page, "COMPANY_POSITIONS_DATA")].flat().filter((job) => job?.uid && !job.is_internal).map((job) => ({
       externalId: job.uid,
       company: job.company_name || board.company,
@@ -183,7 +183,7 @@ const PROVIDERS = {
     probe: true,
     url: (token) => `https://${token}.bamboohr.com/careers/list`,
     // A company that left BambooHR is sent to BambooHR's home page
-    redirectGone: (url, token) => !hostOf(url).startsWith(`${token.toLowerCase()}.`),
+    redirectGone: (url, token) => hostOf(url) !== `${token.toLowerCase()}.bamboohr.com`,
     parse: (data, board) => (data?.result || []).map((job) => ({
       externalId: String(job.id ?? ""),
       company: board.company,
@@ -320,6 +320,15 @@ function jsearchLink(job) {
 function hostOf(url) {
   try {
     return new URL(url).hostname.toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+// Returns a URL's path in lowercase, without its query or hash, or an empty string
+function pathOf(url) {
+  try {
+    return new URL(url).pathname.toLowerCase();
   } catch {
     return "";
   }

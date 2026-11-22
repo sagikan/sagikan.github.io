@@ -382,6 +382,7 @@ describe("PROVIDERS", () => {
 
     it.each([
       ["BambooHR's home page", "https://www.bamboohr.com/", true],
+      ["another site whose name starts the same", "https://acme.example.com/careers/list", true],
       ["the company's own careers page", "https://acme.bamboohr.com/careers/list", false]
     ])("treats a redirect to %s as gone: %s", (_title, url, expected) => {
       expect(bamboohr.redirectGone(url, "acme")).toBe(expected);
@@ -395,6 +396,7 @@ describe("PROVIDERS", () => {
   describe("comeet's redirect", () => {
     it.each([
       ["Comeet's home page", "https://www.comeet.com/", true],
+      ["a page with the company's code only in its query", "https://www.comeet.com/?from=af.100", true],
       ["the company's page", "https://www.comeet.com/jobs/acme/af.100", false]
     ])("treats a redirect to %s as gone: %s", (_title, url, expected) => {
       expect(PROVIDERS.comeet.redirectGone(url, "acme/AF.100")).toBe(expected);
@@ -505,7 +507,7 @@ describe("fetchData", () => {
   it("reports a redirect as gone only when the system says it means that", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => ({ status: 200, ok: true, redirected: true, url: "https://home.example/", json: async () => ({ ok: 1 }) })));
 
-    expect(await fetchData("https://example.com/a", { redirectGone: (url) => url.startsWith("https://home.example") })).toEqual({ gone: true });
+    expect(await fetchData("https://example.com/a", { redirectGone: (url) => url === "https://home.example/" })).toEqual({ gone: true });
     expect(await fetchData("https://example.com/a", { redirectGone: () => false })).toEqual({ data: { ok: 1 } });
     expect(await fetchData("https://example.com/a")).toEqual({ data: { ok: 1 } });
   });
