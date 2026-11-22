@@ -8,6 +8,8 @@ const emailService = require("./services/email/emailService");
 const devMode = require("./services/shared/devMode");
 
 const port = process.env.PORT || 3000;
+// Each run wakes the database, which then stays up for a few minutes; boards are due every 12 hours
+const FEED_REFRESH_HOURS = 3;
 
 // Starts the server and schedules the daily cleanup
 app.listen(port, "0.0.0.0", () => {
@@ -33,4 +35,14 @@ app.listen(port, "0.0.0.0", () => {
 
   dailyCleanup();
   setInterval(dailyCleanup, 24 * 60 * 60 * 1000).unref();
+
+  // Keeps the job feeds fresh in the background, so a search seldom waits for them
+  const refreshFeeds = () => {
+    jobFeeds.ensureFresh().catch((err) => console.error("Could not refresh the job feeds:", err.message));
+  };
+
+  if (!devMode.offline) {
+    setTimeout(refreshFeeds, 60 * 1000).unref();
+    setInterval(refreshFeeds, FEED_REFRESH_HOURS * 60 * 60 * 1000).unref();
+  }
 });

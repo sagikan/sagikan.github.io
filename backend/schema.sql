@@ -258,10 +258,11 @@ CREATE TABLE IF NOT EXISTS job_boards (
 
 ALTER TABLE job_boards DROP CONSTRAINT IF EXISTS job_boards_provider_check;
 ALTER TABLE job_boards ADD CONSTRAINT job_boards_provider_check
-    CHECK (provider IN ('greenhouse', 'lever', 'ashby', 'jsearch'));
+    CHECK (provider IN ('greenhouse', 'lever', 'ashby', 'comeet', 'workable', 'smartrecruiters', 'recruitee', 'bamboohr', 'workday', 'jsearch'));
+-- TODO: Remove 'discovered' after migration + truncation
 ALTER TABLE job_boards DROP CONSTRAINT IF EXISTS job_boards_source_check;
 ALTER TABLE job_boards ADD CONSTRAINT job_boards_source_check
-    CHECK (source IN ('seed', 'discovered', 'user', 'search'));
+    CHECK (source IN ('seed', 'discovered', 'claude', 'jsearch', 'user', 'search', 'techmap', 'careers', 'probe'));
 
 CREATE UNIQUE INDEX IF NOT EXISTS job_boards_provider_token_idx
     ON job_boards(provider, LOWER(token));
@@ -284,6 +285,9 @@ CREATE TABLE IF NOT EXISTS job_postings (
 
 ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
+CREATE INDEX IF NOT EXISTS job_postings_url_idx
+    ON job_postings(url);
+
 CREATE TABLE IF NOT EXISTS closed_postings (
     url TEXT PRIMARY KEY,
     closed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -294,6 +298,17 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS checked_at TIMESTAMPTZ;
 CREATE TABLE IF NOT EXISTS feed_state (
     key TEXT PRIMARY KEY,
     updated_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS techmap_companies (
+    path TEXT PRIMARY KEY,
+    sha TEXT NOT NULL,
+    careers_url TEXT,
+    careers_checked_at TIMESTAMPTZ,
+    name TEXT,
+    website TEXT,
+    has_board BOOLEAN NOT NULL DEFAULT FALSE,
+    probed_at TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS sessions (

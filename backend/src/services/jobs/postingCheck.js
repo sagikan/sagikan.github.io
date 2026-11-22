@@ -1,10 +1,11 @@
 const dev = require("../shared/devMode");
-const { safeFetch } = require("../shared/safeFetch");
+const { BROWSER_USER_AGENT, safeFetch } = require("../shared/safeFetch");
+const { PROVIDERS } = require("./boardProviders");
 
 const TIMEOUT_MS = 12_000;
 const CONCURRENCY = 4;
-const BOARD_HOSTS = /(^|\.)(greenhouse\.io|lever\.co|ashbyhq\.com)$/i;
-const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36";
+// The job systems' sites: their postings come from boards the feeds keep up to date, so they need no check
+const BOARD_HOSTS = Object.values(PROVIDERS).flatMap((entry) => entry.hosts || []);
 const CLOSED_MARKERS = [
   [/linkedin\.com$/i, /class="[^"]*\bclosed-job\b/i],
   [/indeed\.com$/i, /this job has expired|job has been removed|no longer available on indeed/i],
@@ -25,7 +26,7 @@ function host(url) {
 function needsCheck(url) {
   const name = host(url);
 
-  return Boolean(name) && !BOARD_HOSTS.test(name);
+  return Boolean(name) && !BOARD_HOSTS.some((site) => name === site || name.endsWith(`.${site}`));
 }
 
 // Checks whether a posting is open, closed or unknown
@@ -37,7 +38,7 @@ async function status(url) {
   try {
     const response = await safeFetch(url, {
       timeoutMs: TIMEOUT_MS,
-      headers: { "User-Agent": USER_AGENT, "Accept-Language": "en", Accept: "text/html" }
+      headers: { "User-Agent": BROWSER_USER_AGENT, "Accept-Language": "en", Accept: "text/html" }
     });
 
     if (response.status === 404 || response.status === 410) {

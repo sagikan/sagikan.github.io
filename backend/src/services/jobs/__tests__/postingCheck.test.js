@@ -17,6 +17,11 @@ describe("needsCheck", () => {
     ["a Greenhouse board", "https://boards.greenhouse.io/acme/jobs/1", false],
     ["a Lever board", "https://jobs.lever.co/acme/1", false],
     ["an Ashby board", "https://jobs.ashbyhq.com/acme/1", false],
+    ["a Comeet board", "https://www.comeet.com/jobs/acme/AF.100/engineer/E7.577", false],
+    ["a Workable board", "https://apply.workable.com/j/81B46579FE", false],
+    ["a SmartRecruiters board", "https://jobs.smartrecruiters.com/Acme/7440001", false],
+    ["a Recruitee board", "https://bunq.recruitee.com/o/engineer", false],
+    ["a Recruitee posting on the company's own site", "https://careers.bunq.com/o/engineer", true],
     ["a host that only ends like a board", "https://notgreenhouse.io/jobs/1", true],
     ["an invalid link", "not a url", false],
     ["no link", "", false]
