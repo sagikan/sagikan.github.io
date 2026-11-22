@@ -332,7 +332,6 @@ function App() {
   }
 
   let page;
-  let showCredit = false;
 
   if (route === "/login" || route === "/signup") {
     page = (
@@ -388,7 +387,6 @@ function App() {
     );
   } else if (route === "/privacy") {
     page = <Privacy />;
-    showCredit = true;
   } else {
     page = <Landing authenticated={authenticated} />;
   }
@@ -416,7 +414,7 @@ function App() {
           }}
         />
       )}
-      <Footer apiStatus={apiStatus} showCredit={showCredit} />
+      <Footer apiStatus={apiStatus} />
     </div>
   );
 }
