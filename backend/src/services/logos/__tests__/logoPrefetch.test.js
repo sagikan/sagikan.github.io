@@ -73,6 +73,14 @@ describe("companiesToLookUp", () => {
     expect(query.mock.calls[0][0]).toContain("WHERE b.source <> 'user'");
   });
 
+  it("reads only postings that a search found for some user", async () => {
+    const query = mockDatabase({ postings: [] });
+
+    await companiesToLookUp();
+
+    expect(query.mock.calls[0][0]).toContain("EXISTS (SELECT 1 FROM jobs j WHERE j.url = p.url AND j.source = 'search')");
+  });
+
   it("asks nothing more when there are no postings", async () => {
     const query = mockDatabase({ postings: [] });
 

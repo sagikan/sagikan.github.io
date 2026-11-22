@@ -1,5 +1,6 @@
 import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
+import { createUser } from "../../../../tests/db/helpers";
 
 const require = createRequire(import.meta.url);
 const db = require("../../../config/db");
@@ -12,18 +13,37 @@ async function addBoard(token, source) {
   return rows[0].id;
 }
 
-// Adds a posting to a board
-async function addPosting(boardId, externalId, company, title, daysAgo = 0) {
+// Adds a posting to a board, and unless told otherwise a job that a search found from it for a new user
+async function addPosting(boardId, externalId, company, title, daysAgo = 0, { found = true } = {}) {
+  const url = `https://example.com/${externalId}`;
+
   await db.query(
     `INSERT INTO job_postings (board_id, external_id, company, title, url, first_seen_at)
      VALUES ($1, $2, $3, $4, $5, NOW() - make_interval(days => $6))`,
-    [boardId, externalId, company, title, `https://example.com/${externalId}`, daysAgo]
+    [boardId, externalId, company, title, url, daysAgo]
   );
+
+  if (found) {
+    const user = await createUser({ email: `user${externalId}@example.com` });
+    await db.query(
+      `INSERT INTO jobs (user_id, source, company, position, url) VALUES ($1, 'search', $2, $3, $4)`,
+      [user.id, company, title, url]
+    );
+  }
 }
 
 describe("companiesToLookUp", () => {
-  it.each(["seed", "discovered", "search"])("includes companies from a %s board", async (source) => {
+  it.each(["seed", "discovered", "claude", "jsearch", "search", "techmap", "careers", "probe"])("includes companies from a %s board", async (source) => {
     await addPosting(await addBoard("board", source), "1", "Orbit", "Data Engineer");
+
+    expect((await companiesToLookUp()).map((row) => row.company)).toEqual(["Orbit"]);
+  });
+
+  it("leaves out companies whose postings no search found for anyone", async () => {
+    const board = await addBoard("trusted", "seed");
+
+    await addPosting(board, "1", "Orbit", "Data Engineer");
+    await addPosting(board, "2", "Globex", "Data Engineer", 0, { found: false });
 
     expect((await companiesToLookUp()).map((row) => row.company)).toEqual(["Orbit"]);
   });

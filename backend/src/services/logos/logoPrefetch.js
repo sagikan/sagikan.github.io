@@ -13,15 +13,17 @@ const PREFETCH = createMachine("logo prefetch", {
 });
 let state = PREFETCH.initial;
 
-/* Finds the companies in the job postings that have no recent logo or miss, newest first, each with the posting that introduced it.
-   Boards that came from users' links are left out: anyone can make a board of their own, with any company name and title,
-   and the lookup is shared by all users */
+/* Finds the companies of postings that a search found for some user and that have no recent logo or miss, newest first,
+   each with the posting that introduced it. The rest of the pool is left out, since its logos are never shown and each
+   lookup costs API calls. Boards that came from users' links are left out too: anyone can make a board of their own,
+   with any company name and title, and the lookup is shared by all users */
 async function companiesToLookUp() {
   const { rows } = await db.query(
     `SELECT DISTINCT ON (LOWER(p.company)) p.company, p.title, p.location, p.url, p.first_seen_at
      FROM job_postings p
      JOIN job_boards b ON b.id = p.board_id
      WHERE b.source <> 'user'
+       AND EXISTS (SELECT 1 FROM jobs j WHERE j.url = p.url AND j.source = 'search')
      ORDER BY LOWER(p.company), p.first_seen_at DESC`
   );
   const byKey = new Map();
