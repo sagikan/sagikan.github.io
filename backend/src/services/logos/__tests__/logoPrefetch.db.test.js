@@ -33,7 +33,7 @@ async function addPosting(boardId, externalId, company, title, daysAgo = 0, { fo
 }
 
 describe("companiesToLookUp", () => {
-  it.each(["seed", "discovered", "claude", "jsearch", "search", "techmap", "careers", "probe"])("includes companies from a %s board", async (source) => {
+  it.each(["seed", "claude", "jsearch", "search", "techmap", "careers", "probe"])("includes companies from a %s board", async (source) => {
     await addPosting(await addBoard("board", source), "1", "Orbit", "Data Engineer");
 
     expect((await companiesToLookUp()).map((row) => row.company)).toEqual(["Orbit"]);

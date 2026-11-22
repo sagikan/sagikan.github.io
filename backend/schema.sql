@@ -259,10 +259,9 @@ CREATE TABLE IF NOT EXISTS job_boards (
 ALTER TABLE job_boards DROP CONSTRAINT IF EXISTS job_boards_provider_check;
 ALTER TABLE job_boards ADD CONSTRAINT job_boards_provider_check
     CHECK (provider IN ('greenhouse', 'lever', 'ashby', 'comeet', 'workable', 'smartrecruiters', 'recruitee', 'bamboohr', 'workday', 'jsearch'));
--- TODO: Remove 'discovered' after migration + truncation
 ALTER TABLE job_boards DROP CONSTRAINT IF EXISTS job_boards_source_check;
 ALTER TABLE job_boards ADD CONSTRAINT job_boards_source_check
-    CHECK (source IN ('seed', 'discovered', 'claude', 'jsearch', 'user', 'search', 'techmap', 'careers', 'probe'));
+    CHECK (source IN ('seed', 'claude', 'jsearch', 'user', 'search', 'techmap', 'careers', 'probe'));
 
 CREATE UNIQUE INDEX IF NOT EXISTS job_boards_provider_token_idx
     ON job_boards(provider, LOWER(token));
