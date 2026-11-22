@@ -159,6 +159,22 @@ describe("safeFetch", () => {
     expect(requestMock.mock.calls[1][1].headers).toEqual({ "user-agent": "node", "accept-encoding": "gzip, deflate, br" });
   });
 
+  it("sends a body with POST and its length, to the first address only", async () => {
+    mockDns();
+
+    const requestMock = mockWeb(
+      () => new Response(null, { status: 302, headers: { location: "https://example.com/next" } }),
+      page("hello")
+    );
+
+    await safeFetch("https://example.com/search", { body: "{\"q\":\"é\"}" });
+
+    expect(requestMock.mock.calls[0][1]).toMatchObject({ method: "POST", headers: { "content-length": 10 } });
+    expect(requestMock.mock.results[0].value.body).toBe("{\"q\":\"é\"}");
+    expect(requestMock.mock.calls[1][1].method).toBe("GET");
+    expect(requestMock.mock.results[1].value.body).toBeUndefined();
+  });
+
   it("uses plain http for an http link", async () => {
     mockDns();
 

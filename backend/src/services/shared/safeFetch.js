@@ -8,6 +8,8 @@ const zlib = require("zlib");
 const dns = dnsModule.promises;
 const MAX_REDIRECTS = 5;
 const MAX_BYTES = 2 * 1024 * 1024;
+// A browser's user agent, for pages that turn away clients that don't look like one
+const BROWSER_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36";
 const DECODERS = { gzip: zlib.createGunzip, "x-gzip": zlib.createGunzip, deflate: zlib.createInflate, br: zlib.createBrotliDecompress };
 const blocked = new net.BlockList();
 
@@ -102,29 +104,35 @@ async function readLimited(response) {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-// Sends one GET request, connecting only to public addresses
-function requestOnce(url, headers, signal) {
+// Sends one request, a GET or, with a body, a POST, connecting only to public addresses
+function requestOnce(url, headers, signal, body) {
   return new Promise((resolve, reject) => {
     const transport = url.protocol === "https:" ? https : http;
     const lowered = Object.fromEntries(Object.entries(headers).map(([name, value]) => [name.toLowerCase(), value]));
+    const sized = body === undefined ? {} : { "content-length": Buffer.byteLength(body) };
     const request = transport.request(
       url,
-      { method: "GET", headers: { "user-agent": "node", "accept-encoding": "gzip, deflate, br", ...lowered }, lookup: safeLookup, signal },
+      {
+        method: body === undefined ? "GET" : "POST",
+        headers: { "user-agent": "node", "accept-encoding": "gzip, deflate, br", ...lowered, ...sized },
+        lookup: safeLookup,
+        signal
+      },
       resolve
     );
 
     request.on("error", reject);
-    request.end();
+    request.end(body);
   });
 }
 
-// Fetches a public URL, checking every redirect and every connection
-async function safeFetch(raw, { headers = {}, timeoutMs = 12_000 } = {}) {
+// Fetches a public URL, checking every redirect and every connection; a body is sent to the first address only
+async function safeFetch(raw, { headers = {}, timeoutMs = 12_000, body } = {}) {
   const signal = AbortSignal.timeout(timeoutMs);
   let url = await checkUrl(raw);
 
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    const response = await requestOnce(url, headers, signal);
+    const response = await requestOnce(url, headers, signal, hop === 0 ? body : undefined);
     const location = response.headers.location;
 
     if (response.statusCode >= 300 && response.statusCode < 400 && location) {
@@ -144,4 +152,4 @@ async function safeFetch(raw, { headers = {}, timeoutMs = 12_000 } = {}) {
   throw new Error("Too many redirects.");
 }
 
-module.exports = { safeFetch, safeLookup, isPublicAddress };
+module.exports = { BROWSER_USER_AGENT, safeFetch, safeLookup, isPublicAddress };

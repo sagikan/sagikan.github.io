@@ -27,13 +27,14 @@ export function jsonResponse(data, init = {}) {
   return new Response(JSON.stringify(data), { headers: { "content-type": "application/json" }, ...init });
 }
 
-// Builds the request object that stands in for http(s).request, answering with a web Response
+// Builds the request object that stands in for http(s).request, answering with a web Response; it keeps the body sent
 function fakeRequest(url, makeResponse, callback) {
   const request = new EventEmitter();
 
-  request.end = () => {
+  request.end = (body) => {
+    request.body = body;
     Promise.resolve()
-      .then(() => makeResponse(url))
+      .then(() => makeResponse(url, body))
       .then((web) => {
         const response = web.body ? Readable.fromWeb(web.body) : Readable.from([]);
 
