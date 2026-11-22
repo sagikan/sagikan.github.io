@@ -160,7 +160,7 @@ async function run(userId, searchId) {
   const usage = { input: 0, output: 0, searches: 0, fetches: 0 };
 
   try {
-    await feeds.ensureFresh();
+    await feeds.ensureFresh({ onlyWhenStale: true });
 
     const [profile, applications, known] = await Promise.all([
       db.query(`SELECT cv, preferences FROM cv_profiles WHERE user_id = $1`, [userId]),
@@ -278,28 +278,36 @@ async function finish(searchId, state, error, found, usage) {
   );
 }
 
-// Splits a title into normalized words
+// Splits a title into normalized words, writing common abbreviations and spellings one way
 function words(text) {
   return String(text || "")
     .toLowerCase()
     .replace(/full[\s-]?stack/g, "fullstack")
     .replace(/back[\s-]?end/g, "backend")
     .replace(/front[\s-]?end/g, "frontend")
+    .replace(/\bdev[\s-]?ops\b/g, "devops")
+    .replace(/\bmachine[\s-]learning\b/g, "ml")
+    .replace(/\bartificial[\s-]intelligence\b/g, "ai")
+    .replace(/\bquality[\s-]assurance\b/g, "qa")
+    .replace(/\b(swe|sde)\b/g, "software engineer")
     .replace(/\bsr\b\.?/g, "senior")
-    .replace(/\b(developer|programmer|engineering)\b/g, "engineer")
+    .replace(/\bjr\b\.?/g, "junior")
+    .replace(/\b(developer|programmer|engineering|developers|engineers)\b/g, "engineer")
+    .replace(/\balgorithms\b/g, "algorithm")
     .split(/[^a-z0-9+#.]+/)
     .filter((word) => word.length > 1);
 }
 
 // Scores how well a title matches the wanted roles
 function titleScore(title, roles) {
+  return titleFit(title, roles.map(words));
+}
+
+// Scores how well a title matches roles already split into words, which a search does once for all its postings
+function titleFit(title, roleWords) {
   const titleWords = new Set(words(title));
 
-  return Math.max(0, ...roles.map((role) => {
-    const roleWords = words(role);
-
-    return roleWords.length ? roleWords.filter((word) => titleWords.has(word)).length / roleWords.length : 0;
-  }));
+  return Math.max(0, ...roleWords.map((role) => (role.length ? role.filter((word) => titleWords.has(word)).length / role.length : 0)));
 }
 
 // Checks whether two jobs are the same position at the same company
@@ -307,18 +315,20 @@ function sameJob(a, b, positionMin) {
   return companyScore(a.company, b.company) >= 0.8 && positionScore(a.position, b.position) >= positionMin;
 }
 
-// Picks the postings worth scoring for this user
+/* Picks the postings worth scoring for this user. The postings are read without their descriptions, which are most of
+   their size, and only the ones that pass the filters are read in full: the database's free plan limits data sent out */
 async function shortlist(cv, prefs, applications, known) {
   const { rows } = await db.query(
-    `SELECT id, company, title, location, workplace_model, url, description, posted_at FROM job_postings
+    `SELECT id, company, title, location, workplace_model, url, posted_at FROM job_postings
      WHERE COALESCE(posted_at, first_seen_at) >= NOW() - make_interval(days => $1)`,
     [MAX_AGE_DAYS]
   );
   const areas = areasFor(prefs.locations);
-  const roles = prefs.roles.length ? prefs.roles : [cv.headline].filter(Boolean);
+  const roleWords = (prefs.roles.length ? prefs.roles : [cv.headline].filter(Boolean)).map(words);
   const skills = cv.skills.flatMap((group) => group.items).map((skill) => skill.toLowerCase()).filter((skill) => skill.length > 1);
   const knownUrls = new Set(known.map((job) => job.url));
   const tooSenior = TOO_SENIOR[prefs.seniority];
+  const passing = [];
   const results = [];
 
   for (const posting of rows) {
@@ -326,7 +336,7 @@ async function shortlist(cv, prefs, applications, known) {
     const where = areaScore(posting.location, areas);
     const workplace = posting.workplace_model ||
       (/\bremote\b/i.test(posting.location) ? "Remote" : /\bhybrid\b/i.test(posting.location) ? "Hybrid" : null);
-    const fit = titleScore(posting.title, roles);
+    const fit = titleFit(posting.title, roleWords);
     const job = { company: posting.company, position: posting.title };
 
     if (
@@ -341,13 +351,24 @@ async function shortlist(cv, prefs, applications, known) {
       continue;
     }
 
-    const text = `${title} ${posting.description.toLowerCase()}`;
+    passing.push({ posting, fit, where });
+  }
+
+  const described = passing.length
+    ? (await db.query(`SELECT id, description FROM job_postings WHERE id = ANY($1::bigint[])`, [passing.map(({ posting }) => posting.id)])).rows
+    : [];
+  const descriptions = new Map(described.map((row) => [String(row.id), row.description]));
+
+  for (const { posting, fit, where } of passing) {
+    const title = posting.title.toLowerCase();
+    const description = descriptions.get(String(posting.id)) ?? "";
+    const text = `${title} ${description.toLowerCase()}`;
     const skillHits = skills.filter((skill) => text.includes(skill)).length;
     const fresh = posting.posted_at && posting.posted_at > hoursAgo(30 * 24) ? 2 : 0;
     const levelBonus = ["Student", "Junior"].includes(prefs.seniority) && JUNIOR_WORDS.test(title) ? 3 : 0;
     const levelPenalty = prefs.seniority === "Mid" && SENIOR_WORDS.test(title) ? 3 : 0;
 
-    results.push({ ...posting, rank: fit * 10 + Math.min(skillHits, 10) + where * 2 + fresh + levelBonus - levelPenalty });
+    results.push({ ...posting, description, rank: fit * 10 + Math.min(skillHits, 10) + where * 2 + fresh + levelBonus - levelPenalty });
   }
 
   const unique = [];
@@ -503,4 +524,4 @@ function failInterrupted() {
   );
 }
 
-module.exports = { MAX_FOUND_JOBS, status, start, run, shortlist, failInterrupted, score, trimFound };
+module.exports = { MAX_FOUND_JOBS, status, start, run, shortlist, failInterrupted, score, trimFound, titleScore };

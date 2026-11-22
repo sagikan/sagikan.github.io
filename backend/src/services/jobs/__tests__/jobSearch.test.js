@@ -271,6 +271,33 @@ describe("failInterrupted", () => {
   });
 });
 
+describe("titleScore", () => {
+  it.each([
+    ["the same title", "Backend Engineer", ["Backend Engineer"], 1],
+    ["developer and engineer as one word", "Backend Developer", ["Backend Engineer"], 1],
+    ["an abbreviation for machine learning", "ML Engineer", ["Machine Learning Engineer"], 1],
+    ["an abbreviation for artificial intelligence", "Artificial Intelligence Engineer", ["AI Engineer"], 1],
+    ["quality assurance as QA", "Quality Assurance Engineer", ["QA Engineer"], 1],
+    ["SWE as software engineer", "SWE II", ["Software Engineer"], 1],
+    ["DevOps spelled apart", "Dev Ops Engineer", ["DevOps Engineer"], 1],
+    ["full stack spelled three ways", "Full-Stack Developer", ["Fullstack Engineer"], 1],
+    ["a plural field name", "Algorithms Developer", ["Algorithm Engineer"], 1],
+    ["Jr. as junior", "Jr. Data Analyst", ["Junior Data Analyst"], 1],
+    ["half the role's words", "Frontend Engineer", ["Backend Engineer"], 0.5],
+    ["a different field", "Sales Manager", ["Backend Engineer"], 0]
+  ])("matches %s", (_title, title, roles, expected) => {
+    expect(jobSearch.titleScore(title, roles)).toBe(expected);
+  });
+
+  it("takes the best of the roles", () => {
+    expect(jobSearch.titleScore("Data Analyst", ["Backend Engineer", "Data Analyst"])).toBe(1);
+  });
+
+  it("returns 0 for no roles", () => {
+    expect(jobSearch.titleScore("Backend Engineer", [])).toBe(0);
+  });
+});
+
 describe("shortlist", () => {
   // Mocks the postings in the database and returns the shortlist for them
   async function shortlistOf(postings, { prefs = PREFS, applications = [], known = [], cv = CV } = {}) {
@@ -286,6 +313,25 @@ describe("shortlist", () => {
     await shortlistOf([]);
 
     expect(db.query.mock.calls[0][1]).toEqual([feeds.MAX_AGE_DAYS]);
+  });
+
+  it("reads the postings without descriptions, then the descriptions of only those that pass the filters", async () => {
+    await shortlistOf([
+      { id: 1, company: "Acme", title: "Backend Engineer", location: "Tel Aviv, Israel", url: "https://x.com/1", description: "Node.js" },
+      { id: 2, company: "Beta", title: "Sales Manager", location: "Tel Aviv, Israel", url: "https://x.com/2", description: "" }
+    ]);
+
+    const [first, second] = db.query.mock.calls;
+
+    expect(first[0]).not.toContain("description");
+    expect(second[0]).toContain("SELECT id, description FROM job_postings WHERE id = ANY($1::bigint[])");
+    expect(second[1]).toEqual([[1]]);
+  });
+
+  it("reads no descriptions when nothing passes", async () => {
+    await shortlistOf([{ id: 2, company: "Beta", title: "Sales Manager", location: "Tel Aviv, Israel", url: "https://x.com/2", description: "" }]);
+
+    expect(db.query).toHaveBeenCalledOnce();
   });
 
   it("keeps postings that fit the roles and the area", async () => {
@@ -598,7 +644,7 @@ describe("run", () => {
 
     await jobSearch.run(7, 55);
 
-    expect(feeds.ensureFresh).toHaveBeenCalledOnce();
+    expect(feeds.ensureFresh).toHaveBeenCalledWith({ onlyWhenStale: true });
     expect(handlers.inserted.map((params) => [params[2], params[8]])).toEqual([["Company 1", 90], ["Company 2", 60]]);
     expect(handlers.inserted[0].slice(0, 3)).toEqual([7, 55, "Company 1"]);
     expect(handlers.inserted[0].slice(9, 11)).toEqual([JSON.stringify(["Python"]), JSON.stringify(["Kubernetes"])]);
