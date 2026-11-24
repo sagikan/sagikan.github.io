@@ -168,7 +168,7 @@ function JobDetails({ job, onClose }) {
           <div className="job-heading">
             <h2 id={titleId} className="job-title">{job.position}</h2>
             <p className="drawer-company">
-              {job.company}
+              <span className="drawer-company-name" title={job.company}>{job.company}</span>
               {job.url && (
                 <a className="job-posting-link" href={job.url} target="_blank" rel="noreferrer">
                   View posting <ExternalIcon />

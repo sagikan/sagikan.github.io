@@ -1,8 +1,21 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MatchSkills, ScoreRing } from "../JobDetails";
+import JobDetails, { MatchSkills, ScoreRing } from "../JobDetails";
 
 const JOB = { match_have: ["React", "Node.js"], match_missing: ["Go", "Kafka"], match_reason: "" };
+const DETAILED_JOB = {
+  ...JOB,
+  id: 1,
+  company: "Acme - From Sketch To Shipped Product",
+  position: "Full Stack Developer",
+  location: "",
+  workplace_model: null,
+  url: "https://example.com/job",
+  description: "",
+  match_score: null,
+  posted_at: null,
+  state: "new"
+};
 const TAG_WIDTH = 50;
 
 // Gives every element a fixed layout, since jsdom doesn't lay anything out
@@ -60,6 +73,25 @@ describe("MatchSkills", () => {
 
     expect(screen.getByLabelText("Skills you have")).toHaveTextContent("React");
     expect(screen.getByLabelText("Skills you're missing")).toHaveTextContent("Kafka");
+  });
+});
+
+describe("JobDetails", () => {
+  beforeEach(() => {
+    vi.stubGlobal("ResizeObserver", class { observe() {} disconnect() {} });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("shows the company with its full name on hover, followed by the posting link", () => {
+    render(<JobDetails job={DETAILED_JOB} onClose={() => {}} />);
+    const name = screen.getByText(DETAILED_JOB.company);
+
+    expect(name).toHaveAttribute("title", DETAILED_JOB.company);
+    expect(name.nextElementSibling).toHaveAttribute("href", DETAILED_JOB.url);
+    expect(name.nextElementSibling).toHaveTextContent("View posting");
   });
 });
 

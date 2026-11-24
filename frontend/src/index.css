@@ -5754,6 +5754,9 @@ a {
 .drawer-company {
   margin: 0;
   line-height: 1;
+}
+
+.drawer-header .job-title {
   text-box: trim-both cap alphabetic;
 }
 
@@ -5762,17 +5765,42 @@ a {
   line-height: 1.2;
 }
 
+/* The link stays on the company's line; a long company name is cut short with an ellipsis instead of pushing the link
+   onto a line of its own */
 .drawer-company {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
   font-size: 1rem;
   font-weight: 600;
   color: var(--text-muted);
 }
 
+/* Flex items are trimmed one by one, since the trim on the row only applies to a block of text */
+.drawer-company-name,
 .drawer-company .job-posting-link {
-  margin-left: 12px;
+  text-box: trim-both cap alphabetic;
+}
+
+/* The padding, taken back by the margin, keeps descenders and accents from being clipped by the trimmed box */
+.drawer-company-name {
+  min-width: 0;
+  margin-block: -0.3em;
+  padding-block: 0.3em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drawer-company .job-posting-link {
+  display: block;
+  flex-shrink: 0;
   font-size: 0.98rem;
   font-weight: 400;
-  vertical-align: baseline;
+}
+
+.drawer-company .job-posting-link svg {
+  vertical-align: middle;
 }
 
 /* The scrollbar's room is kept on both sides whether it shows or not, so switching between long and short description
