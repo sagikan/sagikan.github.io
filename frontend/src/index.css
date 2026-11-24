@@ -3162,8 +3162,9 @@ a {
   transform: rotate(-90deg);
 }
 
+/* Wins over the layout rules that set a card's display, such as the grid for cards with notes */
 .app-list > .app-card[hidden] {
-  display: none;
+  display: none !important;
 }
 
 .day-count {
