@@ -5774,14 +5774,24 @@ a {
   vertical-align: baseline;
 }
 
+/* The scrollbar's room is kept on both sides whether it shows or not, so switching between long and short description
+   sections doesn't widen and narrow the content. The 12px gutters and 12px padding make the 24px the header has */
 .drawer-body {
   flex: 1;
   display: flex;
   flex-direction: column;
   gap: 18px;
-  padding: 20px 24px;
+  padding: 20px 12px;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable both-edges;
+}
+
+/* Touch screens draw the scrollbar over the content, so there is no gutter to make up for */
+@media (hover: none) {
+  .drawer-body {
+    padding-inline: 24px;
+  }
 }
 
 .drawer-body .job-skills,
@@ -5825,20 +5835,170 @@ a {
   font-weight: 500;
 }
 
-.drawer-section-title {
-  margin: 4px 0 8px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.drawer-description {
-  margin: 0;
+.job-desc {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
   font-size: 0.92rem;
   line-height: 1.6;
-  white-space: pre-line;
+}
+
+@property --fade-start {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --fade-end {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+/* The tabs share the row's width. On a screen too narrow for all of them the row scrolls sideways inside the track,
+   whose corners stay whole, and the edge with more tabs behind it fades into the track */
+.job-desc-track {
+  border-radius: 12px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.job-desc-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 4px 4px 5px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  mask-image: linear-gradient(to right, transparent, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent);
+}
+
+.job-desc-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+/* A track that can't scroll has no scroll timeline, so the animation stays off and nothing fades */
+@supports (animation-timeline: scroll()) {
+  .job-desc-tabs {
+    animation: job-desc-tabs-fade linear both;
+    animation-timeline: scroll(self inline);
+  }
+}
+
+@keyframes job-desc-tabs-fade {
+  0% { --fade-start: 0px; --fade-end: 28px; }
+  12% { --fade-start: 28px; }
+  88% { --fade-end: 28px; }
+  100% { --fade-start: 28px; --fade-end: 0px; }
+}
+
+.job-desc-tabs .pill-item {
+  flex: 1 0 auto;
+  padding: 6px 9px;
+  border-radius: 9px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.job-desc-tabs .pill-item:focus-visible {
+  outline: 2px solid var(--focus-border);
+  outline-offset: 1px;
+}
+
+.job-desc-tabs .pill-marker {
+  border-radius: 9px;
+}
+
+.job-desc-panel {
+  animation: job-desc-in 0.22s ease-out;
+}
+
+@keyframes job-desc-in {
+  from { opacity: 0; transform: translateY(4px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .job-desc-panel {
+    animation: none;
+  }
+}
+
+/* Title: a pixel digit like the landing page's tabs, sitting on the text's baseline as digits do, then a hairline
+   running to the edge */
+.job-desc-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 12px;
+  font-family: var(--font-display);
+  font-size: 1.08rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--text);
+}
+
+.job-desc-title::after {
+  content: "";
+  flex: 1;
+  align-self: center;
+  height: 1px;
+  margin-left: 4px;
+  background: var(--border);
+}
+
+.job-desc-num {
+  flex: none;
+  color: var(--accent-icon);
+}
+
+.job-desc p {
+  margin: 0 0 10px;
+}
+
+.job-desc-subheading {
+  margin: 16px 0 6px;
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.job-desc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+}
+
+/* Logical sides, so in a right-to-left description (Hebrew) the dot sits on the right */
+.job-desc-list li {
+  position: relative;
+  padding-inline-start: 17px;
+  line-height: 1.55;
+}
+
+/* A 6px dot centred 3.5px from the edge. It's painted as a gradient circle in a box 1px larger, since at the page's
+   fractional zoom a box's edges snap to device pixels apart and a rounded box comes out oval; the circle stays round */
+.job-desc-list li::before {
+  content: "";
+  position: absolute;
+  top: calc(0.6em - 0.5px);
+  inset-inline-start: 0;
+  width: 7px;
+  height: 7px;
+  background: radial-gradient(circle closest-side, var(--accent-icon) 80%, transparent 92%);
+}
+
+.job-desc-body > .job-desc-subheading:first-child {
+  margin-top: 0;
+}
+
+.job-desc-body > :last-child {
+  margin-bottom: 0;
 }
 
 .job-actions {

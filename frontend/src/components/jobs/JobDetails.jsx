@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import CompanyAvatar from "../ui/CompanyAvatar";
 import { formatDate } from "../../lib/api";
+import JobDescription from "./JobDescription";
 import { postingAge, scoreLevel } from "./jobInfo";
 import { CalendarIcon, ExternalIcon, FreshnessCalendar, PinIcon } from "./JobIcons";
 
@@ -211,14 +212,7 @@ function JobDetails({ job, onClose }) {
 
           <MatchSkills job={job} split />
 
-          {job.description ? (
-            <section>
-              <h3 className="drawer-section-title">About the role</h3>
-              <p className="drawer-description">{job.description}</p>
-            </section>
-          ) : (
-            <p className="muted">No description was saved for this job. Use "View posting" to read it on the original site.</p>
-          )}
+          <JobDescription description={job.description} position={job.position} company={job.company} />
         </div>
       </div>
     </dialog>
